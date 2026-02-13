@@ -1,0 +1,44 @@
+MSS TOOLBOX
+
+Thor I. Fossen(auth.) - Handbook of Marine Craft Hydrodynamics and Motion Control_ Fossen_Handbook of Marine Craft Hydrodynamics and Motion Control
+
+@online{GazeboFuel-gragleas-Port_Hull,
+	title={Port_Hull},
+	organization={Open Robotics},
+	date={2022},
+	month={September},
+	day={2},
+	author={gragleas},
+	url={https://fuel.gazebosim.org/1.0/gragleas/models/Port_Hull},
+}
+
+@online{GazeboFuel-OpenRobotics-Vessel-F,
+	title={Vessel F},
+	organization={Open Robotics},
+	date={2023},
+	month={September},
+	day={3},
+	author={OpenRobotics},
+	url={https://fuel.gazebosim.org/1.0/OpenRobotics/models/Vessel F},
+}
+
+@ARTICLE{10185133,
+  author={Zhang, Ze and Hajieghrary, Hadi and Dean, Emmanuel and Åkesson, Knut},
+  journal={IEEE Robotics and Automation Letters}, 
+  title={Prescient Collision-Free Navigation of Mobile Robots With Iterative Multimodal Motion Prediction of Dynamic Obstacles}, 
+  year={2023},
+  volume={8},
+  number={9},
+  pages={5488-5495},
+  doi={10.1109/LRA.2023.3296333}}
+
+@misc{dhyani2025autobargesimmatlabrtoolboxdesign,
+      title={AUTOBargeSim: MATLAB(R) toolbox for the design and analysis of the guidance and control system for autonomous inland vessels}, 
+      author={Abhishek Dhyani and Amirreza Haqshenas Mojaveri and Chengqian Zhang and Dhanika Mahipala and Hoang Anh Tran and Yan-Yun Zhang and Zhongbi Luo and Vasso Reppa},
+      year={2025},
+      eprint={2503.21594},
+      archivePrefix={arXiv},
+      primaryClass={eess.SY},
+      url={https://arxiv.org/abs/2503.21594}, 
+}
+

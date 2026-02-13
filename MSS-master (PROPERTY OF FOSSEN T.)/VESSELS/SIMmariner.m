@@ -108,9 +108,9 @@ for i=1:nTimeSteps
     psi  = x(6) + 0.0001 * randn;
 
     % EKF estimates used for path-following control
-    U_hat = x_hat(3);
-    chi_hat = x_hat(4);
-    omega_chi_hat = x_hat(5);
+    U_hat = x_hat(3); % speed over ground
+    chi_hat = x_hat(4); % course over ground
+    omega_chi_hat = x_hat(5); % =chi_dot : course rate
 
     % Guidance and control system
     switch ControlFlag
