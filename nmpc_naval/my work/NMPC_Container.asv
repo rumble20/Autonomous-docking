@@ -1,0 +1,449 @@
+classdef NMPC_Container < handle
+    % NMPC_Container - NMPC for harbor navigation using container.m dynamics
+    %
+    % Based on:
+    % - Your existing container.m model
+    % - Martinsen et al. (2020) convex polytope constraints <hover-popup output_id="feb07809-4e6d-4e79-8dce-d5f4b07054a5" part="14.242" file_ids="5"></hover-popup> 
+    % - CasADi for optimization
+    %
+    % Author: Riccardo Legnini
+    % Date: 2026-02-23
+    
+    properties
+        % Horizons
+        N           % Prediction horizon
+        dt          % Sample time [s]
+        
+        % Cost weights
+        Q           % State error weight (10x10 for full container.m state)
+        R           % Control effort weight (2x2 for delta_c, n_c)
+        Q_N         % Terminal cost
+        
+        % State/control dimensions
+        nx = 10     % States: [u v r x y psi p phi delta n]
+        nu = 2      % Controls: [delta_c n_c]
+        
+        % Constraints
+        delta_max   % Max rudder angle [rad]
+        n_max       % Max shaft speed [RPM]
+        
+        % Obstacle constraints (Martinsen convex polytope <hover-popup output_id="feb07809-4e6d-4e79-8dce-d5f4b07054a5" part="14.1004" file_ids="5"></hover-popup> )
+        n_obs_constraints = 8  % Number of active constraints (Martinsen uses 8)
+        
+        % CasADi solver
+        opti        % Opti stack
+        X           % State variables (10 x N+1)
+        U           % Control variables (2 x N)
+        
+        % Parameters
+        X0          % Initial state
+        X_ref       % Reference trajectory
+        A_obs       % Obstacle constraint matrix
+        b_obs       % Obstacle constraint vector
+    end
+    
+    methods
+        function obj = NMPC_Container(config)
+            % Constructor
+            %
+            % config struct with fields:
+            %   N: prediction horizon
+            %   dt: sample time
+            %   Q: state weight matrix (10x10)
+            %   R: control weight matrix (2x2)
+            
+            obj.N = config.N;
+            obj.dt = config.dt;
+            obj.Q = config.Q;
+            obj.R = config.R;
+            obj.Q_N = config.Q * 2;  % Terminal cost
+            
+            % Control limits (from container.m)
+            obj.delta_max = 10 * pi/180;  % 10 deg
+            obj.n_max = 160;              % 160 RPM
+            
+            % Build CasADi optimizer
+            obj.buildOptimizer();
+        end
+        
+        function buildOptimizer(obj)
+            % Build CasADi Opti stack
+            
+            import casadi.*
+            
+            obj.opti = casadi.Opti();
+            
+            %% DECISION VARIABLES
+            obj.X = obj.opti.variable(obj.nx, obj.N + 1);  % States
+            obj.U = obj.opti.variable(obj.nu, obj.N);      % Controls
+            
+            %% PARAMETERS
+            obj.X0 = obj.opti.parameter(obj.nx, 1);
+            obj.X_ref = obj.opti.parameter(obj.nx, obj.N + 1);
+            obj.A_obs = obj.opti.parameter(obj.n_obs_constraints, 2);
+            obj.b_obs = obj.opti.parameter(obj.n_obs_constraints, 1);
+            
+            %% OBJECTIVE
+            % Martinsen Eq. (10): min sum ||x-x_ref||^2_Q + ||u||^2_R
+            J = 0;
+            for k = 1:obj.N
+                % State tracking
+                e = obj.X(:, k) - obj.X_ref(:, k);
+                J = J + e' * obj.Q * e;
+                
+                % Control effort
+                J = J + obj.U(:, k)' * obj.R * obj.U(:, k);
+            end
+            
+            % Terminal cost
+            e_N = obj.X(:, obj.N+1) - obj.X_ref(:, obj.N+1);
+            J = J + e_N' * obj.Q_N * e_N;
+            
+            obj.opti.minimize(J);
+            
+            %% DYNAMICS CONSTRAINTS
+            for k = 1:obj.N
+                % Call container.m to get state derivative
+                x_k = obj.X(:, k);
+                u_k = obj.U(:, k);
+                
+                % Get dynamics from container.m
+                xdot = obj.container_dynamics_casadi(x_k, u_k);
+                
+                % Euler integration (can upgrade to RK4)
+                x_next = x_k + xdot * obj.dt;
+                
+                obj.opti.subject_to(obj.X(:, k+1) == x_next);
+            end
+            
+            %% INITIAL CONDITION
+            obj.opti.subject_to(obj.X(:, 1) == obj.X0);
+            
+            %% CONTROL CONSTRAINTS
+            for k = 1:obj.N
+                % Rudder angle: -10 deg to +10 deg
+                obj.opti.subject_to(-obj.delta_max <= obj.U(1, k) <= obj.delta_max);
+                
+                % Shaft speed: 0 to 160 RPM
+                obj.opti.subject_to(0 <= obj.U(2, k) <= obj.n_max);
+            end
+            
+            %% OBSTACLE AVOIDANCE (Martinsen convex polytope <hover-popup output_id="feb07809-4e6d-4e79-8dce-d5f4b07054a5" part="14.4558" file_ids="5"></hover-popup> )
+            % Constrain position [x, y] to stay inside safe region
+            for k = 1:obj.N+1
+                pos = obj.X(4:5, k);  % Extract [x, y] from state vector
+                
+                % Linear inequality: A * [x; y] <= b
+                obj.opti.subject_to(obj.A_obs * pos <= obj.b_obs);
+            end
+            
+            %% SOLVER OPTIONS
+            opts = struct;
+            opts.ipopt.print_level = 0;
+            opts.print_time = 0;
+            opts.ipopt.max_iter = 100;
+            opts.ipopt.tol = 1e-4;
+            opts.ipopt.warm_start_init_point = 'yes';
+            
+            obj.opti.solver('ipopt', opts);
+            
+            fprintf('✓ NMPC optimizer built (N=%d, dt=%.2f)\n', obj.N, obj.dt);
+        end
+        
+        function xdot = container_dynamics_casadi(obj, x, u)
+            % CasADi-compatible version of container.m dynamics
+            % This is a COPY of the container.m equations in symbolic form
+            
+            import casadi.*
+            
+            % Extract states (same order as container.m)
+            u_vel = x(1);  % surge velocity
+            v     = x(2);  % sway velocity
+            r     = x(3);  % yaw rate
+            % x(4) = x position (not needed for dynamics)
+            % x(5) = y position
+            psi   = x(6);  % yaw angle
+            p     = x(7);  % roll rate
+            phi   = x(8);  % roll angle
+            delta = x(9);  % rudder angle
+            n     = x(10); % shaft speed
+            
+            % Extract controls
+            delta_c = u(1);  % commanded rudder
+            n_c     = u(2);  % commanded shaft speed
+            
+            % COPY ALL PARAMETERS FROM container.m
+            L = 175;
+            U = sqrt(u_vel^2 + v^2);  % Speed
+            
+            % Prevent division by zero
+            U_safe = if_else(U < 0.1, 0.1, U);
+            
+            % Nondimensionalization
+            u_nd = u_vel / U_safe;
+            v_nd = v / U_safe;
+            r_nd = r * L / U_safe;
+            p_nd = p * L / U_safe;
+            delta_nd = delta;
+            n_nd = n / 60 * L / U_safe;
+            n_c_nd = n_c / 60 * L / U_safe;
+            
+            % ALL PARAMETERS from container.m (lines 43-79)
+            m  = 0.00792;    mx     = 0.000238;   my = 0.007049;
+            Ix = 0.0000176;  alphay = 0.05;       lx = 0.0313;
+            ly = 0.0313;     Ix     = 0.0000176;  Iz = 0.000456;
+            Jx = 0.0000034;  Jz     = 0.000419;   xG = 0;
+            
+            B     = 25.40;   dF = 8.00;    g     = 9.81;
+            dA    = 9.00;    d  = 8.50;    nabla = 21222; 
+            KM    = 10.39;   KB = 4.6154;  AR    = 33.0376;
+            Delta = 1.8219;  D  = 6.533;   GM    = 0.3/L;
+            rho   = 1025;    t  = 0.175;   T     = 0.0005; 
+            
+            W     = rho*g*nabla/(rho*L^2*U_safe^2/2);
+            
+            % Hydrodynamic coefficients (lines 81-105)
+            Xuu = -0.0004226; Xvr = -0.00311; Xrr = 0.00020;
+            Xphiphi = -0.00020; Xvv = -0.00386;
+            
+            Kv = 0.0003026; Kr = -0.000063; Kp = -0.0000075;
+            Kphi = -0.000021; Kvvv = 0.002843; Krrr = -0.0000462;
+            Kvvr = -0.000588; Kvrr = 0.0010565; Kvvphi = -0.0012012;
+            Kvphiphi = -0.0000793; Krrphi = -0.000243; Krphiphi = 0.00003569;
+            
+            Yv = -0.0116; Yr = 0.00242; Yp = 0;
+            Yphi = -0.000063; Yvvv = -0.109; Yrrr = 0.00177;
+            Yvvr = 0.0214; Yvrr = -0.0405; Yvvphi = 0.04605;
+            Yvphiphi = 0.00304; Yrrphi = 0.009325; Yrphiphi = -0.001368;
+            
+            Nv = -0.0038545; Nr = -0.00222; Np = 0.000213;
+            Nphi = -0.0001424; Nvvv = 0.001492; Nrrr = -0.00229;
+            Nvvr = -0.0424; Nvrr = 0.00156; Nvvphi = -0.019058;
+            Nvphiphi = -0.0053766; Nrrphi = -0.0038592; Nrphiphi = 0.0024195;
+            
+            kk = 0.631; epsilon = 0.921; xR = -0.5;
+            wp = 0.184; tau = 1.09; xp = -0.526;
+            cpv = 0.0; cpr = 0.0; ga = 0.088;
+            cRr = -0.156; cRrrr = -0.275; cRrrv = 1.96;
+            cRX = 0.71; aH = 0.237; zR = 0.033;
+            xH = -0.48;
+            
+            % Mass matrix
+            m11 = m + mx;
+            m22 = m + my;
+            m32 = -my * ly;
+            m42 = my * alphay;
+            m33 = Ix + Jx;
+            m44 = Iz + Jz;
+            
+            % Rudder dynamics (lines 115-119)
+            delta_dot = delta_c - delta;
+            % Saturation handled by bounds
+            
+            % Shaft dynamics (lines 121-132)
+            Tm = if_else(n > 0.3, 5.65/n, 18.83);
+            n_dot = (1/Tm) * (n_c_nd - n_nd) * 60;
+            
+            % Propeller and rudder forces (lines 134-141)
+            vR = ga*v_nd + cRr*r_nd + cRrrr*r_nd^3 + cRrrv*r_nd^2*v_nd;
+            uP = u_nd * ((1 - wp) + tau*((v_nd + xp*r_nd)^2 + cpv*v_nd + cpr*r_nd));
+            J = uP*U_safe/(n_nd*D);
+            KT = 0.527 - 0.455*J;
+            uR = uP*epsilon*sqrt(1 + 8*kk*KT/(pi*J^2));
+            alphaR = delta_nd + atan(vR/uR);
+            FN = -((6.13*Delta)/(Delta + 2.25))*(AR/L^2)*(uR^2 + vR^2)*sin(alphaR);
+            T_thrust = 2*rho*D^4/(U_safe^2*L^2*rho)*KT*n_nd*abs(n_nd);
+            
+            % Forces and moments (lines 143-158)
+            X = Xuu*u_nd^2 + (1-t)*T_thrust + Xvr*v_nd*r_nd + Xvv*v_nd^2 + ...
+                Xrr*r_nd^2 + Xphiphi*phi^2 + cRX*FN*sin(delta_nd) + (m + my)*v_nd*r_nd;
+            
+            Y = Yv*v_nd + Yr*r_nd + Yp*p_nd + Yphi*phi + Yvvv*v_nd^3 + Yrrr*r_nd^3 + ...
+                Yvvr*v_nd^2*r_nd + Yvrr*v_nd*r_nd^2 + Yvvphi*v_nd^2*phi + ...
+                Yvphiphi*v_nd*phi^2 + Yrrphi*r_nd^2*phi + Yrphiphi*r_nd*phi^2 + ...
+                (1 + aH)*FN*cos(delta_nd) - (m + mx)*u_nd*r_nd;
+            
+            K = Kv*v_nd + Kr*r_nd + Kp*p_nd + Kphi*phi + Kvvv*v_nd^3 + Krrr*r_nd^3 + ...
+                Kvvr*v_nd^2*r_nd + Kvrr*v_nd*r_nd^2 + Kvvphi*v_nd^2*phi + ...
+                Kvphiphi*v_nd*phi^2 + Krrphi*r_nd^2*phi + Krphiphi*r_nd*phi^2 - ...
+                (1 + aH)*zR*FN*cos(delta_nd) + mx*lx*u_nd*r_nd - W*GM*phi;
+            
+            N = Nv*v_nd + Nr*r_nd + Np*p_nd + Nphi*phi + Nvvv*v_nd^3 + Nrrr*r_nd^3 + ...
+                Nvvr*v_nd^2*r_nd + Nvrr*v_nd*r_nd^2 + Nvvphi*v_nd^2*phi + ...
+                Nvphiphi*v_nd*phi^2 + Nrrphi*r_nd^2*phi + Nrphiphi*r_nd*phi^2 + ...
+                (xR + aH*xH)*FN*cos(delta_nd);
+            
+            % State derivatives (lines 160-168)
+            detM = m22*m33*m44 - m32^2*m44 - m42^2*m33;
+            
+            u_dot = X*(U_safe^2/L)/m11;
+            v_dot = -((-m33*m44*Y + m32*m44*K + m42*m33*N)/detM)*(U_safe^2/L);
+            r_dot = ((-m42*m33*Y + m32*m42*K + N*m22*m33 - N*m32^2)/detM)*(U_safe^2/L^2);
+            x_dot = (cos(psi)*u_vel - sin(psi)*cos(phi)*v)*U_safe;
+            y_dot = (sin(psi)*u_vel + cos(psi)*cos(phi)*v)*U_safe;
+            psi_dot = cos(phi)*r*(U_safe/L);
+            p_dot = ((-m32*m44*Y + K*m22*m44 - K*m42^2 + m32*m42*N)/detM)*(U_safe^2/L^2);
+            phi_dot = p*(U_safe/L);
+            
+            % Pack derivatives
+            xdot = [u_dot; v_dot; r_dot; x_dot; y_dot; psi_dot; p_dot; phi_dot; delta_dot; n_dot];
+        end
+        
+        function [u_opt, X_pred, info] = solve(obj, x0, x_ref, obstacles)
+            % Solve NMPC problem
+            %
+            % Inputs:
+            %   x0: Current state [10x1]
+            %   x_ref: Reference trajectory [10 x N+1]
+            %   obstacles: Struct array with obstacle data
+            %
+            % Outputs:
+            %   u_opt: Optimal control [2x1] = [delta_c, n_c]
+            %   X_pred: Predicted trajectory [10 x N+1]
+            %   info: Solve info
+            
+            tic;
+            
+            % Generate obstacle constraints
+            [A_obs, b_obs] = obj.generateObstacleConstraints(x0, obstacles);
+            
+            % Set parameters
+            obj.opti.set_value(obj.X0, x0);
+            obj.opti.set_value(obj.X_ref, x_ref);
+            obj.opti.set_value(obj.A_obs, A_obs);
+            obj.opti.set_value(obj.b_obs, b_obs);
+            
+            % Solve
+            try
+                sol = obj.opti.solve();
+                
+                U_opt = sol.value(obj.U);
+                X_pred = sol.value(obj.X);
+                
+                u_opt = U_opt(:, 1);
+                
+                info.success = true;
+                info.cost = sol.value(obj.opti.f);
+                
+            catch ME
+                warning('NMPC failed: %s', ME.message);
+                
+                % Backup: PD controller
+                u_opt = [0; 70];  % Neutral rudder, nominal thrust
+                X_pred = repmat(x0, 1, obj.N+1);
+                
+                info.success = false;
+                info.error = ME.message;
+            end
+            
+            info.solve_time = toc;
+        end
+        
+        function [A, b] = generateObstacleConstraints(obj, x0, obstacles)
+    % Generate convex polytope using Martinsen method <hover-popup output_id="5ac64e9e-03a4-4ed6-a2b2-f1c8a26bff65" part="5.130" file_ids="5"></hover-popup> 
+    % See Figure 7 in Martinsen et al. 2020
+    
+    if isempty(obstacles)
+        % No obstacles: inactive constraints
+        A = zeros(obj.n_obs_constraints, 2);
+        b = ones(obj.n_obs_constraints, 1) * 1e6;
+        return;
+    end
+    
+    % Current position (FORCE column vector)
+    pos = x0(4:5);
+    pos = pos(:);  % Ensure column vector [x; y]
+    
+    psi = x0(6);    % heading
+    
+    % Expansion ellipse (Martinsen Eq. 30) <hover-popup output_id="5ac64e9e-03a4-4ed6-a2b2-f1c8a26bff65" part="5.574" file_ids="5"></hover-popup> 
+    sigma_forward = 100;  % Prioritize forward expansion
+    sigma_lateral = 50;
+    R = [cos(psi), -sin(psi); sin(psi), cos(psi)];
+    Sigma = R * diag([sigma_forward, sigma_lateral]) * R';
+    
+    A_list = [];
+    b_list = [];
+    
+    % Safety margin
+    safety_margin = 20;  % meters
+    
+    % For each obstacle, compute halfspace constraint
+    for i = 1:length(obstacles)
+        obs = obstacles(i);
+        
+        % Extract obstacle properties (FORCE correct dimensions)
+        if size(obs.position, 1) == 1
+            % Row vector [x, y] -> convert to column [x; y]
+            obs_pos = obs.position';
+        else
+            % Already column vector
+            obs_pos = obs.position;
+        end
+        
+        % Ensure it's definitely a column vector
+        obs_pos = reshape(obs_pos, 2, 1);
+        
+        obs_radius = obs.radius;        % Scalar
+        
+        % Vector from vessel to obstacle (both column vectors)
+        to_obs = obs_pos - pos;
+        
+        % Normal vector (transformed by ellipse)
+        n = Sigma \ to_obs;
+        n_norm = norm(n);
+        
+        % Avoid division by zero
+        if n_norm < 1e-6
+            continue;  % Skip this obstacle (too close or at same position)
+        end
+        
+        n = n / n_norm;  % Normalize (still column vector)
+        
+        % Halfspace constraint: n' * p <= n' * obs_pos - (radius + safety_margin)
+        % Now explicitly ensure dimensions:
+        % n is [2x1], n' is [1x2]
+        % obs_pos is [2x1]
+        % pos is [2x1]
+        
+        A_i = n';                                      % Row vector [1 x 2]
+        b_i_term1 = dot(n, obs_pos);                  % FIX: Use dot() for clarity
+        b_i_term2 = obs_radius + safety_margin;       % Scalar
+        b_i = b_i_term1 - b_i_term2;                  % Scalar
+        
+        A_list = [A_list; A_i];
+        b_list = [b_list; b_i];
+    end
+    
+    % Check if any constraints were generated
+    if isempty(A_list)
+        A = zeros(obj.n_obs_constraints, 2);
+        b = ones(obj.n_obs_constraints, 1) * 1e6;
+        return;
+    end
+    
+    % Select K closest constraints (Martinsen uses 8) <hover-popup output_id="5ac64e9e-03a4-4ed6-a2b2-f1c8a26bff65" part="5.2735" file_ids="5"></hover-popup> 
+    K = min(obj.n_obs_constraints, size(A_list, 1));
+    
+    if size(A_list, 1) > K
+        % Compute distance from vessel to each constraint
+        distances = b_list - A_list * pos;
+        [~, idx] = sort(distances, 'ascend');
+        A_list = A_list(idx(1:K), :);
+        b_list = b_list(idx(1:K));
+    end
+    
+    % Pad to fixed size for CasADi
+    n_active = size(A_list, 1);
+    A = [A_list; zeros(obj.n_obs_constraints - n_active, 2)];
+    b = [b_list; ones(obj.n_obs_constraints - n_active, 1) * 1e6];
+end
+
+            
+            % Pad to fixed size
+            n_active = size(A_list, 1);
+            A = [A_list; zeros(obj.n_obs_constraints - n_active, 2)];
+            b = [b_list; ones(obj.n_obs_constraints - n_active, 1) * 1e6];
+        end
+    end
+end
