@@ -1,131 +1,306 @@
-%% run_nmpc_harbor_navigation.m
-% NMPC-based harbor navigation with obstacle avoidance
-
+%% run_mpc_harbour_navigatin.m
+% NMPC harbor navigation — MINIMAL WORKING TEST
+%
+% This script tests the NMPC with:
+%   TEST A — Zero obstacles, straight-ahead goal   (easiest possible)
+%   TEST B — Zero obstacles, goal requiring a turn  (moderate)
+%   TEST C — One obstacle in the path               (obstacle avoidance)
+%
 % Author: Riccardo Legnini
-% Date: 2026-02-23
+% Date: 2026-02-25
 
 clear; close all; clc;
+fprintf('=== NMPC HARBOR NAVIGATION — MINIMAL WORKING TEST ===\n\n');
 
-fprintf('=== NMPC HARBOR NAVIGATION ===\n\n');
+%% ----- STEP 0: Verify container() works at initial state ----------------
+fprintf('--- Step 0: Sanity check on container.m ---\n');
+x_test = [7; 0; 0; 0; 0; 0; 0; 0; 0; 70];   % u=7 m/s, n=70 RPM
+u_test = [0; 70];                              % zero rudder, maintain RPM
+[xdot_test, U_test] = container(x_test, u_test);
 
-%% STEP 1: CONFIGURE NMPC
+fprintf('  State:    u=%.1f m/s, n=%.0f RPM, U=%.2f m/s\n', x_test(1), x_test(10), U_test);
+fprintf('  xdot(1):  u_dot   = %+.6f m/s^2  (small → near equilibrium)\n', xdot_test(1));
+fprintf('  xdot(4):  x_dot   = %+.4f m/s    (should be ~%.1f)\n', xdot_test(4), x_test(1));
+fprintf('  xdot(5):  y_dot   = %+.4f m/s    (should be ~0)\n', xdot_test(5));
+fprintf('  xdot(6):  psi_dot = %+.6f rad/s  (should be ~0)\n', xdot_test(6));
+fprintf('  xdot(10): n_dot   = %+.4f RPM/s  (should be ~0)\n\n', xdot_test(10));
+
+%% ----- STEP 1: Configure NMPC -------------------------------------------
+fprintf('--- Step 1: Configure NMPC ---\n');
 config = struct();
-config.N = 10;           % Reduced prediction horizon for faster solving
-config.dt = 1.0;         % Increased time step from 0.5 to 1.0 s
+config.N  = 10;           % 10 prediction steps
+config.dt = 1.0;          % 1 second sample time → 10 s horizon
 
-% State weights (10 states of container.m)
-% [u v r x y psi p phi delta n]
-% Reduced position weights for better numerical conditioning
-config.Q = diag([1, 1, 1, 10, 10, 1, 0.1, 0.1, 0.1, 0.1]);
+% State weights:  [u   v    r    x     y    psi   p    phi  delta n   ]
+config.Q = diag([  1   0.1  0.1  0.01  0.01  5    0.01 0.01 0.1  0.01]);
+%  • psi weight = 5 : heading tracking is important
+%  • x,y weight = 0.01 : gentle position pull (avoids huge gradients)
+%  • u weight = 1 : maintain desired speed
 
-% Control weights [delta_c, n_c] - relaxed rudder weight
-config.R = diag([1, 0.1]);
+% Control weights:  [delta_c   n_c  ]
+config.R = diag([     1       0.001 ]);
+%  • Penalise rudder more than thrust
 
-% Create NMPC controller
+config.use_obstacles = false;  % START WITH NO OBSTACLES
 nmpc = NMPC_Container(config);
 
-%% STEP 2: DEFINE HARBOR WITH OBSTACLES
-harbor = HarborObstacles();
+%% ----- STEP 2: Verify CasADi dynamics matches container() ---------------
+fprintf('\n--- Step 2: CasADi dynamics consistency check ---\n');
+import casadi.*
+x_sym = MX.sym('x', 10, 1);
+u_sym = MX.sym('u', 2, 1);
+xdot_sym = nmpc.dynamics_casadi(x_sym, u_sym);
+f_casadi = casadi.Function('f', {x_sym, u_sym}, {xdot_sym});
 
-if exist('helsinki_harbour.mat', 'file')
-    load('helsinki_harbour.mat');  
-    harbor.loadPolygonMap(map);
+xdot_cas = full(f_casadi(x_test, u_test));
+err = abs(xdot_test - xdot_cas);
+
+fprintf('  %-10s  %12s  %12s  %12s\n', 'State', 'container()', 'CasADi', '|error|');
+labels = {'u_dot','v_dot','r_dot','x_dot','y_dot','psi_dot','p_dot','phi_dot','del_dot','n_dot'};
+for i = 1:10
+    fprintf('  %-10s  %+12.6f  %+12.6f  %12.2e\n', labels{i}, xdot_test(i), xdot_cas(i), err(i));
+end
+max_err = max(err);
+fprintf('  Max absolute error: %.2e\n', max_err);
+if max_err < 1e-6
+    fprintf('  >> PASS: CasADi dynamics matches container() perfectly.\n\n');
+elseif max_err < 1e-2
+    fprintf('  >> WARN: Small differences (safeguards). Should be OK.\n\n');
 else
-    fprintf('  Warning: Map file not found, proceeding without polygon map\n');
+    fprintf('  >> FAIL: Large mismatch! Check dynamics_casadi().\n\n');
 end
 
-% Add static obstacles (piers, moored vessels)
-harbor.addStaticObstacle([300, 150], 20, 'Pier 1');
-harbor.addStaticObstacle([300, -50], 20, 'Pier 2');
-harbor.addStaticObstacle([450, 80], 25, 'Moored Vessel');
+%% ========================================================================
+%  TEST A — Go straight ahead, no obstacles
+%  Goal at (500, 0), ship already heading east (psi=0).
+%  Expected: solver converges, ship accelerates forward.
+%% ========================================================================
+fprintf('======================================================\n');
+fprintf('  TEST A: Straight ahead, ZERO obstacles\n');
+fprintf('======================================================\n');
 
-% Add dynamic obstacles (moving vessels)
-harbor.addDynamicObstacle([200, 100], 15, [1.0, -0.5], 'Patrol Boat');
-
-%% STEP 3: SIMULATION SETUP
-T_final = 200;  % seconds
+T_final = 120;           % 2 minutes
 dt = config.dt;
-t = 0:dt:T_final;
+t  = 0:dt:T_final;
 
-% Initial state (same format as container.m)
-x = [7; 0; 0; 0; 0; 0; 0; 0; 0; 70];  % [u v r x y psi p phi delta n]
+% Initial state
+x = [7; 0; 0; 0; 0; 0; 0; 0; 0; 70];
 
-% Goal (dock position)
-x_goal = [0; 0; 0; 500; 50; deg2rad(90); 0; 0; 0; 70];
+% Goal: straight ahead at 500 m
+x_goal = [7; 0; 0; 500; 0; 0; 0; 0; 0; 70];
 
-% Data logging
-trajectory = x;
-control_log = [];
-solve_times = [];
+% Logging
+traj = x;
+ctrl = [];
+solve_ok = [];
 
-%% STEP 4: MAIN SIMULATION LOOP
-fprintf('Starting simulation...\n');
-
+fprintf('Running %d simulation steps ...\n', length(t));
 for i = 1:length(t)
     
-    % Generate reference trajectory (straight line to goal)
-    x_ref = repmat(x_goal, 1, nmpc.N + 1);
-    
-    % Get current obstacles
-    obstacles = harbor.getAllObstacles();
-    
-    % Solve NMPC
-    [u_opt, X_pred, info] = nmpc.solve(x, x_ref, obstacles);
-    
-    % Display progress
-    if mod(i, 20) == 0
-        fprintf('[t=%.1f] Pos=(%.1f, %.1f), Success=%d, Time=%.3f s\n', ...
-            t(i), x(4), x(5), info.success, info.solve_time);
+    % ---- reference trajectory: "carrot" that moves at ship speed ----
+    x_ref = zeros(10, nmpc.N+1);
+    bearing = atan2(x_goal(5)-x(5), x_goal(4)-x(4));
+    dist_to_goal = max(norm(x_goal(4:5) - x(4:5)), 1);
+    for k = 0:nmpc.N
+        travel = x_goal(1) * (k+1) * dt;           % how far ship can go
+        frac   = min(1.0, travel / dist_to_goal);   % fraction toward goal
+        x_ref(4, k+1)  = x(4) + frac*(x_goal(4)-x(4));  % x
+        x_ref(5, k+1)  = x(5) + frac*(x_goal(5)-x(5));  % y
+        x_ref(6, k+1)  = bearing;                         % heading
+        x_ref(1, k+1)  = x_goal(1);                       % surge speed
+        x_ref(10, k+1) = x_goal(10);                      % RPM
     end
     
-    % Apply control to container.m
-    [xdot, ~] = container(x, u_opt);
-    x = x + xdot * dt;  % Euler integration
+    % ---- solve NMPC (no obstacles) ----
+    [u_opt, ~, info] = nmpc.solve(x, x_ref, []);
     
-    % Update dynamic obstacles
-    harbor.updateDynamicObstacles(dt);
+    % ---- progress ----
+    if i == 1 || mod(i,20) == 0
+        fprintf('  [t=%5.1f]  pos=(%7.1f, %6.1f)  psi=%+5.1f deg  ok=%d  dt=%.3fs\n', ...
+            t(i), x(4), x(5), rad2deg(x(6)), info.success, info.solve_time);
+    end
     
-    % Log data
-    trajectory = [trajectory, x];
-    control_log = [control_log, u_opt];
-    solve_times = [solve_times, info.solve_time];
+    % ---- simulate with container() ----
+    [xdot_sim, ~] = container(x, u_opt);
+    x = x + xdot_sim * dt;
     
-    % Check if goal reached
-    if norm(x(4:5) - x_goal(4:5)) < 10
-        fprintf('✓ Goal reached at t=%.1f s!\n', t(i));
+    % ---- log ----
+    traj = [traj, x];
+    ctrl = [ctrl, u_opt];
+    solve_ok = [solve_ok, info.success];
+    
+    % ---- goal check ----
+    if norm(x(4:5) - x_goal(4:5)) < 20
+        fprintf('  >> GOAL REACHED at t=%.1f s!\n', t(i));
         break;
     end
 end
 
-%% STEP 5: PLOT RESULTS
-figure('Position', [100, 100, 1200, 800]);
+n_ok = sum(solve_ok);  n_tot = length(solve_ok);
+fprintf('  Solver success: %d / %d (%.0f%%)\n', n_ok, n_tot, 100*n_ok/n_tot);
+fprintf('  Final pos: (%.1f, %.1f),  dist to goal: %.1f m\n\n', ...
+    x(4), x(5), norm(x(4:5) - x_goal(4:5)));
 
-% Trajectory plot
-subplot(2, 2, [1, 3]);
-plot(trajectory(5, :), trajectory(4, :), 'b-', 'LineWidth', 2);
-hold on; grid on; axis equal;
-plot(x_goal(5), x_goal(4), 'r*', 'MarkerSize', 15);
-harbor.plotObstacles();
-xlabel('East [m]'); ylabel('North [m]');
-title('Vessel Trajectory with Obstacle Avoidance');
-legend('Vessel Path', 'Goal', 'Location', 'best');
+if n_ok / n_tot > 0.5
+    fprintf('  >> TEST A PASSED\n\n');
+else
+    fprintf('  >> TEST A FAILED — stopping here.\n');
+    return;
+end
 
-% Control inputs
-subplot(2, 2, 2);
-stairs(t(1:length(control_log)), rad2deg(control_log(1, :)), 'LineWidth', 1.5);
-grid on;
-xlabel('Time [s]'); ylabel('Rudder Angle [deg]');
-title('Commanded Rudder Angle');
+%% ========================================================================
+%  TEST B — Turn toward a side goal (requires steering)
+%% ========================================================================
+fprintf('======================================================\n');
+fprintf('  TEST B: Turn to (400, 200), ZERO obstacles\n');
+fprintf('======================================================\n');
 
-subplot(2, 2, 4);
-stairs(t(1:length(control_log)), control_log(2, :), 'LineWidth', 1.5);
-grid on;
-xlabel('Time [s]'); ylabel('Shaft Speed [RPM]');
-title('Commanded Propeller Speed');
+% Reset
+x = [7; 0; 0; 0; 0; 0; 0; 0; 0; 70];
+x_goal_B = [7; 0; 0; 400; 200; atan2(200, 400); 0; 0; 0; 70];
 
-% Save figure
-saveas(gcf, 'nmpc_harbor_navigation_results.png');
+nmpc.prev_X_sol = [];  nmpc.prev_U_sol = [];  % reset warm-start
 
-fprintf('\n✓ Simulation complete!\n');
-fprintf('  Average solve time: %.3f s\n', mean(solve_times));
-fprintf('  Max solve time: %.3f s\n', max(solve_times));
+traj_B = x;  ctrl_B = [];  solve_ok_B = [];
+
+for i = 1:length(t)
+    
+    bearing = atan2(x_goal_B(5)-x(5), x_goal_B(4)-x(4));
+    dist_to_goal = max(norm(x_goal_B(4:5) - x(4:5)), 1);
+    x_ref = zeros(10, nmpc.N+1);
+    for k = 0:nmpc.N
+        travel = x_goal_B(1) * (k+1) * dt;
+        frac   = min(1.0, travel / dist_to_goal);
+        x_ref(4, k+1)  = x(4) + frac*(x_goal_B(4)-x(4));
+        x_ref(5, k+1)  = x(5) + frac*(x_goal_B(5)-x(5));
+        x_ref(6, k+1)  = bearing;
+        x_ref(1, k+1)  = x_goal_B(1);
+        x_ref(10, k+1) = x_goal_B(10);
+    end
+    
+    [u_opt, ~, info] = nmpc.solve(x, x_ref, []);
+    
+    if i == 1 || mod(i,20) == 0
+        fprintf('  [t=%5.1f]  pos=(%7.1f, %6.1f)  psi=%+5.1f deg  ok=%d\n', ...
+            t(i), x(4), x(5), rad2deg(x(6)), info.success);
+    end
+    
+    [xdot_sim, ~] = container(x, u_opt);
+    x = x + xdot_sim * dt;
+    
+    traj_B = [traj_B, x];  ctrl_B = [ctrl_B, u_opt];  solve_ok_B = [solve_ok_B, info.success];
+    
+    if norm(x(4:5) - x_goal_B(4:5)) < 30
+        fprintf('  >> GOAL REACHED at t=%.1f s!\n', t(i));
+        break;
+    end
+end
+
+n_ok = sum(solve_ok_B);  n_tot = length(solve_ok_B);
+fprintf('  Solver success: %d / %d (%.0f%%)\n', n_ok, n_tot, 100*n_ok/n_tot);
+fprintf('  Final pos: (%.1f, %.1f)\n\n', x(4), x(5));
+
+%% ========================================================================
+%  TEST C — One obstacle blocking the path
+%% ========================================================================
+fprintf('======================================================\n');
+fprintf('  TEST C: Straight ahead with ONE obstacle at (250, 0)\n');
+fprintf('======================================================\n');
+
+x = [7; 0; 0; 0; 0; 0; 0; 0; 0; 70];
+x_goal_C = [7; 0; 0; 500; 0; 0; 0; 0; 0; 70];
+
+% Single obstacle
+obs_C(1).position = [250; 0];
+obs_C(1).radius   = 30;
+
+nmpc.prev_X_sol = [];  nmpc.prev_U_sol = [];
+nmpc.use_obstacles = true;
+
+traj_C = x;  ctrl_C = [];  solve_ok_C = [];
+
+for i = 1:length(t)
+    bearing = atan2(x_goal_C(5)-x(5), x_goal_C(4)-x(4));
+    dist_to_goal = max(norm(x_goal_C(4:5) - x(4:5)), 1);
+    x_ref = zeros(10, nmpc.N+1);
+    for k = 0:nmpc.N
+        travel = x_goal_C(1) * (k+1) * dt;
+        frac   = min(1.0, travel / dist_to_goal);
+        x_ref(4, k+1)  = x(4) + frac*(x_goal_C(4)-x(4));
+        x_ref(5, k+1)  = x(5) + frac*(x_goal_C(5)-x(5));
+        x_ref(6, k+1)  = bearing;
+        x_ref(1, k+1)  = x_goal_C(1);
+        x_ref(10, k+1) = x_goal_C(10);
+    end
+    
+    [u_opt, ~, info] = nmpc.solve(x, x_ref, obs_C);
+    
+    if i == 1 || mod(i,20) == 0
+        fprintf('  [t=%5.1f]  pos=(%7.1f, %6.1f)  psi=%+5.1f deg  ok=%d\n', ...
+            t(i), x(4), x(5), rad2deg(x(6)), info.success);
+    end
+    
+    [xdot_sim, ~] = container(x, u_opt);
+    x = x + xdot_sim * dt;
+    
+    traj_C = [traj_C, x];  ctrl_C = [ctrl_C, u_opt];  solve_ok_C = [solve_ok_C, info.success];
+    
+    if norm(x(4:5) - x_goal_C(4:5)) < 30
+        fprintf('  >> GOAL REACHED at t=%.1f s!\n', t(i));
+        break;
+    end
+end
+
+n_ok = sum(solve_ok_C);  n_tot = length(solve_ok_C);
+fprintf('  Solver success: %d / %d (%.0f%%)\n', n_ok, n_tot, 100*n_ok/n_tot);
+fprintf('  Final pos: (%.1f, %.1f)\n\n', x(4), x(5));
+
+%% ----- STEP 5: PLOTTING ------------------------------------------------
+fprintf('--- Plotting results ---\n');
+figure('Position', [50 50 1400 800], 'Name', 'NMPC Tests');
+
+% --- Test A trajectory ---
+subplot(2,3,1);
+plot(traj(5,:), traj(4,:), 'b-', 'LineWidth', 2); hold on; grid on; axis equal;
+plot(0, 500, 'r*', 'MarkerSize', 15);
+xlabel('y [m]'); ylabel('x [m]'); title('A: Straight ahead');
+
+% --- Test A controls ---
+subplot(2,3,4);
+yyaxis left;  stairs(rad2deg(ctrl(1,:)), 'b-'); ylabel('Rudder [deg]');
+yyaxis right; stairs(ctrl(2,:), 'r-');           ylabel('RPM');
+xlabel('Step'); title('A: Controls'); grid on;
+
+% --- Test B trajectory ---
+subplot(2,3,2);
+plot(traj_B(5,:), traj_B(4,:), 'b-', 'LineWidth', 2); hold on; grid on; axis equal;
+plot(200, 400, 'r*', 'MarkerSize', 15);
+xlabel('y [m]'); ylabel('x [m]'); title('B: Turn');
+
+% --- Test B controls ---
+subplot(2,3,5);
+yyaxis left;  stairs(rad2deg(ctrl_B(1,:)), 'b-'); ylabel('Rudder [deg]');
+yyaxis right; stairs(ctrl_B(2,:), 'r-');           ylabel('RPM');
+xlabel('Step'); title('B: Controls'); grid on;
+
+% --- Test C trajectory ---
+subplot(2,3,3);
+plot(traj_C(5,:), traj_C(4,:), 'b-', 'LineWidth', 2); hold on; grid on; axis equal;
+plot(0, 500, 'r*', 'MarkerSize', 15);
+% draw obstacle
+theta = linspace(0, 2*pi, 50);
+obs_x = 0 + 30*cos(theta);
+obs_y = 250 + 30*sin(theta);
+fill(obs_x, obs_y, 'r', 'FaceAlpha', 0.3);
+xlabel('y [m]'); ylabel('x [m]'); title('C: Obstacle avoidance');
+
+% --- Test C controls ---
+subplot(2,3,6);
+yyaxis left;  stairs(rad2deg(ctrl_C(1,:)), 'b-'); ylabel('Rudder [deg]');
+yyaxis right; stairs(ctrl_C(2,:), 'r-');           ylabel('RPM');
+xlabel('Step'); title('C: Controls'); grid on;
+
+sgtitle('NMPC Container Ship — Working Tests', 'FontSize', 14);
+
+fprintf('\nDone! Check figures.\n');
+fprintf('Solver stats — OK: %d,  Fail: %d\n', nmpc.solve_ok, nmpc.solve_fail);
