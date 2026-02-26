@@ -32,6 +32,12 @@ classdef NMPC_Container < handle
         r_safety = 10           % Safety margin [m]
         penalty_slack = 200     % Slack penalty
         
+        % Map integration
+        map = []                % Loaded harbor map struct (from .mat)
+        use_map_obstacles = false
+        max_map_obs = 20        % Max polygons converted to constraints each solve
+        map_radius_margin = 5   % Extra radius [m] around polygon enclosing circle
+        
         % CasADi persistent optimizer (built ONCE)
         opti
         X                       % State decision vars (10 x N+1)
@@ -74,8 +80,62 @@ classdef NMPC_Container < handle
             if isfield(config, 'max_obs')
                 obj.max_obs = config.max_obs;
             end
+            if isfield(config, 'use_map_obstacles')
+                obj.use_map_obstacles = config.use_map_obstacles;
+            end
+            if isfield(config, 'max_map_obs')
+                obj.max_map_obs = config.max_map_obs;
+            end
             
             fprintf('NMPC_Container initialized (N=%d, dt=%.2f)\n', obj.N, obj.dt);
+        end
+
+        function setMap(obj, map_struct)
+            % setMap Store harbor map for automatic NMPC map constraints.
+            obj.map = map_struct;
+            obj.use_map_obstacles = true;
+            fprintf('NMPC map integration enabled (%d polygons available)\n', length(map_struct.polygons));
+        end
+
+        function obs_from_map = mapPolygonsToObstacles(obj, vessel_xy)
+            % Convert closest map polygons into circular obstacles.
+            % Each polygon is approximated by an enclosing circle
+            % (center=polygon centroid, radius=max vertex distance + margin).
+
+            obs_from_map = [];
+            if isempty(obj.map) || ~isfield(obj.map, 'polygons') || isempty(obj.map.polygons)
+                return;
+            end
+
+            n_poly = length(obj.map.polygons);
+            centers = zeros(2, n_poly);
+            radii = zeros(n_poly, 1);
+            dists = inf(n_poly, 1);
+
+            for j = 1:n_poly
+                px = obj.map.polygons(j).X(:);
+                py = obj.map.polygons(j).Y(:);
+
+                cx = mean(px);
+                cy = mean(py);
+                centers(:, j) = [cx; cy];
+
+                dr = sqrt((px - cx).^2 + (py - cy).^2);
+                radii(j) = max(dr) + obj.map_radius_margin;
+
+                dists(j) = norm([cx; cy] - vessel_xy);
+            end
+
+            [~, idx] = sort(dists, 'ascend');
+            n_take = min(obj.max_map_obs, n_poly);
+            idx = idx(1:n_take);
+
+            obs_from_map = repmat(struct('position', [0;0], 'radius', 0), n_take, 1);
+            for k = 1:n_take
+                j = idx(k);
+                obs_from_map(k).position = centers(:, j);
+                obs_from_map(k).radius = radii(j);
+            end
         end
         
         %% CASADI DYNAMICS ================================================
@@ -294,8 +354,10 @@ classdef NMPC_Container < handle
             
             %% Control bounds
             for k = 1:obj.N
-                obj.opti.subject_to( -obj.delta_max_rad <= obj.U(1,k) <= obj.delta_max_rad );
-                obj.opti.subject_to(  obj.n_min_rpm     <= obj.U(2,k) <= obj.n_max_rpm );
+                obj.opti.subject_to( obj.U(1,k) >= -obj.delta_max_rad );
+                obj.opti.subject_to( obj.U(1,k) <=  obj.delta_max_rad );
+                obj.opti.subject_to( obj.U(2,k) >=  obj.n_min_rpm );
+                obj.opti.subject_to( obj.U(2,k) <=  obj.n_max_rpm );
             end
             
             %% State bounds - keep surge velocity and RPM positive
@@ -344,12 +406,32 @@ classdef NMPC_Container < handle
             %               (can be empty [])
             
             t_start = tic;
+
+            % ---- assemble full obstacle list (external + map-derived) ---
+            if nargin < 4 || isempty(obstacles)
+                ext_obs = [];
+            else
+                ext_obs = obstacles;
+            end
+
+            map_obs = [];
+            if obj.use_map_obstacles
+                map_obs = obj.mapPolygonsToObstacles(x0(4:5));
+            end
+
+            if isempty(ext_obs)
+                all_obs = map_obs;
+            elseif isempty(map_obs)
+                all_obs = ext_obs;
+            else
+                all_obs = [ext_obs(:); map_obs(:)];
+            end
             
             % ---- count active obstacles ----------------------------------
-            if nargin < 4 || isempty(obstacles)
+            if ~obj.use_obstacles || isempty(all_obs)
                 num_obs = 0;
             else
-                num_obs = min(length(obstacles), obj.max_obs);
+                num_obs = min(length(all_obs), obj.max_obs);
             end
             
             % ---- (re)build optimizer if needed ---------------------------
@@ -365,9 +447,9 @@ classdef NMPC_Container < handle
                 pos_data = zeros(2, num_obs);
                 rad_data = zeros(num_obs, 1);
                 for j = 1:num_obs
-                    pp = obstacles(j).position(:);
+                    pp = all_obs(j).position(:);
                     pos_data(:,j) = pp(1:2);
-                    rad_data(j)   = obstacles(j).radius;
+                    rad_data(j)   = all_obs(j).radius;
                 end
                 obj.opti.set_value(obj.Obs_pos_param, pos_data);
                 obj.opti.set_value(obj.Obs_rad_param, rad_data);

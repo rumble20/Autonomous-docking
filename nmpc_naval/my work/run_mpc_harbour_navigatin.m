@@ -41,8 +41,28 @@ config.Q = diag([  1   0.1  0.1  0.01  0.01  5    0.01 0.01 0.1  0.01]);
 config.R = diag([     1       0.001 ]);
 %  • Penalise rudder more than thrust
 
-config.use_obstacles = false;  % START WITH NO OBSTACLES
+config.use_obstacles = true;           % Enable constraints in NMPC
+config.max_obs = 25;                   % Total constraints slots (map + external)
+config.use_map_obstacles = true;       % Integrate map polygons in NMPC
+config.max_map_obs = 20;               % Closest polygons used each solve
 nmpc = NMPC_Container(config);
+
+%% ----- STEP 1B: Load Helsinki harbor map -------------------------------
+fprintf('\n--- Step 1B: Load harbor map (helsinki_harbour.mat) ---\n');
+map = [];
+if exist('helsinki_harbour.mat', 'file')
+    S = load('helsinki_harbour.mat');
+    if isfield(S, 'map')
+        map = S.map;
+        fprintf('  Loaded map with %d obstacle polygons and %d boundary polygons\n', ...
+            length(map.polygons), length(map.mapPoly));
+        nmpc.setMap(map);
+    else
+        fprintf('  Warning: file loaded but variable ''map'' not found\n');
+    end
+else
+    fprintf('  Warning: helsinki_harbour.mat not found. Running without map.\n');
+end
 
 %% ----- STEP 2: Verify CasADi dynamics matches container() ---------------
 fprintf('\n--- Step 2: CasADi dynamics consistency check ---\n');
@@ -76,7 +96,7 @@ end
 %  Expected: solver converges, ship accelerates forward.
 %% ========================================================================
 fprintf('======================================================\n');
-fprintf('  TEST A: Straight ahead, ZERO obstacles\n');
+fprintf('  TEST A: Straight ahead, ZERO extra obstacles (map integrated)\n');
 fprintf('======================================================\n');
 
 T_final = 120;           % 2 minutes
@@ -84,15 +104,16 @@ dt = config.dt;
 t  = 0:dt:T_final;
 
 % Initial state
-x = [7; 0; 0; 0; 0; 0; 0; 0; 0; 70];
+x = [7; 0; 0; -5800; -2800; 0; 0; 0; 0; 70];
 
 % Goal: straight ahead at 500 m
-x_goal = [7; 0; 0; 500; 0; 0; 0; 0; 0; 70];
+x_goal = [7; 0; 0; -5300; -2800; 0; 0; 0; 0; 70];
 
 % Logging
 traj = x;
 ctrl = [];
 solve_ok = [];
+collision_A = false;
 
 fprintf('Running %d simulation steps ...\n', length(t));
 for i = 1:length(t)
@@ -111,7 +132,7 @@ for i = 1:length(t)
         x_ref(10, k+1) = x_goal(10);                      % RPM
     end
     
-    % ---- solve NMPC (no obstacles) ----
+    % ---- solve NMPC (map obstacles auto-integrated, no extra circles) ----
     [u_opt, ~, info] = nmpc.solve(x, x_ref, []);
     
     % ---- progress ----
@@ -123,6 +144,23 @@ for i = 1:length(t)
     % ---- simulate with container() ----
     [xdot_sim, ~] = container(x, u_opt);
     x = x + xdot_sim * dt;
+
+    % ---- map collision check (inpolygon) ----
+    if ~isempty(map)
+        in_collision = false;
+        for j = 1:length(map.polygons)
+            if inpolygon(x(4), x(5), map.polygons(j).X, map.polygons(j).Y)
+                in_collision = true;
+                break;
+            end
+        end
+        if in_collision
+            fprintf('  >> COLLISION with map polygon at t=%.1f s, pos=(%.1f, %.1f)\n', ...
+                t(i), x(4), x(5));
+            collision_A = true;
+            break;
+        end
+    end
     
     % ---- log ----
     traj = [traj, x];
@@ -140,11 +178,20 @@ n_ok = sum(solve_ok);  n_tot = length(solve_ok);
 fprintf('  Solver success: %d / %d (%.0f%%)\n', n_ok, n_tot, 100*n_ok/n_tot);
 fprintf('  Final pos: (%.1f, %.1f),  dist to goal: %.1f m\n\n', ...
     x(4), x(5), norm(x(4:5) - x_goal(4:5)));
+if collision_A
+    fprintf('  Map collision: YES\n\n');
+else
+    fprintf('  Map collision: NO\n\n');
+end
 
 if n_ok / n_tot > 0.5
     fprintf('  >> TEST A PASSED\n\n');
 else
     fprintf('  >> TEST A FAILED — stopping here.\n');
+    plot(traj(5,:), traj(4,:), 'b-', 'LineWidth', 2); hold on; grid on; axis equal;
+    plot(traj(5,:), traj(4,:), 'b-', 'LineWidth', 2);
+    plot(0, 500, 'r*', 'MarkerSize', 15);
+    xlabel('y [m]'); ylabel('x [m]'); title('A: Straight ahead');
     return;
 end
 
@@ -152,16 +199,17 @@ end
 %  TEST B — Turn toward a side goal (requires steering)
 %% ========================================================================
 fprintf('======================================================\n');
-fprintf('  TEST B: Turn to (400, 200), ZERO obstacles\n');
+fprintf('  TEST B: Turn to (+400, +200) relative to start, ZERO extra obstacles (map integrated)\n');
 fprintf('======================================================\n');
 
 % Reset
-x = [7; 0; 0; 0; 0; 0; 0; 0; 0; 70];
-x_goal_B = [7; 0; 0; 400; 200; atan2(200, 400); 0; 0; 0; 70];
+x = [7; 0; 0; -5800; -2800; 0; 0; 0; 0; 70];
+x_goal_B = [7; 0; 0; -5800+400; -2800+200; atan2(200, 400); 0; 0; 0; 70];
 
 nmpc.prev_X_sol = [];  nmpc.prev_U_sol = [];  % reset warm-start
 
 traj_B = x;  ctrl_B = [];  solve_ok_B = [];
+collision_B = false;
 
 for i = 1:length(t)
     
@@ -187,6 +235,23 @@ for i = 1:length(t)
     
     [xdot_sim, ~] = container(x, u_opt);
     x = x + xdot_sim * dt;
+
+    % ---- map collision check (inpolygon) ----
+    if ~isempty(map)
+        in_collision = false;
+        for j = 1:length(map.polygons)
+            if inpolygon(x(4), x(5), map.polygons(j).X, map.polygons(j).Y)
+                in_collision = true;
+                break;
+            end
+        end
+        if in_collision
+            fprintf('  >> COLLISION with map polygon at t=%.1f s, pos=(%.1f, %.1f)\n', ...
+                t(i), x(4), x(5));
+            collision_B = true;
+            break;
+        end
+    end
     
     traj_B = [traj_B, x];  ctrl_B = [ctrl_B, u_opt];  solve_ok_B = [solve_ok_B, info.success];
     
@@ -199,25 +264,31 @@ end
 n_ok = sum(solve_ok_B);  n_tot = length(solve_ok_B);
 fprintf('  Solver success: %d / %d (%.0f%%)\n', n_ok, n_tot, 100*n_ok/n_tot);
 fprintf('  Final pos: (%.1f, %.1f)\n\n', x(4), x(5));
+if collision_B
+    fprintf('  Map collision: YES\n\n');
+else
+    fprintf('  Map collision: NO\n\n');
+end
 
 %% ========================================================================
 %  TEST C — One obstacle blocking the path
 %% ========================================================================
 fprintf('======================================================\n');
-fprintf('  TEST C: Straight ahead with ONE obstacle at (250, 0)\n');
+fprintf('  TEST C: Straight ahead with ONE obstacle at (+250, 0) relative to start\n');
 fprintf('======================================================\n');
 
-x = [7; 0; 0; 0; 0; 0; 0; 0; 0; 70];
-x_goal_C = [7; 0; 0; 500; 0; 0; 0; 0; 0; 70];
+x = [7; 0; 0; -5800; -2800; 0; 0; 0; 0; 70];
+x_goal_C = [7; 0; 0; -5800+500; -2800; 0; 0; 0; 0; 70];
 
 % Single obstacle
-obs_C(1).position = [250; 0];
+obs_C(1).position = [250-5800; -2800];  % relative to ship's initial position
 obs_C(1).radius   = 30;
 
 nmpc.prev_X_sol = [];  nmpc.prev_U_sol = [];
 nmpc.use_obstacles = true;
 
 traj_C = x;  ctrl_C = [];  solve_ok_C = [];
+collision_C = false;
 
 for i = 1:length(t)
     bearing = atan2(x_goal_C(5)-x(5), x_goal_C(4)-x(4));
@@ -242,6 +313,23 @@ for i = 1:length(t)
     
     [xdot_sim, ~] = container(x, u_opt);
     x = x + xdot_sim * dt;
+
+    % ---- map collision check (inpolygon) ----
+    if ~isempty(map)
+        in_collision = false;
+        for j = 1:length(map.polygons)
+            if inpolygon(x(4), x(5), map.polygons(j).X, map.polygons(j).Y)
+                in_collision = true;
+                break;
+            end
+        end
+        if in_collision
+            fprintf('  >> COLLISION with map polygon at t=%.1f s, pos=(%.1f, %.1f)\n', ...
+                t(i), x(4), x(5));
+            collision_C = true;
+            break;
+        end
+    end
     
     traj_C = [traj_C, x];  ctrl_C = [ctrl_C, u_opt];  solve_ok_C = [solve_ok_C, info.success];
     
@@ -254,6 +342,11 @@ end
 n_ok = sum(solve_ok_C);  n_tot = length(solve_ok_C);
 fprintf('  Solver success: %d / %d (%.0f%%)\n', n_ok, n_tot, 100*n_ok/n_tot);
 fprintf('  Final pos: (%.1f, %.1f)\n\n', x(4), x(5));
+if collision_C
+    fprintf('  Map collision: YES\n\n');
+else
+    fprintf('  Map collision: NO\n\n');
+end
 
 %% ----- STEP 5: PLOTTING ------------------------------------------------
 fprintf('--- Plotting results ---\n');
@@ -262,7 +355,18 @@ figure('Position', [50 50 1400 800], 'Name', 'NMPC Tests');
 % --- Test A trajectory ---
 subplot(2,3,1);
 plot(traj(5,:), traj(4,:), 'b-', 'LineWidth', 2); hold on; grid on; axis equal;
-plot(0, 500, 'r*', 'MarkerSize', 15);
+if ~isempty(map)
+    for kk = 1:length(map.polygons)
+        patch(map.polygons(kk).Y, map.polygons(kk).X, 'k', ...
+            'FaceColor', [0.9 0.2 0.2], 'FaceAlpha', 0.1, 'EdgeColor', [0.6 0 0]);
+    end
+    for kk = 1:length(map.mapPoly)
+        patch(map.mapPoly(kk).Y, map.mapPoly(kk).X, 'c', ...
+            'FaceColor', [0.9 0.9 0.9], 'EdgeColor', [0.5 0.5 0.5]);
+    end
+end
+plot(traj(5,:), traj(4,:), 'b-', 'LineWidth', 2);
+plot(x_goal(5), x_goal(4), 'r*', 'MarkerSize', 15);
 xlabel('y [m]'); ylabel('x [m]'); title('A: Straight ahead');
 
 % --- Test A controls ---
@@ -274,7 +378,18 @@ xlabel('Step'); title('A: Controls'); grid on;
 % --- Test B trajectory ---
 subplot(2,3,2);
 plot(traj_B(5,:), traj_B(4,:), 'b-', 'LineWidth', 2); hold on; grid on; axis equal;
-plot(200, 400, 'r*', 'MarkerSize', 15);
+if ~isempty(map)
+    for kk = 1:length(map.polygons)
+        patch(map.polygons(kk).Y, map.polygons(kk).X, 'k', ...
+            'FaceColor', [0.9 0.2 0.2], 'FaceAlpha', 0.1, 'EdgeColor', [0.6 0 0]);
+    end
+    for kk = 1:length(map.mapPoly)
+        patch(map.mapPoly(kk).Y, map.mapPoly(kk).X, 'c', ...
+            'FaceColor', [0.9 0.9 0.9], 'EdgeColor', [0.5 0.5 0.5]);
+    end
+end
+plot(traj_B(5,:), traj_B(4,:), 'b-', 'LineWidth', 2);
+plot(x_goal_B(5), x_goal_B(4), 'r*', 'MarkerSize', 15);
 xlabel('y [m]'); ylabel('x [m]'); title('B: Turn');
 
 % --- Test B controls ---
@@ -286,11 +401,22 @@ xlabel('Step'); title('B: Controls'); grid on;
 % --- Test C trajectory ---
 subplot(2,3,3);
 plot(traj_C(5,:), traj_C(4,:), 'b-', 'LineWidth', 2); hold on; grid on; axis equal;
-plot(0, 500, 'r*', 'MarkerSize', 15);
+if ~isempty(map)
+    for kk = 1:length(map.polygons)
+        patch(map.polygons(kk).Y, map.polygons(kk).X, 'k', ...
+            'FaceColor', [0.9 0.2 0.2], 'FaceAlpha', 0.1, 'EdgeColor', [0.6 0 0]);
+    end
+    for kk = 1:length(map.mapPoly)
+        patch(map.mapPoly(kk).Y, map.mapPoly(kk).X, 'c', ...
+            'FaceColor', [0.9 0.9 0.9], 'EdgeColor', [0.5 0.5 0.5]);
+    end
+end
+plot(traj_C(5,:), traj_C(4,:), 'b-', 'LineWidth', 2);
+plot(x_goal_C(5), x_goal_C(4), 'r*', 'MarkerSize', 15);
 % draw obstacle
 theta = linspace(0, 2*pi, 50);
-obs_x = 0 + 30*cos(theta);
-obs_y = 250 + 30*sin(theta);
+obs_x = obs_C(1).position(2) + obs_C(1).radius*cos(theta);
+obs_y = obs_C(1).position(1) + obs_C(1).radius*sin(theta);
 fill(obs_x, obs_y, 'r', 'FaceAlpha', 0.3);
 xlabel('y [m]'); ylabel('x [m]'); title('C: Obstacle avoidance');
 
