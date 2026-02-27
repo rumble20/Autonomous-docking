@@ -1,278 +1,254 @@
 classdef HarborObstacles < handle
-    % HarborObstacles - Manages static and dynamic obstacles + polygon maps
+    % HarborObstacles - Manages static/dynamic obstacles + polygon maps
+    %
+    % CHANGES FROM PREVIOUS VERSION:
+    %   - Uses NavUtils for segment distance computations
+    %   - Target ships stored with full kinematic state [u v r x y psi]
+    %     so SB-MPC COLAV can use them directly
+    %   - Prediction of dynamic obstacle future positions
+    %   - Cleaner polygon processing (NaN-safe)
+    %
+    % Author: Riccardo Legnini (refactored)
+    % Date: 2025
     
     properties
-        static_obstacles    % Array of static obstacle structs (circles)
-        dynamic_obstacles   % Array of dynamic obstacle structs (circles)
-        map                 % Polygon map structure
-        current_time = 0    % Simulation time
+        static_obstacles      % Struct array: .position [2x1], .radius, .name
+        dynamic_obstacles     % Struct array: .position [2x1], .radius, .velocity [2x1], .name
+        target_ships          % Struct array: .state [6x1] = [u v r x y psi], .radius, .name
+        map                   % Polygon map structure (.polygons, .mapPoly)
+        current_time = 0
     end
     
     methods
         function obj = HarborObstacles()
-            obj.static_obstacles = [];
+            obj.static_obstacles  = [];
             obj.dynamic_obstacles = [];
-            obj.map = [];
+            obj.target_ships      = [];
+            obj.map               = [];
         end
         
-        %% LOAD POLYGON MAP
+        %% LOAD MAP -------------------------------------------------------
         function loadPolygonMap(obj, map_struct)
-            % Load polygon map structure
-            %
-            % map_struct should have fields:
-            %   - polygons: array of structs with X, Y fields (obstacles)
-            %   - mapPoly: array of structs with X, Y fields (land/boundaries)
-            
             obj.map = map_struct;
-            fprintf('✓ Loaded polygon map:\n');
-            fprintf('  %d obstacle polygons\n', length(map_struct.polygons));
-            fprintf('  %d boundary polygons\n', length(map_struct.mapPoly));
+            n_poly = 0;  n_bnd = 0;
+            if isfield(map_struct, 'polygons'), n_poly = length(map_struct.polygons); end
+            if isfield(map_struct, 'mapPoly'),  n_bnd  = length(map_struct.mapPoly);  end
+            fprintf('Loaded polygon map: %d obstacle polys, %d boundary polys\n', n_poly, n_bnd);
         end
         
-        %% ADD OBSTACLES (Circular)
+        %% ADD OBSTACLES ---------------------------------------------------
         function addStaticObstacle(obj, position, radius, name)
-            % Add static circular obstacle (pier, moored vessel, etc.)
-            obs.position = position(:);  % Force column vector [x; y]
-            obs.radius = radius;
+            obs.position = position(:);
+            obs.radius   = radius;
             obs.velocity = [0; 0];
-            obs.type = 'static';
-            obs.name = name;
+            obs.type     = 'static';
+            obs.name     = name;
             obj.static_obstacles = [obj.static_obstacles; obs];
         end
         
         function addDynamicObstacle(obj, position, radius, velocity, name)
-            % Add dynamic circular obstacle (moving vessel)
-            obs.position = position(:);      % Force column vector
-            obs.radius = radius;
-            obs.velocity = velocity(:);      % Force column vector
-            obs.type = 'dynamic';
-            obs.name = name;
+            obs.position = position(:);
+            obs.radius   = radius;
+            obs.velocity = velocity(:);
+            obs.type     = 'dynamic';
+            obs.name     = name;
             obj.dynamic_obstacles = [obj.dynamic_obstacles; obs];
         end
         
-        %% CONVERT POLYGON MAP TO LINE SEGMENTS
-        function line_segments = getMapLineSegments(obj)
-            % Extract all line segments from polygon map
-            % Returns: Nx4 matrix [x1, y1, x2, y2] for each segment
-            
-            line_segments = [];
-            
-            if isempty(obj.map)
-                return;
-            end
-            
-            % Process obstacle polygons (map.polygons)
-            for kk = 1:length(obj.map.polygons)
-                poly = obj.map.polygons(kk);
-                X = poly.X(:);
-                Y = poly.Y(:);
-                
-                % Create line segments from polygon edges
-                for i = 1:length(X)-1
-                    seg = [Y(i), X(i), Y(i+1), X(i+1)];  % [x1, y1, x2, y2]
-                    line_segments = [line_segments; seg];
-                end
-                
-                % Close polygon (last -> first)
-                seg = [Y(end), X(end), Y(1), X(1)];
-                line_segments = [line_segments; seg];
-            end
-            
-            % Process boundary polygons (map.mapPoly)
-            for kk = 1:length(obj.map.mapPoly)
-                poly = obj.map.mapPoly(kk);
-                X = poly.X(:);
-                Y = poly.Y(:);
-                
-                for i = 1:length(X)-1
-                    seg = [Y(i), X(i), Y(i+1), X(i+1)];
-                    line_segments = [line_segments; seg];
-                end
-                
-                seg = [Y(end), X(end), Y(1), X(1)];
-                line_segments = [line_segments; seg];
-            end
+        function addTargetShip(obj, state_6dof, radius, name)
+            % Add a target ship with full kinematic state for SB-MPC
+            %   state_6dof: [u v r x y psi] (column or row)
+            ts.state  = state_6dof(:);
+            ts.radius = radius;
+            ts.name   = name;
+            obj.target_ships = [obj.target_ships; ts];
         end
         
-        %% GET ALL OBSTACLES (for MPC constraint generation)
-        function all_obs = getAllObstacles(obj)
-            % Return all circular obstacles (static + dynamic)
+        %% GET OBSTACLE ARRAYS FOR NMPC -----------------------------------
+        function all_obs = getAllCircularObstacles(obj)
+            % Return static + dynamic circular obstacles for NMPC
             all_obs = [obj.static_obstacles; obj.dynamic_obstacles];
         end
         
-        function all_obstacles_with_map = getAllObstaclesIncludingMap(obj, vessel_pos)
-            % Get all obstacles INCLUDING closest map segments as virtual obstacles
-            %
-            % vessel_pos: [x; y] current vessel position
-            %
-            % Returns: Array of obstacle structs with:
-            %   - position: [x; y]
-            %   - radius: obstacle radius
-            %   - line_segment: [x1, y1; x2, y2] (for map obstacles)
-            
-            % Start with circular obstacles
-            all_obstacles_with_map = obj.getAllObstacles();
-            
-            % Add virtual obstacles from map line segments
-            if ~isempty(obj.map)
-                line_segs = obj.getMapLineSegments();
-                
-                % Find K closest line segments to vessel
-                K = 10;  % Number of closest segments to consider
-                
-                if ~isempty(line_segs)
-                    % Compute distance from vessel to each segment
-                    distances = zeros(size(line_segs, 1), 1);
-                    for i = 1:size(line_segs, 1)
-                        seg = line_segs(i, :);
-                        p1 = [seg(1); seg(2)];
-                        p2 = [seg(3); seg(4)];
-                        
-                        % Distance from point to line segment
-                        distances(i) = obj.pointToSegmentDistance(vessel_pos, p1, p2);
-                    end
-                    
-                    % Select K closest
-                    [~, idx] = sort(distances, 'ascend');
-                    K_actual = min(K, length(idx));
-                    closest_segs = line_segs(idx(1:K_actual), :);
-                    
-                    % Convert to obstacle structs
-                    for i = 1:size(closest_segs, 1)
-                        seg = closest_segs(i, :);
-                        obs.position = [(seg(1)+seg(3))/2; (seg(2)+seg(4))/2];  % Midpoint
-                        obs.radius = 5;  % Small radius for line segments
-                        obs.velocity = [0; 0];
-                        obs.type = 'map_segment';
-                        obs.name = sprintf('Map_%d', i);
-                        obs.line_segment = [seg(1), seg(2); seg(3), seg(4)];  % Store actual segment
-                        
-                        all_obstacles_with_map = [all_obstacles_with_map; obs];
-                    end
-                end
+        function x_ts = getTargetShipStates(obj)
+            % Return Mx6 matrix of target ship states for SB-MPC
+            M = length(obj.target_ships);
+            x_ts = zeros(M, 6);
+            for i = 1:M
+                x_ts(i, :) = obj.target_ships(i).state(:)';
             end
         end
         
-        %% UPDATE DYNAMIC OBSTACLES
+        function obs_with_map = getAllObstaclesIncludingMap(obj, vessel_pos, K, obs_radius)
+            % Get circular obstacles + K closest map-polygon points
+            if nargin < 3, K = 10; end
+            if nargin < 4, obs_radius = 15; end
+            
+            obs_with_map = obj.getAllCircularObstacles();
+            if isempty(obj.map), return; end
+            
+            % Nearest points on each polygon to vessel
+            vx = vessel_pos(1);  vy = vessel_pos(2);
+            allPolys = [];
+            if isfield(obj.map, 'polygons'), allPolys = obj.map.polygons; end
+            
+            n_poly = length(allPolys);
+            nearest_pts = zeros(2, n_poly);
+            min_dists   = inf(n_poly, 1);
+            
+            for j = 1:n_poly
+                px = allPolys(j).X(:);  py = allPolys(j).Y(:);
+                valid = ~isnan(px) & ~isnan(py);
+                px = px(valid);  py = py(valid);
+                if length(px) < 2, continue; end
+                
+                best_d = inf;  best_pt = [px(1); py(1)];
+                nv = length(px);
+                for kk = 1:nv
+                    k2 = mod(kk, nv) + 1;
+                    [d, pt] = NavUtils.pointToSegment(vx, vy, px(kk), py(kk), px(k2), py(k2));
+                    if d < best_d
+                        best_d  = d;
+                        best_pt = pt;
+                    end
+                end
+                nearest_pts(:, j) = best_pt;
+                min_dists(j) = best_d;
+            end
+            
+            % Take K closest
+            [~, idx] = sort(min_dists, 'ascend');
+            n_take = min(K, length(idx));
+            for i = 1:n_take
+                j = idx(i);
+                if min_dists(j) > 500, break; end  % skip far polygons
+                obs.position = nearest_pts(:, j);
+                obs.radius   = obs_radius;
+                obs.velocity = [0; 0];
+                obs.type     = 'map_segment';
+                obs.name     = sprintf('Map_%d', i);
+                obs_with_map = [obs_with_map; obs];
+            end
+        end
+        
+        %% UPDATE ----------------------------------------------------------
         function updateDynamicObstacles(obj, dt)
-            % Update positions of moving obstacles
             for i = 1:length(obj.dynamic_obstacles)
                 obj.dynamic_obstacles(i).position = ...
                     obj.dynamic_obstacles(i).position + ...
                     obj.dynamic_obstacles(i).velocity * dt;
             end
+            % Also propagate target ships (constant heading + speed)
+            for i = 1:length(obj.target_ships)
+                s = obj.target_ships(i).state;
+                psi = s(6);
+                s(4) = s(4) + (cos(psi)*s(1) - sin(psi)*s(2)) * dt;
+                s(5) = s(5) + (sin(psi)*s(1) + cos(psi)*s(2)) * dt;
+                obj.target_ships(i).state = s;
+            end
             obj.current_time = obj.current_time + dt;
         end
         
-        %% PLOTTING
+        function predictDynamicPositions(obj, t_ahead)
+            % Return predicted positions at t_ahead seconds from now
+            % (Does NOT modify internal state)
+            for i = 1:length(obj.dynamic_obstacles)
+                obj.dynamic_obstacles(i).predicted_pos = ...
+                    obj.dynamic_obstacles(i).position + ...
+                    obj.dynamic_obstacles(i).velocity * t_ahead;
+            end
+        end
+        
+        %% COLLISION CHECK -------------------------------------------------
+        function [in_collision, poly_idx] = checkMapCollision(obj, pos)
+            % Check if pos [x;y] is inside any obstacle polygon
+            in_collision = false;
+            poly_idx = 0;
+            if isempty(obj.map) || ~isfield(obj.map, 'polygons'), return; end
+            
+            for j = 1:length(obj.map.polygons)
+                px = obj.map.polygons(j).X(:);  py = obj.map.polygons(j).Y(:);
+                valid = ~isnan(px) & ~isnan(py);
+                if inpolygon(pos(1), pos(2), px(valid), py(valid))
+                    in_collision = true;
+                    poly_idx = j;
+                    return;
+                end
+            end
+        end
+        
+        function [in_collision, obs_idx] = checkCircularCollision(obj, pos)
+            in_collision = false;
+            obs_idx = 0;
+            all = obj.getAllCircularObstacles();
+            for i = 1:length(all)
+                if norm(pos(:) - all(i).position(:)) < all(i).radius
+                    in_collision = true;
+                    obs_idx = i;
+                    return;
+                end
+            end
+        end
+        
+        %% PLOTTING --------------------------------------------------------
         function plotMap(obj)
-            % Plot polygon map (obstacles and boundaries)
-            
-            if isempty(obj.map)
-                return;
-            end
-            
+            if isempty(obj.map), return; end
             hold on;
-            
-            % Plot obstacle polygons (red with transparency)
-            for kk = 1:length(obj.map.polygons)
-                patch(obj.map.polygons(kk).Y, obj.map.polygons(kk).X, 'k', ...
-                    'FaceColor', [0.9 0.2 0.2], 'FaceAlpha', 0.1, ...
-                    'EdgeColor', 'r', 'LineWidth', 1.5);
+            if isfield(obj.map, 'polygons')
+                for kk = 1:length(obj.map.polygons)
+                    patch(obj.map.polygons(kk).Y, obj.map.polygons(kk).X, 'k', ...
+                        'FaceColor', [0.9 0.2 0.2], 'FaceAlpha', 0.1, ...
+                        'EdgeColor', 'r', 'LineWidth', 1.5);
+                end
             end
-            
-            % Plot boundary polygons (grey)
-            for kk = 1:length(obj.map.mapPoly)
-                patch(obj.map.mapPoly(kk).Y, obj.map.mapPoly(kk).X, 'c', ...
-                    'FaceColor', [0.9 0.9 0.9], 'EdgeColor', 'k', 'LineWidth', 2);
+            if isfield(obj.map, 'mapPoly')
+                for kk = 1:length(obj.map.mapPoly)
+                    patch(obj.map.mapPoly(kk).Y, obj.map.mapPoly(kk).X, 'c', ...
+                        'FaceColor', [0.9 0.9 0.9], 'EdgeColor', 'k', 'LineWidth', 2);
+                end
             end
         end
         
         function plotObstacles(obj)
-            % Visualize circular obstacles only (not map)
             hold on;
-            
-            % Plot static obstacles (red circles)
+            theta = linspace(0, 2*pi, 50);
             for i = 1:length(obj.static_obstacles)
                 obs = obj.static_obstacles(i);
-                center = obs.position(:)';  % Row vector for viscircles
-                viscircles(center, obs.radius, 'Color', 'r', 'LineWidth', 2);
-                text(obs.position(1), obs.position(2), obs.name, ...
-                    'HorizontalAlignment', 'center', 'FontSize', 10);
+                cx = obs.position(2) + obs.radius*cos(theta);
+                cy = obs.position(1) + obs.radius*sin(theta);
+                fill(cx, cy, 'r', 'FaceAlpha', 0.3);
+                text(obs.position(2), obs.position(1), obs.name, ...
+                    'HorizontalAlignment', 'center', 'FontSize', 9);
             end
-            
-            % Plot dynamic obstacles (blue dashed circles)
             for i = 1:length(obj.dynamic_obstacles)
                 obs = obj.dynamic_obstacles(i);
-                center = obs.position(:)';
-                viscircles(center, obs.radius, 'Color', 'b', 'LineStyle', '--', 'LineWidth', 2);
-                
-                % Show velocity vector
+                cx = obs.position(2) + obs.radius*cos(theta);
+                cy = obs.position(1) + obs.radius*sin(theta);
+                fill(cx, cy, 'b', 'FaceAlpha', 0.2);
                 if norm(obs.velocity) > 0.01
-                    quiver(obs.position(1), obs.position(2), ...
-                        obs.velocity(1)*10, obs.velocity(2)*10, 'b', ...
-                        'LineWidth', 1.5, 'MaxHeadSize', 2);
+                    quiver(obs.position(2), obs.position(1), ...
+                        obs.velocity(2)*10, obs.velocity(1)*10, 'b', 'LineWidth', 1.5);
                 end
-                
-                text(obs.position(1), obs.position(2) + obs.radius + 5, obs.name, ...
-                    'HorizontalAlignment', 'center', 'FontSize', 10, 'Color', 'b');
+                text(obs.position(2), obs.position(1)+obs.radius+5, obs.name, ...
+                    'HorizontalAlignment', 'center', 'FontSize', 9, 'Color', 'b');
+            end
+            for i = 1:length(obj.target_ships)
+                ts = obj.target_ships(i);
+                cx = ts.state(5) + ts.radius*cos(theta);
+                cy = ts.state(4) + ts.radius*sin(theta);
+                fill(cx, cy, [1 0.5 0], 'FaceAlpha', 0.3);
+                text(ts.state(5), ts.state(4)+ts.radius+5, ts.name, ...
+                    'HorizontalAlignment', 'center', 'FontSize', 9, 'Color', [0.8 0.4 0]);
             end
         end
         
         function plotAll(obj, vessel_pos)
-            % Plot map + obstacles + show closest segments
             obj.plotMap();
             obj.plotObstacles();
-            
-            % Optional: visualize closest map segments
-            if nargin > 1 && ~isempty(obj.map)
-                line_segs = obj.getMapLineSegments();
-                if ~isempty(line_segs)
-                    distances = zeros(size(line_segs, 1), 1);
-                    for i = 1:size(line_segs, 1)
-                        seg = line_segs(i, :);
-                        p1 = [seg(1); seg(2)];
-                        p2 = [seg(3); seg(4)];
-                        distances(i) = obj.pointToSegmentDistance(vessel_pos, p1, p2);
-                    end
-                    
-                    [~, idx] = sort(distances, 'ascend');
-                    % Highlight 5 closest segments
-                    for i = 1:min(5, length(idx))
-                        seg = line_segs(idx(i), :);
-                        plot([seg(1), seg(3)], [seg(2), seg(4)], ...
-                            'g-', 'LineWidth', 3);
-                    end
-                end
+            if nargin > 1
+                plot(vessel_pos(2), vessel_pos(1), 'gp', 'MarkerSize', 12, ...
+                    'MarkerFaceColor', 'g');
             end
-        end
-        
-        %% HELPER FUNCTIONS
-        function dist = pointToSegmentDistance(~, point, p1, p2)
-            % Compute minimum distance from point to line segment [p1, p2]
-            %
-            % point: [x; y]
-            % p1, p2: [x; y] endpoints of segment
-            
-            v = p2 - p1;  % Segment vector
-            w = point - p1;  % Point vector from p1
-            
-            c1 = dot(w, v);
-            if c1 <= 0  % Before p1
-                dist = norm(point - p1);
-                return;
-            end
-            
-            c2 = dot(v, v);
-            if c1 >= c2  % After p2
-                dist = norm(point - p2);
-                return;
-            end
-            
-            % Projection on segment
-            t = c1 / c2;
-            projection = p1 + t * v;
-            dist = norm(point - projection);
         end
     end
 end

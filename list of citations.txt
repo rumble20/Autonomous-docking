@@ -1,6 +1,14 @@
-MSS TOOLBOX
 
-Thor I. Fossen(auth.) - Handbook of Marine Craft Hydrodynamics and Motion Control_ Fossen_Handbook of Marine Craft Hydrodynamics and Motion Control
+@misc{dhyani2025autobargesimmatlabrtoolboxdesign,
+      title={AUTOBargeSim: MATLAB(R) toolbox for the design and analysis of the guidance and control system for autonomous inland vessels}, 
+      author={Abhishek Dhyani and Amirreza Haqshenas Mojaveri and Chengqian Zhang and Dhanika Mahipala and Hoang Anh Tran and Yan-Yun Zhang and Zhongbi Luo and Vasso Reppa},
+      year={2025},
+      eprint={2503.21594},
+      archivePrefix={arXiv},
+      primaryClass={eess.SY},
+      url={https://arxiv.org/abs/2503.21594}, 
+}	
+
 
 @online{GazeboFuel-gragleas-Port_Hull,
 	title={Port_Hull},
@@ -31,14 +39,3 @@ Thor I. Fossen(auth.) - Handbook of Marine Craft Hydrodynamics and Motion Contro
   number={9},
   pages={5488-5495},
   doi={10.1109/LRA.2023.3296333}}
-
-@misc{dhyani2025autobargesimmatlabrtoolboxdesign,
-      title={AUTOBargeSim: MATLAB(R) toolbox for the design and analysis of the guidance and control system for autonomous inland vessels}, 
-      author={Abhishek Dhyani and Amirreza Haqshenas Mojaveri and Chengqian Zhang and Dhanika Mahipala and Hoang Anh Tran and Yan-Yun Zhang and Zhongbi Luo and Vasso Reppa},
-      year={2025},
-      eprint={2503.21594},
-      archivePrefix={arXiv},
-      primaryClass={eess.SY},
-      url={https://arxiv.org/abs/2503.21594}, 
-}
-
