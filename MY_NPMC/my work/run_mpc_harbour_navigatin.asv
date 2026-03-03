@@ -1,0 +1,132 @@
+%% run_nmpc_harbor_navigation.m
+% NMPC-based harbor navigation with obstacle avoidance
+% Uses YOUR container.m model + CasADi
+%
+% Author: Riccardo Legnini
+% Date: 2026-02-23
+
+clear; close all; clc;
+
+fprintf('=== NMPC HARBOR NAVIGATION ===\n\n');
+
+%% STEP 1: CONFIGURE NMPC
+config = struct();
+config.N = 20;           % Prediction horizon
+config.dt = 0.5;         % Time step [s]
+
+% State weights (10 states of container.m)
+% [u v r x y psi p phi delta n]
+config.Q = diag([1, 1, 1, 100, 100, 10, 0.1, 0.1, 0.1, 0.1]);
+
+% Control weights [delta_c, n_c]
+config.R = diag([10, 0.1]);
+
+% Create NMPC controller
+nmpc = NMPC_Container(config);
+
+%% STEP 2: DEFINE HARBOR WITH OBSTACLES
+if exist('map.mat', 'file')
+    load('map.mat');  
+    harbor.loadPolygonMap(map.mat);
+else
+    fprintf('  Warning: Map file not found, proceeding without polygon map\n');
+end
+
+harbor = HarborObstacles();
+harbor.loadPolygonMap(map.mat);
+
+% Add static obstacles (piers, moored vessels)
+harbor.addStaticObstacle([300, 150], 20, 'Pier 1');
+harbor.addStaticObstacle([300, -50], 20, 'Pier 2');
+harbor.addStaticObstacle([450, 80], 25, 'Moored Vessel');
+
+% Add dynamic obstacles (moving vessels)
+harbor.addDynamicObstacle([200, 100], 15, [1.0, -0.5], 'Patrol Boat');
+
+%% STEP 3: SIMULATION SETUP
+T_final = 200;  % seconds
+dt = config.dt;
+t = 0:dt:T_final;
+
+% Initial state (same format as container.m)
+x = [7; 0; 0; 0; 0; 0; 0; 0; 0; 70];  % [u v r x y psi p phi delta n]
+
+% Goal (dock position)
+x_goal = [0; 0; 0; 500; 50; deg2rad(90); 0; 0; 0; 70];
+
+% Data logging
+trajectory = x;
+control_log = [];
+solve_times = [];
+
+%% STEP 4: MAIN SIMULATION LOOP
+fprintf('Starting simulation...\n');
+
+for i = 1:length(t)
+    
+    % Generate reference trajectory (straight line to goal)
+    x_ref = repmat(x_goal, 1, nmpc.N + 1);
+    
+    % Get current obstacles
+    obstacles = harbor.getAllObstacles();
+    
+    % Solve NMPC
+    [u_opt, X_pred, info] = nmpc.solve(x, x_ref, obstacles);
+    
+    % Display progress
+    if mod(i, 20) == 0
+        fprintf('[t=%.1f] Pos=(%.1f, %.1f), Success=%d, Time=%.3f s\n', ...
+            t(i), x(4), x(5), info.success, info.solve_time);
+    end
+    
+    % Apply control to container.m
+    [xdot, ~] = container(x, u_opt);
+    x = x + xdot * dt;  % Euler integration
+    
+    % Update dynamic obstacles
+    harbor.updateDynamicObstacles(dt);
+    
+    % Log data
+    trajectory = [trajectory, x];
+    control_log = [control_log, u_opt];
+    solve_times = [solve_times, info.solve_time];
+    
+    % Check if goal reached
+    if norm(x(4:5) - x_goal(4:5)) < 10
+        fprintf('✓ Goal reached at t=%.1f s!\n', t(i));
+        break;
+    end
+end
+
+%% STEP 5: PLOT RESULTS
+figure('Position', [100, 100, 1200, 800]);
+
+% Trajectory plot
+subplot(2, 2, [1, 3]);
+plot(trajectory(5, :), trajectory(4, :), 'b-', 'LineWidth', 2);
+hold on; grid on; axis equal;
+plot(x_goal(5), x_goal(4), 'r*', 'MarkerSize', 15);
+harbor.plotObstacles();
+xlabel('East [m]'); ylabel('North [m]');
+title('Vessel Trajectory with Obstacle Avoidance');
+legend('Vessel Path', 'Goal', 'Location', 'best');
+
+% Control inputs
+subplot(2, 2, 2);
+stairs(t(1:length(control_log)), rad2deg(control_log(1, :)), 'LineWidth', 1.5);
+grid on;
+xlabel('Time [s]'); ylabel('Rudder Angle [deg]');
+title('Commanded Rudder Angle');
+
+subplot(2, 2, 4);
+stairs(t(1:length(control_log)), control_log(2, :), 'LineWidth', 1.5);
+grid on;
+xlabel('Time [s]'); ylabel('Shaft Speed [RPM]');
+title('Commanded Propeller Speed');
+
+% Save figure
+saveas(gcf, '/mnt/data/nmpc_harbor_navigation_results.png');
+
+fprintf('\n✓ Simulation complete!\n');
+fprintf('  Average solve time: %.3f s\n', mean(solve_times));
+fprintf('  Max solve time: %.3f s\n', max(solve_times));

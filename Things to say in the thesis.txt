@@ -1,0 +1,13 @@
+specify that the truster allocation control is implemented in the NMPC by considering forces and 4 azimuth thrusters as can be seen in the MSS example, 
+not in RPM control or any further complication since that is not the scope of the thesis
+
+%%
+
+The Martinsen method is excellent for harbor docking when you have:
+A known map of the harbor layout
+Static obstacles (piers, walls, moored vessels)
+LIDAR/sensor fusion to augment the map
+But for dynamic circular obstacles (like in congested harbors with moving vessels), the slack variable formulation is more appropriate because it directly handles circular geometries without requiring complex polytope generation.
+
+%%
+
