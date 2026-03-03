@@ -41,7 +41,7 @@ shipImgPath = 'c:\Users\SERILEG\OneDrive - ABB\Autonomous-docking\useful picture
 nmpc_cfg = struct();
 nmpc_cfg.N  = 20;
 nmpc_cfg.dt = 1.0;
-nmpc_cfg.Q  = diag([0, 0, 0.5, 0, 0, 30, 0, 0, 0, 0]); % heading-tracker: only psi(30) + r(0.5)
+nmpc_cfg.Q  = diag([0, 0, 0.5, 0, 0, 15, 0, 0, 0, 0]); % heading-tracker: only psi(15) + r(0.5)
 nmpc_cfg.R  = diag([0.005, 0.001]);   % small rudder penalty (like autobargesim rudderGain=0.005)
 nmpc_cfg.use_obstacles     = true;
 nmpc_cfg.max_obs           = 15;
@@ -148,7 +148,7 @@ function x_ref = buildRefTrajectory(x0, chi_d, U_d, N, ~, ~, ~)
     % Desired yaw rate: steer towards psi_d
     psi_err = atan2(sin(chi_d - x0(6)), cos(chi_d - x0(6)));  % wrapped error
     r_d = psi_err;  % proportional; at dt=1s this is rad/s
-    r_d = max(-0.05, min(0.05, r_d));  % limit to ~3 deg/s
+    r_d = max(-0.25, min(0.25, r_d));  % limit to ~15 deg/s
     
     for k = 0:N
         x_ref(1, k+1)  = U_d;     % surge speed
@@ -430,176 +430,176 @@ animateSimResult(traj_B, wp_B, t_anim_B, harbor_B, cfg_anim_B);
 %% ========================================================================
 %  TEST C — Multi-waypoint + one target ship (SB-MPC COLREGs)
 %% ========================================================================
-fprintf('\n==============================================================\n');
-fprintf('  TEST C: Path following + target ship (SB-MPC COLAV)\n');
-fprintf('==============================================================\n');
+% fprintf('\n==============================================================\n');
+% fprintf('  TEST C: Path following + target ship (SB-MPC COLAV)\n');
+% fprintf('==============================================================\n');
 
-wp_C = [-5800, -2800;
-         -5500, -2700;
-         -5200, -2500;
-         -4900, -2500];
-wp_speed_C = [7; 7; 7; 5];
+% wp_C = [-5800, -2800;
+%          -5500, -2700;
+%          -5200, -2500;
+%          -4900, -2500];
+% wp_speed_C = [7; 7; 7; 5];
 
-% Target ship: crossing from port side at ~5 m/s heading ~270 deg
-% Start at position that will create a crossing encounter
-ts_state = [5; 0; 0; -5400; -2300; deg2rad(180+45); 0; 0; 0; 60];
-ts_radius = 30;
+% % Target ship: crossing from port side at ~5 m/s heading ~270 deg
+% % Start at position that will create a crossing encounter
+% ts_state = [5; 0; 0; -5400; -2300; deg2rad(180+45); 0; 0; 0; 60];
+% ts_radius = 30;
 
-harbor_C = HarborObstacles();
-if ~isempty(harbor.map), harbor_C.loadPolygonMap(harbor.map); end
-harbor_C.addTargetShip(ts_state(1:6), ts_radius, 'TS-1');
+% harbor_C = HarborObstacles();
+% if ~isempty(harbor.map), harbor_C.loadPolygonMap(harbor.map); end
+% harbor_C.addTargetShip(ts_state(1:6), ts_radius, 'TS-1');
 
-x = [7; 0; 0; wp_C(1,1); wp_C(1,2); atan2(wp_C(2,2)-wp_C(1,2), wp_C(2,1)-wp_C(1,1)); 0; 0; 0; 70];
-chi_d_prev = x(6);
-chi_m_last = 0;  U_m_last = 1.0;
-wp_idx = 1;
-nmpc.resetWarmStart();
-pid.reset(x(6));
+% x = [7; 0; 0; wp_C(1,1); wp_C(1,2); atan2(wp_C(2,2)-wp_C(1,2), wp_C(2,1)-wp_C(1,1)); 0; 0; 0; 70];
+% chi_d_prev = x(6);
+% chi_m_last = 0;  U_m_last = 1.0;
+% wp_idx = 1;
+% nmpc.resetWarmStart();
+% pid.reset(x(6));
 
-traj_C = x;  ctrl_C = [];  solve_ok_C = [];  xte_C = [];
-colav_mod_C = [];  % Log SB-MPC modifications
-n_fail_consec = 0;
+% traj_C = x;  ctrl_C = [];  solve_ok_C = [];  xte_C = [];
+% colav_mod_C = [];  % Log SB-MPC modifications
+% n_fail_consec = 0;
 
-fprintf('  Target ship at (%.0f, %.0f) heading %.0f deg, speed %.1f m/s\n', ...
-    ts_state(4), ts_state(5), rad2deg(ts_state(6)), ts_state(1));
+% fprintf('  Target ship at (%.0f, %.0f) heading %.0f deg, speed %.1f m/s\n', ...
+%     ts_state(4), ts_state(5), rad2deg(ts_state(6)), ts_state(1));
 
-for i = 1:length(t)
-    % 1) LOS guidance
-    wp_idx = los.findActiveSegment(wp_C, x, wp_idx);
-    [chi_d, U_d] = los.computeRef(wp_C, wp_speed_C, x, wp_idx, chi_d_prev, i);
-    [xte, ~] = los.computeXTE(wp_C, x, wp_idx);
-    chi_d_prev = chi_d;
+% for i = 1:length(t)
+%     % 1) LOS guidance
+%     wp_idx = los.findActiveSegment(wp_C, x, wp_idx);
+%     [chi_d, U_d] = los.computeRef(wp_C, wp_speed_C, x, wp_idx, chi_d_prev, i);
+%     [xte, ~] = los.computeXTE(wp_C, x, wp_idx);
+%     chi_d_prev = chi_d;
     
-    % 2) SB-MPC COLAV: modify course/speed if target ship nearby
-    x_ts = harbor_C.getTargetShipStates();
-    [chi_c, U_c, chi_m, U_m] = colav.run(x, chi_d, U_d, chi_m_last, U_m_last, x_ts);
-    chi_m_last = chi_m;
-    U_m_last   = U_m;
+%     % 2) SB-MPC COLAV: modify course/speed if target ship nearby
+%     x_ts = harbor_C.getTargetShipStates();
+%     [chi_c, U_c, chi_m, U_m] = colav.run(x, chi_d, U_d, chi_m_last, U_m_last, x_ts);
+%     chi_m_last = chi_m;
+%     U_m_last   = U_m;
     
-    % 3) Build reference from COLAV-modified heading (along path)
-    x_ref = buildRefTrajectory(x, chi_c, U_c, nmpc.N, dt, wp_C, wp_idx);
+%     % 3) Build reference from COLAV-modified heading (along path)
+%     x_ref = buildRefTrajectory(x, chi_c, U_c, nmpc.N, dt, wp_C, wp_idx);
     
-    % 4) NMPC solve — target ships as circular obstacles (full struct fields required)
-    ts_obs = [];
-    for ts_k = 1:length(harbor_C.target_ships)
-        ts_obs_k.position = harbor_C.target_ships(ts_k).state(4:5);
-        ts_obs_k.radius   = harbor_C.target_ships(ts_k).radius;
-        ts_obs_k.velocity = [0; 0];
-        ts_obs_k.type     = 'target_ship';
-        ts_obs_k.name     = harbor_C.target_ships(ts_k).name;
-        ts_obs = [ts_obs; ts_obs_k];
-    end
-    [u_opt, ~, info] = nmpc.solve(x, x_ref, ts_obs);
+%     % 4) NMPC solve — target ships as circular obstacles (full struct fields required)
+%     ts_obs = [];
+%     for ts_k = 1:length(harbor_C.target_ships)
+%         ts_obs_k.position = harbor_C.target_ships(ts_k).state(4:5);
+%         ts_obs_k.radius   = harbor_C.target_ships(ts_k).radius;
+%         ts_obs_k.velocity = [0; 0];
+%         ts_obs_k.type     = 'target_ship';
+%         ts_obs_k.name     = harbor_C.target_ships(ts_k).name;
+%         ts_obs = [ts_obs; ts_obs_k];
+%     end
+%     [u_opt, ~, info] = nmpc.solve(x, x_ref, ts_obs);
     
-    % 5) PID fallback
-    if ~info.success
-        n_fail_consec = n_fail_consec + 1;
-        if n_fail_consec >= 2
-            [u_opt, pid] = pid.compute(chi_c, x(3), x(6), dt);
-        end
-    else
-        n_fail_consec = 0;
-    end
+%     % 5) PID fallback
+%     if ~info.success
+%         n_fail_consec = n_fail_consec + 1;
+%         if n_fail_consec >= 2
+%             [u_opt, pid] = pid.compute(chi_c, x(3), x(6), dt);
+%         end
+%     else
+%         n_fail_consec = 0;
+%     end
     
-    % 6) Simulate plant
-    x = simStep(x, u_opt, dt);
+%     % 6) Simulate plant
+%     x = simStep(x, u_opt, dt);
     
-    % 7) Propagate target ships
-    harbor_C.updateDynamicObstacles(dt);
+%     % 7) Propagate target ships
+%     harbor_C.updateDynamicObstacles(dt);
     
-    % 8) Collision check
-    [coll, ~] = harbor_C.checkMapCollision(x(4:5));
-    if coll
-        fprintf('  >> MAP COLLISION at t=%.1f\n', t(i));
-        break;
-    end
-    % Check target ship proximity
-    for ts_k = 1:length(harbor_C.target_ships)
-        d_ts = norm(x(4:5) - harbor_C.target_ships(ts_k).state(4:5));
-        if d_ts < harbor_C.target_ships(ts_k).radius
-            fprintf('  >> TARGET SHIP COLLISION at t=%.1f, d=%.1f m\n', t(i), d_ts);
-        end
-    end
+%     % 8) Collision check
+%     [coll, ~] = harbor_C.checkMapCollision(x(4:5));
+%     if coll
+%         fprintf('  >> MAP COLLISION at t=%.1f\n', t(i));
+%         break;
+%     end
+%     % Check target ship proximity
+%     for ts_k = 1:length(harbor_C.target_ships)
+%         d_ts = norm(x(4:5) - harbor_C.target_ships(ts_k).state(4:5));
+%         if d_ts < harbor_C.target_ships(ts_k).radius
+%             fprintf('  >> TARGET SHIP COLLISION at t=%.1f, d=%.1f m\n', t(i), d_ts);
+%         end
+%     end
     
-    % 9) Log
-    traj_C = [traj_C, x];
-    ctrl_C = [ctrl_C, u_opt];
-    solve_ok_C = [solve_ok_C, info.success];
-    xte_C  = [xte_C, xte];
-    colav_mod_C = [colav_mod_C; chi_m, U_m];
+%     % 9) Log
+%     traj_C = [traj_C, x];
+%     ctrl_C = [ctrl_C, u_opt];
+%     solve_ok_C = [solve_ok_C, info.success];
+%     xte_C  = [xte_C, xte];
+%     colav_mod_C = [colav_mod_C; chi_m, U_m];
     
-    if i == 1 || mod(i, 30) == 0
-        fprintf('  [t=%5.1f] pos=(%7.1f,%6.1f) psi=%+5.1fdeg wp=%d chi_m=%+.0fdeg U_m=%.1f ok=%d\n', ...
-            t(i), x(4), x(5), rad2deg(x(6)), wp_idx, rad2deg(chi_m), U_m, info.success);
-    end
+%     if i == 1 || mod(i, 30) == 0
+%         fprintf('  [t=%5.1f] pos=(%7.1f,%6.1f) psi=%+5.1fdeg wp=%d chi_m=%+.0fdeg U_m=%.1f ok=%d\n', ...
+%             t(i), x(4), x(5), rad2deg(x(6)), wp_idx, rad2deg(chi_m), U_m, info.success);
+%     end
     
-    if norm(x(4:5) - wp_C(end,:)') < los.R_a
-        fprintf('  >> FINAL WAYPOINT REACHED at t=%.1f s!\n', t(i));
-        break;
-    end
-end
-nC_ok = sum(solve_ok_C);  nC_tot = length(solve_ok_C);
-fprintf('  Solver: %d/%d (%.0f%%), mean XTE: %.1f m\n', ...
-    nC_ok, nC_tot, 100*nC_ok/max(nC_tot,1), mean(abs(xte_C)));
+%     if norm(x(4:5) - wp_C(end,:)') < los.R_a
+%         fprintf('  >> FINAL WAYPOINT REACHED at t=%.1f s!\n', t(i));
+%         break;
+%     end
+% end
+% nC_ok = sum(solve_ok_C);  nC_tot = length(solve_ok_C);
+% fprintf('  Solver: %d/%d (%.0f%%), mean XTE: %.1f m\n', ...
+%     nC_ok, nC_tot, 100*nC_ok/max(nC_tot,1), mean(abs(xte_C)));
 
 
-figure(3); clf;
-% ---- Trajectory + target ship path ----
-subplot(3,1,1);
-if ~isempty(harbor.map), harbor.plotMap(); end
-hold on;
-plot(traj_C(5,:), traj_C(4,:), 'b-', 'LineWidth', 2);
-plot(wp_C(:,2), wp_C(:,1), 'r*-', 'MarkerSize', 12, 'LineWidth', 1);
-% Plot target ship trajectory (reconstruct from initial state)
-ts_start = ts_state;
-ts_traj_x = ts_start(4);  ts_traj_y = ts_start(5);
-for k = 1:size(traj_C,2)-1
-    ts_start(4) = ts_start(4) + (cos(ts_start(6))*ts_start(1) - sin(ts_start(6))*ts_start(2))*dt;
-    ts_start(5) = ts_start(5) + (sin(ts_start(6))*ts_start(1) + cos(ts_start(6))*ts_start(2))*dt;
-    ts_traj_x = [ts_traj_x, ts_start(4)];
-    ts_traj_y = [ts_traj_y, ts_start(5)];
-end
-plot(ts_traj_y, ts_traj_x, 'm--', 'LineWidth', 1.5);
-plot(traj_C(5,1), traj_C(4,1), 'go', 'MarkerSize', 10, 'MarkerFaceColor', 'g');
-legend('Own ship', 'Waypoints', 'Target ship', 'Start', 'Location', 'best');
-xlabel('y [m]'); ylabel('x [m]'); title('C: COLAV (SB-MPC)'); grid on; axis equal;
+% figure(3); clf;
+% % ---- Trajectory + target ship path ----
+% subplot(3,1,1);
+% if ~isempty(harbor.map), harbor.plotMap(); end
+% hold on;
+% plot(traj_C(5,:), traj_C(4,:), 'b-', 'LineWidth', 2);
+% plot(wp_C(:,2), wp_C(:,1), 'r*-', 'MarkerSize', 12, 'LineWidth', 1);
+% % Plot target ship trajectory (reconstruct from initial state)
+% ts_start = ts_state;
+% ts_traj_x = ts_start(4);  ts_traj_y = ts_start(5);
+% for k = 1:size(traj_C,2)-1
+%     ts_start(4) = ts_start(4) + (cos(ts_start(6))*ts_start(1) - sin(ts_start(6))*ts_start(2))*dt;
+%     ts_start(5) = ts_start(5) + (sin(ts_start(6))*ts_start(1) + cos(ts_start(6))*ts_start(2))*dt;
+%     ts_traj_x = [ts_traj_x, ts_start(4)];
+%     ts_traj_y = [ts_traj_y, ts_start(5)];
+% end
+% plot(ts_traj_y, ts_traj_x, 'm--', 'LineWidth', 1.5);
+% plot(traj_C(5,1), traj_C(4,1), 'go', 'MarkerSize', 10, 'MarkerFaceColor', 'g');
+% legend('Own ship', 'Waypoints', 'Target ship', 'Start', 'Location', 'best');
+% xlabel('y [m]'); ylabel('x [m]'); title('C: COLAV (SB-MPC)'); grid on; axis equal;
 
-% ---- TEST C: Controls ----
-subplot(3,1,2);
-if ~isempty(ctrl_C)
-    t_C = (0:size(ctrl_C,2)-1)*dt;
-    yyaxis left;  stairs(t_C, rad2deg(ctrl_C(1,:)), 'b-'); ylabel('Rudder [deg]');
-    yyaxis right; stairs(t_C, ctrl_C(2,:), 'r-');           ylabel('RPM');
-end
-xlabel('Time [s]'); title('C: Controls'); grid on;
+% % ---- TEST C: Controls ----
+% subplot(3,1,2);
+% if ~isempty(ctrl_C)
+%     t_C = (0:size(ctrl_C,2)-1)*dt;
+%     yyaxis left;  stairs(t_C, rad2deg(ctrl_C(1,:)), 'b-'); ylabel('Rudder [deg]');
+%     yyaxis right; stairs(t_C, ctrl_C(2,:), 'r-');           ylabel('RPM');
+% end
+% xlabel('Time [s]'); title('C: Controls'); grid on;
 
-% ---- TEST C: COLAV modifications ----
-subplot(3,1,3);
-if ~isempty(colav_mod_C)
-    t_colav = (0:size(colav_mod_C,1)-1)*dt;
-    yyaxis left;  plot(t_colav, rad2deg(colav_mod_C(:,1)), 'b-', 'LineWidth', 1.5);
-    ylabel('chi_m [deg]');
-    yyaxis right; plot(t_colav, colav_mod_C(:,2), 'r-', 'LineWidth', 1.5);
-    ylabel('U_m factor');
-end
-xlabel('Time [s]'); title('C: SB-MPC modifications'); grid on;
+% % ---- TEST C: COLAV modifications ----
+% subplot(3,1,3);
+% if ~isempty(colav_mod_C)
+%     t_colav = (0:size(colav_mod_C,1)-1)*dt;
+%     yyaxis left;  plot(t_colav, rad2deg(colav_mod_C(:,1)), 'b-', 'LineWidth', 1.5);
+%     ylabel('chi_m [deg]');
+%     yyaxis right; plot(t_colav, colav_mod_C(:,2), 'r-', 'LineWidth', 1.5);
+%     ylabel('U_m factor');
+% end
+% xlabel('Time [s]'); title('C: SB-MPC modifications'); grid on;
 
-sgtitle('NMPC Container Ship — Full Pipeline (LOS + SB-MPC + NMPC)', 'FontSize', 13);
+% sgtitle('NMPC Container Ship — Full Pipeline (LOS + SB-MPC + NMPC)', 'FontSize', 13);
 
-% --- Dynamic animation (target-ship trajectory is already in ts_traj_x/y) -
-cfg_anim_C = struct();
-cfg_anim_C.figNo       = 12;
-cfg_anim_C.testName    = 'C: COLAV (SB-MPC)';
-cfg_anim_C.shipImgFile = shipImgPath;
-cfg_anim_C.shipSize    = 0.08;
-cfg_anim_C.maxFrames   = 150;
-cfg_anim_C.pauseTime   = 0.05;
-% Overlay target ship trajectory (reconstructed in the plot block above)
-if exist('ts_traj_x', 'var') && exist('ts_traj_y', 'var')
-    cfg_anim_C.extraPaths = {{ts_traj_x, ts_traj_y, 'm--', 'Target ship'}};
-end
-t_anim_C = (0:size(traj_C,2)-1)*dt;
-animateSimResult(traj_C, wp_C, t_anim_C, harbor_C, cfg_anim_C);
+% % --- Dynamic animation (target-ship trajectory is already in ts_traj_x/y) -
+% cfg_anim_C = struct();
+% cfg_anim_C.figNo       = 12;
+% cfg_anim_C.testName    = 'C: COLAV (SB-MPC)';
+% cfg_anim_C.shipImgFile = shipImgPath;
+% cfg_anim_C.shipSize    = 0.08;
+% cfg_anim_C.maxFrames   = 150;
+% cfg_anim_C.pauseTime   = 0.05;
+% % Overlay target ship trajectory (reconstructed in the plot block above)
+% if exist('ts_traj_x', 'var') && exist('ts_traj_y', 'var')
+%     cfg_anim_C.extraPaths = {{ts_traj_x, ts_traj_y, 'm--', 'Target ship'}};
+% end
+% t_anim_C = (0:size(traj_C,2)-1)*dt;
+% animateSimResult(traj_C, wp_C, t_anim_C, harbor_C, cfg_anim_C);
 
 %% ===== Summary ==========================================================
 fprintf('\n=== SUMMARY ===\n');
