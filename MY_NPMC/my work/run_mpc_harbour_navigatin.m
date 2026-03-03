@@ -13,6 +13,7 @@
 % Date: 2025 (refactored from Opti-based version)
 
 clear; close all; clc;
+clear animateSimResult   % reset rotation cache when re-running the script
 fprintf('  NMPC HARBOR NAVIGATION — FULL PIPELINE (LOS + SB-MPC + NMPC)\n');
 
 %% ===== STEP 0: Sanity check on container.m ==============================
@@ -30,6 +31,11 @@ fprintf('  u=%.1f m/s, n=%.0f RPM -> u_dot=%.6f, x_dot=%.4f, psi_dot=%.6f\n', ..
 fprintf('  (should be near-equilibrium: small derivatives)\n\n');
 
 %% ===== STEP 1: Configure all modules ====================================
+
+% --- Ship animation image -----------------------------------------------
+% Path to the top-view vessel image used as the ship icon in animations.
+% The image is used as-is: bow must face upward (North) in the file.
+shipImgPath = 'c:\Users\SERILEG\OneDrive - ABB\Autonomous-docking\useful pictures\vessel_top.png';
 
 % --- NMPC config --------------------------------------------------------
 nmpc_cfg = struct();
@@ -281,6 +287,17 @@ if ~isempty(xte_A)
 end
 xlabel('Time [s]'); ylabel('XTE [m]'); title('A: Cross-track error'); grid on;
 
+% --- Dynamic animation (post-simulation, does not affect NMPC timing) ----
+cfg_anim_A = struct();
+cfg_anim_A.figNo       = 10;
+cfg_anim_A.testName    = 'A: Path Following';
+cfg_anim_A.shipImgFile = shipImgPath;
+cfg_anim_A.shipSize    = 0.08;
+cfg_anim_A.maxFrames   = 150;
+cfg_anim_A.pauseTime   = 0.05;
+t_anim_A = (0:size(traj_A,2)-1)*dt;
+animateSimResult(traj_A, wp_A, t_anim_A, harbor, cfg_anim_A);
+
 %% ========================================================================
 %  TEST B — Multi-waypoint + one static obstacle
 %% ========================================================================
@@ -290,8 +307,8 @@ fprintf('==============================================================\n');
 
 wp_B = [-5800, -2800;
          -5500, -2700;
-         -5200, -2500;
-         -4900, -2500];
+         -5000, -2400;
+         -4400, -2400];
 wp_speed_B = [7; 7; 7; 5];
 
 % Place obstacle on the path between wp2 and wp3
@@ -395,6 +412,20 @@ if ~isempty(xte_B)
     yline(0, 'k--');
 end
 xlabel('Time [s]'); ylabel('XTE [m]'); title('B: Cross-track error'); grid on;
+
+% --- Dynamic animation ---------------------------------------------------
+cfg_anim_B = struct();
+cfg_anim_B.figNo       = 11;
+cfg_anim_B.testName    = 'B: Obstacle Avoidance';
+cfg_anim_B.shipImgFile = shipImgPath;
+cfg_anim_B.shipSize    = 0.08;
+cfg_anim_B.maxFrames   = 150;
+cfg_anim_B.pauseTime   = 0.05;
+% Pass the static obstacle so it is drawn in the animation
+cfg_anim_B.circObs(1).position = obs_pos_B;
+cfg_anim_B.circObs(1).radius   = obs_rad_B;
+t_anim_B = (0:size(traj_B,2)-1)*dt;
+animateSimResult(traj_B, wp_B, t_anim_B, harbor_B, cfg_anim_B);
 
 %% ========================================================================
 %  TEST C — Multi-waypoint + one target ship (SB-MPC COLREGs)
@@ -554,6 +585,21 @@ end
 xlabel('Time [s]'); title('C: SB-MPC modifications'); grid on;
 
 sgtitle('NMPC Container Ship — Full Pipeline (LOS + SB-MPC + NMPC)', 'FontSize', 13);
+
+% --- Dynamic animation (target-ship trajectory is already in ts_traj_x/y) -
+cfg_anim_C = struct();
+cfg_anim_C.figNo       = 12;
+cfg_anim_C.testName    = 'C: COLAV (SB-MPC)';
+cfg_anim_C.shipImgFile = shipImgPath;
+cfg_anim_C.shipSize    = 0.08;
+cfg_anim_C.maxFrames   = 150;
+cfg_anim_C.pauseTime   = 0.05;
+% Overlay target ship trajectory (reconstructed in the plot block above)
+if exist('ts_traj_x', 'var') && exist('ts_traj_y', 'var')
+    cfg_anim_C.extraPaths = {{ts_traj_x, ts_traj_y, 'm--', 'Target ship'}};
+end
+t_anim_C = (0:size(traj_C,2)-1)*dt;
+animateSimResult(traj_C, wp_C, t_anim_C, harbor_C, cfg_anim_C);
 
 %% ===== Summary ==========================================================
 fprintf('\n=== SUMMARY ===\n');
