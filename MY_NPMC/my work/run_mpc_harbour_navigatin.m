@@ -41,18 +41,21 @@ shipImgPath = 'c:\Users\SERILEG\OneDrive - ABB\Autonomous-docking\useful picture
 nmpc_cfg = struct();
 nmpc_cfg.N  = 20;
 nmpc_cfg.dt = 1.0;
-nmpc_cfg.Q  = diag([0, 0, 0.5, 0, 0, 15, 0, 0, 0, 0]); % heading-tracker: only psi(15) + r(0.5)
+nmpc_cfg.Q  = diag([2.0, 0, 0.8, 0.03, 0.03, 15, 0, 0, 0, 0]); % add mild speed/position pull + heading/yaw-rate
 nmpc_cfg.R  = diag([0.005, 0.001]);   % small rudder penalty (like autobargesim rudderGain=0.005)
 nmpc_cfg.use_obstacles     = true;
-nmpc_cfg.max_obs           = 15;
+nmpc_cfg.max_obs           = 30;
 nmpc_cfg.use_map_obstacles = true;
-nmpc_cfg.max_map_obs       = 10;
+nmpc_cfg.max_map_obs       = 20;
 nmpc_cfg.V_c    = 0.0;       % Current speed [m/s] (set >0 to test)
 nmpc_cfg.beta_c = 0.0;       % Current direction [rad]
 nmpc_cfg.model_type = 'full';       % 'full' or 'simplified'
-nmpc_cfg.R_rate = diag([0.01, 0.001]); % small rudder-rate smoothing
+nmpc_cfg.R_rate = diag([0.08, 0.001]); % stronger rudder-rate smoothing (less chatter/wobble)
+nmpc_cfg.penalty_slack = 15000;      % obstacle violation should be expensive
 
 nmpc = NMPC_Container(nmpc_cfg);
+nmpc.map_obs_radius = 35;            % larger equivalent radius for polygon-derived map obstacles
+nmpc.r_safety = 40;                  % extra clearance around obstacles
 
 % --- LOS Guidance --------------------------------------------------------
 los = LOSGuidance('K_p', 1/150, 'R_a', 60, 'chi_rate_max', pi/20, ...
@@ -128,33 +131,62 @@ t  = 0:dt:T_final;
 %% ========================================================================
 %  HELPER: Generate reference trajectory from LOS heading + speed
 %% ========================================================================
-function x_ref = buildRefTrajectory(x0, chi_d, U_d, N, ~, ~, ~)
-    % Build heading-tracker reference for the NMPC.
+function x_ref = buildRefTrajectory(x0, chi_d, U_d, N, dt, wp, wp_idx)
+    % Build NMPC reference from LOS heading + speed.
     %
-    % Architecture (like autobargesim): LOS guidance computes chi_d (desired
-    % heading). The MPC tracks chi_d as a heading setpoint. Position
-    % tracking is handled entirely by LOS, not by the MPC cost.
+    % LOS provides chi_d/U_d. This helper rolls a short position reference
+    % along active waypoint segments so NMPC has a clear pull-back target
+    % after obstacle avoidance.
     %
-    % x_ref states:
-    %   state 1 (u):   U_d    — desired surge speed
-    %   state 3 (r):   r_d    — desired yaw rate (towards psi_d)
-    %   state 6 (psi): chi_d  — desired heading
-    %   state 10 (n):  70 RPM — nominal
-    %   all others:    copy from x0 (don't-care for cost, but needed for
-    %                  warm-start and dynamics propagation)
+    % x_ref states used by NMPC cost:
+    %   state 1 (u):   U_d
+    %   state 3 (r):   r_d
+    %   state 4 (x):   rolled-out path position
+    %   state 5 (y):   rolled-out path position
+    %   state 6 (psi): chi_d
+    %   state 10 (n):  nominal RPM
     
     x_ref = repmat(x0(:), 1, N+1);   % start from current state
     
     % Desired yaw rate: steer towards psi_d
     psi_err = atan2(sin(chi_d - x0(6)), cos(chi_d - x0(6)));  % wrapped error
-    r_d = psi_err;  % proportional; at dt=1s this is rad/s
-    r_d = max(-0.25, min(0.25, r_d));  % limit to ~15 deg/s
+    r_d = 0.7 * psi_err;
+    r_d = max(-0.20, min(0.20, r_d));  % limit to ~11.5 deg/s
+
+    n_wps = size(wp, 1);
+    seg_idx = min(max(1, wp_idx), max(1, n_wps-1));
+    p_ref = [x0(4); x0(5)];
     
-    for k = 0:N
-        x_ref(1, k+1)  = U_d;     % surge speed
-        x_ref(3, k+1)  = r_d;     % yaw rate reference
-        x_ref(6, k+1)  = chi_d;   % heading reference
-        x_ref(10, k+1) = 70;      % RPM nominal
+    for k = 1:(N+1)
+        x_ref(1, k)  = U_d;     % surge speed
+        x_ref(3, k)  = r_d;     % yaw rate reference
+        x_ref(6, k)  = chi_d;   % heading reference
+        x_ref(10, k) = 70;      % RPM nominal
+
+        % Keep x_ref(:,1) at current position; rollout starts from k=2
+        if k > 1
+            if seg_idx < n_wps
+                p_to = wp(seg_idx+1, :)';
+                dp = p_to - p_ref;
+                if norm(dp) < max(5, 0.8*U_d*dt) && seg_idx < n_wps-1
+                    seg_idx = seg_idx + 1;
+                    p_to = wp(seg_idx+1, :)';
+                    dp = p_to - p_ref;
+                end
+
+                if norm(dp) > 1e-6
+                    dir_vec = dp / norm(dp);
+                else
+                    dir_vec = [cos(chi_d); sin(chi_d)];
+                end
+                p_ref = p_ref + dir_vec * U_d * dt;
+            else
+                p_ref = p_ref + [cos(chi_d); sin(chi_d)] * U_d * dt;
+            end
+        end
+
+        x_ref(4, k) = p_ref(1);
+        x_ref(5, k) = p_ref(2);
     end
 end
 
@@ -218,9 +250,7 @@ for i = 1:length(t)
     % ---- 4) PID fallback if NMPC fails ----
     if ~info.success
         n_fail_consec = n_fail_consec + 1;
-        if n_fail_consec >= 2
-            [u_opt, pid] = pid.compute(chi_d, x(3), x(6), dt);
-        end
+        [u_opt, pid] = pid.compute(chi_d, x(3), x(6), dt);
     else
         n_fail_consec = 0;
     end
@@ -344,9 +374,7 @@ for i = 1:length(t)
     
     if ~info.success
         n_fail_consec = n_fail_consec + 1;
-        if n_fail_consec >= 2
-            [u_opt, pid] = pid.compute(chi_d, x(3), x(6), dt);
-        end
+        [u_opt, pid] = pid.compute(chi_d, x(3), x(6), dt);
     else
         n_fail_consec = 0;
     end
@@ -605,6 +633,6 @@ animateSimResult(traj_B, wp_B, t_anim_B, harbor_B, cfg_anim_B);
 fprintf('\n=== SUMMARY ===\n');
 fprintf('  Test A — %d/%d solves (%.0f%%), mean XTE: %.1f m\n', nA_ok, nA_tot, 100*nA_ok/max(nA_tot,1), mean(abs(xte_A)));
 fprintf('  Test B — %d/%d solves (%.0f%%), mean XTE: %.1f m\n', nB_ok, nB_tot, 100*nB_ok/max(nB_tot,1), mean(abs(xte_B)));
-fprintf('  Test C — %d/%d solves (%.0f%%), mean XTE: %.1f m\n', nC_ok, nC_tot, 100*nC_ok/max(nC_tot,1), mean(abs(xte_C)));
+% fprintf('  Test C — %d/%d solves (%.0f%%), mean XTE: %.1f m\n', nC_ok, nC_tot, 100*nC_ok/max(nC_tot,1), mean(abs(xte_C)));
 fprintf('  Total solver: OK=%d, Fail=%d\n', nmpc.solve_ok, nmpc.solve_fail);
 fprintf('\nDone. Check figures.\n');
