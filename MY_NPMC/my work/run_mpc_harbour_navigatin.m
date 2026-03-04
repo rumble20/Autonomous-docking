@@ -17,18 +17,10 @@ clear animateSimResult   % reset rotation cache when re-running the script
 fprintf('  NMPC HARBOR NAVIGATION — FULL PIPELINE (LOS + SB-MPC + NMPC)\n');
 
 %% ===== STEP 0: Sanity check on container.m ==============================
-x_test = [7; 0; 0; 0; 0; 0; 0; 0; 0; 70];
+x_test = [7; 0; 0; 0; 0; 0; 0; 0; 0; 70; 0; 0]; % 12 States
+u_test = [0; 70; 0; 0]; % 4 Controls
 
-% u     = x(1)/U;   v   = x(2)/U;  
-% p     = x(7)*L/U; r   = x(3)*L/U; 
-% phi   = x(8);     psi = x(6); 
-% delta = x(9);     n   = x(10)/60*L/U;
-
-u_test = [0; 70];
 [xdot_test, U_test] = container(x_test, u_test);
-fprintf('  u=%.1f m/s, n=%.0f RPM -> u_dot=%.6f, x_dot=%.4f, psi_dot=%.6f\n', ...
-    x_test(1), x_test(10), xdot_test(1), xdot_test(4), xdot_test(6));
-fprintf('  (should be near-equilibrium: small derivatives)\n\n');
 
 %% ===== STEP 1: Configure all modules ====================================
 
@@ -39,10 +31,14 @@ shipImgPath = 'c:\Users\SERILEG\OneDrive - ABB\Autonomous-docking\useful picture
 
 % --- NMPC config --------------------------------------------------------
 nmpc_cfg = struct();
-nmpc_cfg.N  = 20;
-nmpc_cfg.dt = 1.0;
-nmpc_cfg.Q  = diag([2.0, 0, 0.8, 0.03, 0.03, 15, 0, 0, 0, 0]); % add mild speed/position pull + heading/yaw-rate
-nmpc_cfg.R  = diag([0.005, 0.001]);   % small rudder penalty (like autobargesim rudderGain=0.005)
+nmpc_cfg.N  = 30;
+nmpc_cfg.dt = 2.0;
+% Q: [u, v, r, x, y, psi, p, phi, n_b, n_s, a_b, a_s]
+nmpc_cfg.Q  = diag([2.0, 0, 4, 0.01, 0.01, 15, 0, 0, 0, 0, 0, 0]); 
+% R: [n_b, n_s, a_b, a_s] - Penalize using the thrusters slightly
+nmpc_cfg.R  = diag([0.01, 0.01, 0.5, 0.5]);   
+% R_rate: Heavily penalize rotating the Azipods quickly (stops wobble)
+nmpc_cfg.R_rate = diag([0.001, 0.001, 10.0, 10.0]);
 nmpc_cfg.use_obstacles     = true;
 nmpc_cfg.max_obs           = 30;
 nmpc_cfg.use_map_obstacles = true;
@@ -50,7 +46,6 @@ nmpc_cfg.max_map_obs       = 20;
 nmpc_cfg.V_c    = 0.0;       % Current speed [m/s] (set >0 to test)
 nmpc_cfg.beta_c = 0.0;       % Current direction [rad]
 nmpc_cfg.model_type = 'full';       % 'full' or 'simplified'
-nmpc_cfg.R_rate = diag([0.08, 0.001]); % stronger rudder-rate smoothing (less chatter/wobble)
 nmpc_cfg.penalty_slack = 15000;      % obstacle violation should be expensive
 
 nmpc = NMPC_Container(nmpc_cfg);
@@ -96,9 +91,12 @@ end
 %% ===== STEP 2: CasADi dynamics consistency check =========================
 fprintf('\n--- Step 2: CasADi-vs-container() consistency ---\n');
 import casadi.*
-x_sym = SX.sym('x', 10, 1);
-u_sym = SX.sym('u', 2, 1);
+
+% CRITICAL FIX: Update symbolic dimensions to 12 states and 4 controls
+x_sym = SX.sym('x', 12, 1);
+u_sym = SX.sym('u', 4, 1);
 env_sym = SX.sym('env', 2, 1);
+
 xdot_sym = nmpc.dynamics_full_casadi(x_sym, u_sym, env_sym);
 f_check = casadi.Function('f_check', {x_sym, u_sym, env_sym}, {xdot_sym});
 
@@ -106,9 +104,10 @@ xdot_cas = full(f_check(x_test, u_test, [0; 0]));
 err = abs(xdot_test - xdot_cas);
 max_err = max(err);
 
-labels = {'u_dot','v_dot','r_dot','x_dot','y_dot','psi_dot','p_dot','phi_dot','del_dot','n_dot'};
+% CRITICAL FIX: Update labels and loop to 12
+labels = {'u_dot','v_dot','r_dot','x_dot','y_dot','psi_dot','p_dot','phi_dot','n_dot_b','n_dot_s','a_dot_b','a_dot_s'};
 fprintf('  %-10s  %12s  %12s  %12s\n', 'State', 'container()', 'CasADi', '|error|');
-for i = 1:10
+for i = 1:12 
     fprintf('  %-10s  %+12.6f  %+12.6f  %12.2e\n', labels{i}, xdot_test(i), xdot_cas(i), err(i));
 end
 if max_err < 1e-6
@@ -133,60 +132,62 @@ t  = 0:dt:T_final;
 %% ========================================================================
 function x_ref = buildRefTrajectory(x0, chi_d, U_d, N, dt, wp, wp_idx)
     % Build NMPC reference from LOS heading + speed.
-    %
-    % LOS provides chi_d/U_d. This helper rolls a short position reference
-    % along active waypoint segments so NMPC has a clear pull-back target
-    % after obstacle avoidance.
-    %
-    % x_ref states used by NMPC cost:
-    %   state 1 (u):   U_d
-    %   state 3 (r):   r_d
-    %   state 4 (x):   rolled-out path position
-    %   state 5 (y):   rolled-out path position
-    %   state 6 (psi): chi_d
-    %   state 10 (n):  nominal RPM
+    % x_ref states: [u v r x y psi p phi n_bow n_stern alpha_bow alpha_stern]
     
     x_ref = repmat(x0(:), 1, N+1);   % start from current state
     
-    % Desired yaw rate: steer towards psi_d
-    psi_err = atan2(sin(chi_d - x0(6)), cos(chi_d - x0(6)));  % wrapped error
-    r_d = 0.7 * psi_err;
-    r_d = max(-0.20, min(0.20, r_d));  % limit to ~11.5 deg/s
+    % The NMPC should regulate yaw rate to zero as it aligns with the path
+    r_d = 0.0; 
 
     n_wps = size(wp, 1);
     seg_idx = min(max(1, wp_idx), max(1, n_wps-1));
     p_ref = [x0(4); x0(5)];
     
+    % Track the current desired heading across the horizon rollout
+    current_chi_d = chi_d; 
+    
     for k = 1:(N+1)
         x_ref(1, k)  = U_d;     % surge speed
         x_ref(3, k)  = r_d;     % yaw rate reference
-        x_ref(6, k)  = chi_d;   % heading reference
-        x_ref(10, k) = 70;      % RPM nominal
+        
+        % --- NEW AZIPOD REFERENCE STATES ---
+        x_ref(9, k)  = 0;       % Nominal Bow RPM
+        x_ref(10, k) = 70;      % Nominal Stern RPM 
+        x_ref(11, k) = 0;       % Nominal Bow Angle [rad]
+        x_ref(12, k) = 0;       % Nominal Stern Angle [rad]
 
         % Keep x_ref(:,1) at current position; rollout starts from k=2
         if k > 1
             if seg_idx < n_wps
                 p_to = wp(seg_idx+1, :)';
                 dp = p_to - p_ref;
+                
+                % If we are close to the waypoint in the rollout, switch to next segment
                 if norm(dp) < max(5, 0.8*U_d*dt) && seg_idx < n_wps-1
                     seg_idx = seg_idx + 1;
                     p_to = wp(seg_idx+1, :)';
                     dp = p_to - p_ref;
+                    
+                    % Update the desired heading for the new segment
+                    if norm(dp) > 1e-6
+                        current_chi_d = atan2(dp(2), dp(1));
+                    end
                 end
 
                 if norm(dp) > 1e-6
                     dir_vec = dp / norm(dp);
                 else
-                    dir_vec = [cos(chi_d); sin(chi_d)];
+                    dir_vec = [cos(current_chi_d); sin(current_chi_d)];
                 end
                 p_ref = p_ref + dir_vec * U_d * dt;
             else
-                p_ref = p_ref + [cos(chi_d); sin(chi_d)] * U_d * dt;
+                p_ref = p_ref + [cos(current_chi_d); sin(current_chi_d)] * U_d * dt;
             end
         end
 
         x_ref(4, k) = p_ref(1);
         x_ref(5, k) = p_ref(2);
+        x_ref(6, k) = current_chi_d; % Assign the dynamically updated heading!
     end
 end
 
@@ -196,7 +197,6 @@ end
 function x_next = simStep(x, u_ctrl, dt_s)
     % RK4 integration of container.m
     x(1)  = max(x(1), 0.1);
-    x(10) = max(x(10), 1);
     [k1, ~] = container(x, u_ctrl);
     [k2, ~] = container(x + k1*dt_s/2, u_ctrl);
     [k3, ~] = container(x + k2*dt_s/2, u_ctrl);
@@ -218,7 +218,7 @@ wp_A = [-5800, -2800;
          -4450, -2200];
 wp_speed_A = [7; 7; 7; 5];   % m/s at each wp
 
-x = [7; 0; 0; wp_A(1,1); wp_A(1,2); atan2(wp_A(2,2)-wp_A(1,2), wp_A(2,1)-wp_A(1,1)); 0; 0; 0; 70];
+x = [7; 0; 0; wp_A(1,1); wp_A(1,2); atan2(wp_A(2,2)-wp_A(1,2), wp_A(2,1)-wp_A(1,1)); 0; 0; 0; 70; 0; 0];
 chi_d_prev = x(6);
 wp_idx = 1;
 nmpc.resetWarmStart();
@@ -250,7 +250,9 @@ for i = 1:length(t)
     % ---- 4) PID fallback if NMPC fails ----
     if ~info.success
         n_fail_consec = n_fail_consec + 1;
-        [u_opt, pid] = pid.compute(chi_d, x(3), x(6), dt);
+        [u_pid, pid] = pid.compute(chi_d, x(3), x(6), dt);
+        % Map PID (rudder & RPM) to Azipods: [Bow RPM; Stern RPM; Bow Angle; Stern Angle]
+        u_opt = [0; u_pid(2); 0; -u_pid(1)]; 
     else
         n_fail_consec = 0;
     end
@@ -303,10 +305,22 @@ xlabel('y [m]'); ylabel('x [m]'); title('A: Path following'); grid on; axis equa
 subplot(3,1,2);
 if ~isempty(ctrl_A)
     t_A = (0:size(ctrl_A,2)-1)*dt;
-    yyaxis left;  stairs(t_A, rad2deg(ctrl_A(1,:)), 'b-'); ylabel('Rudder [deg]');
-    yyaxis right; stairs(t_A, ctrl_A(2,:), 'r-');           ylabel('RPM');
+    
+    yyaxis left;  
+    stairs(t_A, ctrl_A(1,:), 'r-', 'LineWidth', 1.5, 'DisplayName', 'Bow RPM');
+    hold on;
+    stairs(t_A, ctrl_A(2,:), 'r--', 'LineWidth', 1.5, 'DisplayName', 'Stern RPM');
+    ylabel('RPM');
+    
+    yyaxis right; 
+    stairs(t_A, rad2deg(ctrl_A(3,:)), 'b-', 'LineWidth', 1.5, 'DisplayName', 'Bow \alpha');
+    hold on;
+    stairs(t_A, rad2deg(ctrl_A(4,:)), 'b--', 'LineWidth', 1.5, 'DisplayName', 'Stern \alpha');
+    ylabel('Angle [deg]');
+    
+    legend('Location', 'best', 'NumColumns', 2);
 end
-xlabel('Time [s]'); title('A: Controls'); grid on;
+xlabel('Time [s]'); title('A: Controls (Dual Azipods)'); grid on;
 
 % ---- Plot XTE ----
 subplot(3,1,3);
@@ -349,7 +363,7 @@ harbor_B = HarborObstacles();
 if ~isempty(harbor.map), harbor_B.loadPolygonMap(harbor.map); end
 harbor_B.addStaticObstacle(obs_pos_B, obs_rad_B, 'Pier-B');
 
-x = [7; 0; 0; wp_B(1,1); wp_B(1,2); atan2(wp_B(2,2)-wp_B(1,2), wp_B(2,1)-wp_B(1,1)); 0; 0; 0; 70];
+x = [7; 0; 0; wp_B(1,1); wp_B(1,2); atan2(wp_B(2,2)-wp_B(1,2), wp_B(2,1)-wp_B(1,1)); 0; 0; 0; 70; 0; 0];
 chi_d_prev = x(6);
 wp_idx = 1;
 nmpc.resetWarmStart();
@@ -372,9 +386,12 @@ for i = 1:length(t)
     obs_struct = harbor_B.getAllCircularObstacles();
     [u_opt, ~, info] = nmpc.solve(x, x_ref, obs_struct);
     
+    % ---- 4) PID fallback if NMPC fails ----
     if ~info.success
         n_fail_consec = n_fail_consec + 1;
-        [u_opt, pid] = pid.compute(chi_d, x(3), x(6), dt);
+        [u_pid, pid] = pid.compute(chi_d, x(3), x(6), dt);
+        % Map PID (rudder & RPM) to Azipods: [Bow RPM; Stern RPM; Bow Angle; Stern Angle]
+        u_opt = [0; u_pid(2); 0; -u_pid(1)]; 
     else
         n_fail_consec = 0;
     end
@@ -427,10 +444,22 @@ xlabel('y [m]'); ylabel('x [m]'); title('B: Obstacle avoidance'); grid on; axis 
 subplot(3,1,2);
 if ~isempty(ctrl_B)
     t_B = (0:size(ctrl_B,2)-1)*dt;
-    yyaxis left;  stairs(t_B, rad2deg(ctrl_B(1,:)), 'b-'); ylabel('Rudder [deg]');
-    yyaxis right; stairs(t_B, ctrl_B(2,:), 'r-');           ylabel('RPM');
+    
+    yyaxis left;  
+    stairs(t_B, ctrl_B(1,:), 'r-', 'LineWidth', 1.5, 'DisplayName', 'Bow RPM');
+    hold on;
+    stairs(t_B, ctrl_B(2,:), 'r--', 'LineWidth', 1.5, 'DisplayName', 'Stern RPM');
+    ylabel('RPM');
+    
+    yyaxis right; 
+    stairs(t_B, rad2deg(ctrl_B(3,:)), 'b-', 'LineWidth', 1.5, 'DisplayName', 'Bow \alpha');
+    hold on;
+    stairs(t_B, rad2deg(ctrl_B(4,:)), 'b--', 'LineWidth', 1.5, 'DisplayName', 'Stern \alpha');
+    ylabel('Angle [deg]');
+    
+    legend('Location', 'best', 'NumColumns', 2);
 end
-xlabel('Time [s]'); title('B: Controls'); grid on;
+xlabel('Time [s]'); title('B: Controls (Dual Azipods)'); grid on;
 
 % ---- Plot XTE ----
 subplot(3,1,3);
@@ -521,14 +550,12 @@ animateSimResult(traj_B, wp_B, t_anim_B, harbor_B, cfg_anim_B);
     
 %     % 5) PID fallback
 %     if ~info.success
-%         n_fail_consec = n_fail_consec + 1;
-%         if n_fail_consec >= 2
-%             [u_opt, pid] = pid.compute(chi_c, x(3), x(6), dt);
-%         end
+%       n_fail_consec = n_fail_consec + 1;
+%       [u_pid, pid] = pid.compute(chi_d, x(3), x(6), dt);
+%       u_opt = [0; u_pid(2); 0; -u_pid(1)]; % Bow RPM 0; Stern RPM n_c; Bow Angle 0; Stern Angle -delta_c
 %     else
-%         n_fail_consec = 0;
+%       n_fail_consec = 0;
 %     end
-    
 %     % 6) Simulate plant
 %     x = simStep(x, u_opt, dt);
     

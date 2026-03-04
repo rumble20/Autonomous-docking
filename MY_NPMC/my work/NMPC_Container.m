@@ -30,8 +30,8 @@ classdef NMPC_Container < handle
         R_rate          % Control rate-of-change weight (2x2)
         
         % Dimensions
-        nx = 10         % States:   [u v r x y psi p phi delta n]
-        nu = 2          % Controls: [delta_c  n_c]
+        nx = 12         % States:   [u v r x y psi p phi delta n]
+        nu = 4            % Controls: [delta_c  n_c]
         
         % Limits (from container.m)
         delta_max_rad = deg2rad(35)
@@ -86,7 +86,8 @@ classdef NMPC_Container < handle
             obj.Q  = config.Q;
             obj.R  = config.R;
             obj.Q_N = config.Q * 2;
-            obj.R_rate = diag([0.5, 0.0001]);
+            % R_rate: penalize control rate-of-change (4x4 for [n_b, n_s, a_b, a_s])
+            obj.R_rate = diag([0.001, 0.001, 10.0, 10.0]);
             
             if isfield(config, 'use_obstacles'),    obj.use_obstacles    = config.use_obstacles;    end
             if isfield(config, 'max_obs'),          obj.max_obs          = config.max_obs;          end
@@ -173,6 +174,9 @@ classdef NMPC_Container < handle
         function buildSolver(obj)
             import casadi.*
             
+            % Clear any previous solution for fresh solve
+            obj.prev_sol = [];
+            
             N_h = obj.N;
             nx  = obj.nx;
             nu  = obj.nu;
@@ -247,12 +251,16 @@ classdef NMPC_Container < handle
             
             % Dynamics: X(:,k+1) == X(:,k) + f(X(:,k), U(:,k)) * dt
             for k = 1:N_h
-                if strcmp(obj.model_type, 'simplified')
-                    xdot_k = obj.dynamics_simplified_casadi(X(:,k), U(:,k), P_env);
-                else
-                    xdot_k = obj.dynamics_full_casadi(X(:,k), U(:,k), P_env);
-                end
-                g = vertcat(g, X(:,k+1) - (X(:,k) + xdot_k * obj.dt));
+                X_k = X(:,k);
+                U_k = U(:,k);
+                
+                k1 = obj.dynamics_full_casadi(X_k, U_k, P_env);
+                k2 = obj.dynamics_full_casadi(X_k + k1*obj.dt/2, U_k, P_env);
+                k3 = obj.dynamics_full_casadi(X_k + k2*obj.dt/2, U_k, P_env);
+                k4 = obj.dynamics_full_casadi(X_k + k3*obj.dt, U_k, P_env);
+                                
+                xdot_rk4 = (k1 + 2*k2 + 2*k3 + k4) / 6;
+                g = vertcat(g, X(:,k+1) - (X_k + xdot_rk4 * obj.dt));
             end
             
             % Obstacle avoidance: dist_sq >= (r_obs + r_safety - slack)^2
@@ -277,18 +285,30 @@ classdef NMPC_Container < handle
             % State bounds: X (indices 1..nx*(N_h+1))
             for k = 1:(N_h+1)
                 base = (k-1)*nx;
-                lbx(base + 1)  = 0.1;      % u >= 0.1 m/s
-                lbx(base + 10) = 1;         % n >= 1 RPM
+                lbx(base + 1) = 0.1;       % u >= 0.1 m/s (surge)
+                lbx(base + 2) = -1;        % v unconstrained (sway)
+                lbx(base + 3) = -2*pi;     % r unconstrained (yaw rate)
+                % x, y, psi unbounded by default
+                lbx(base + 7) = -inf;      % p unbounded (roll rate)
+                lbx(base + 8) = -pi/4;     % phi >= -45 deg (roll)
+                ubx(base + 8) = pi/4;      % phi <= 45 deg
+                lbx(base + 9) = 1;         % n_bow >= 1 RPM
+                lbx(base + 10) = 1;        % n_stern >= 1 RPM
+                % alpha (angles) unbounded [-2pi, 2pi]
             end
             
             % Control bounds: U (indices nx*(N_h+1)+1 .. nx*(N_h+1)+nu*N_h)
             u_offset = nx*(N_h+1);
             for k = 1:N_h
                 base = u_offset + (k-1)*nu;
-                lbx(base + 1) = -obj.delta_max_rad;
-                ubx(base + 1) =  obj.delta_max_rad;
-                lbx(base + 2) =  obj.n_min_rpm;
-                ubx(base + 2) =  obj.n_max_rpm;
+                lbx(base + 1) = -120;  % n_c_bow:  [-120, 120] RPM
+                ubx(base + 1) =  120;
+                lbx(base + 2) = -120;  % n_c_stern: [-120, 120] RPM
+                ubx(base + 2) =  120;
+                lbx(base + 3) = -pi;   % alpha_c_bow: [-pi, pi] rad
+                ubx(base + 3) =  pi;
+                lbx(base + 4) = -pi;   % alpha_c_stern: [-pi, pi] rad
+                ubx(base + 4) =  pi;
             end
             
             % Slack bounds: >= 0
@@ -296,10 +316,12 @@ classdef NMPC_Container < handle
             lbx(s_offset+1 : end) = 0;
             
             %% ---- Bounds on constraints ----
-            n_eq   = nx + nx*N_h;              % initial + dynamics
-            n_ineq = n_obs * (N_h+1);         % obstacles
+            % Equality: initial condition (nx) + dynamics (nx*N_h)
+            n_eq   = nx + nx*N_h;
+            % Inequalities: dist_sq >= min_d^2, i.e., dist_sq - min_d^2 >= 0
+            n_ineq = n_obs * (N_h+1);
             
-            lbg = zeros(n_eq + n_ineq, 1);
+            lbg = [zeros(n_eq, 1); zeros(n_ineq, 1)];
             ubg = [zeros(n_eq, 1); inf(n_ineq, 1)];
             
             %% ---- Create nlpsol ----
@@ -328,247 +350,176 @@ classdef NMPC_Container < handle
                 N_h, obj.model_type, n_obs, n_vars, n_eq + n_ineq);
         end
         
-        %% DYNAMICS — FULL (10-state nonlinear container.m) ===============
+        %% DYNAMICS — FULL (12-state nonlinear container.m) ===============
+        %  EXACT PORT: Matches container.m with numerical safeguards
         function xdot = dynamics_full_casadi(obj, x, u_in, env)
             import casadi.*
             
-            L  = 175;
-            V_c_   = env(1);
-            beta_c_ = env(2);
-            psi = x(6);
+            L = 175.0;
+            
+            % --- Speed and normalized velocities (EXACT match to container.m) ---
+            U = sqrt(x(1)^2 + x(2)^2 + 1e-12);   % epsilon BEFORE sqrt
+            U = if_else(U <= 0.1, 0.1, U);      % safeguard minimum
+            
+            u   = x(1) / U;
+            v   = x(2) / U;
+            p   = x(7) * L / U;
+            r   = x(3) * L / U;
             phi = x(8);
+            psi = x(6);
             
-            % --- Relative velocities (current effects) ---
-            u_r = x(1) - V_c_ * cos(beta_c_ - psi);
-            v_r = x(2) - V_c_ * sin(beta_c_ - psi);
-            Uv  = sqrt(u_r^2 + v_r^2);
-            Uv  = if_else(Uv < 0.1, 0.1, Uv);
+            % --- Actuator States---
+            n_bow  = x(9);
+            n_stern = x(10);
+            alpha_bow = x(11);
+            alpha_stern = x(12);
             
-            % --- Nondimensional states (use relative velocity) ---
-            delta_c = u_in(1);
-            n_c     = u_in(2) / 60 * L / Uv;
+            % --- Commanded Inputs (from u_in) ---
+            n_c_bow = u_in(1);
+            n_c_stern = u_in(2);
+            alpha_c_bow = u_in(3);
+            alpha_c_stern = u_in(4);
             
-            u   = u_r / Uv;
-            v   = v_r / Uv;
-            p   = x(7) * L / Uv;
-            r   = x(3) * L / Uv;
-            delta = x(9);
-            n   = x(10) / 60 * L / Uv;
-            
-            % --- Parameters (container.m) ---
+            % --- Ship parameters (EXACT from container.m) ---
             m  = 0.00792;    mx     = 0.000238;   my = 0.007049;
             Ix = 0.0000176;  alphay = 0.05;       lx = 0.0313;
             ly = 0.0313;     Iz = 0.000456;
             Jx = 0.0000034;  Jz = 0.000419;
+            B  = 25.40;      dF = 8.00;           g = 9.81;
+            nabla = 21222;   D  = 6.533;          GM = 0.3/L;
+            rho = 1025;      t_ded = 0.175;
             
-            B     = 25.40;   dF = 8.00;    g_acc = 9.81;
-            dA    = 9.00;    d  = 8.50;    nabla = 21222;
-            KM    = 10.39;   KB = 4.6154;  AR    = 33.0376;
-            Delta_hull = 1.8219;  D  = 6.533;  GM = 0.3/L;
-            rho   = 1025;    t_ded = 0.175;
-            n_max_revs = 160/60;
+            % --- Weight parameter ---
+            W = rho*g*nabla / (rho*L^2*U^2/2 + 1e-9);  % epsilon prevents division by zero
             
-            W = rho*g_acc*nabla / (rho*L^2*Uv^2/2);
+            % --- Hydrodynamic coefficients (EXACT from container.m) ---
+            Xuu = -0.0004226; Xvr = -0.00311;  Xrr = 0.00020; Xphiphi = -0.00020; Xvv = -0.00386;
+            Kv = 0.0003026;   Kr = -0.000063;  Kp = -0.0000075; Kphi = -0.000021;
+            Kvvv = 0.002843;  Krrr = -0.0000462; Kvvr = -0.000588; Kvrr = 0.0010565;
+            Kvvphi = -0.0012012; Kvphiphi = -0.0000793; Krrphi = -0.000243; Krphiphi = 0.00003569;
+            Yv = -0.0116;     Yr = 0.00242;    Yp = 0;  Yphi = -0.000063;
+            Yvvv = -0.109;    Yrrr = 0.00177;  Yvvr = 0.0214; Yvrr = -0.0405;
+            Yvvphi = 0.04605; Yvphiphi = 0.00304; Yrrphi = 0.009325; Yrphiphi = -0.001368;
+            Nv = -0.0038545;  Nr = -0.00222;   Np = 0.000213; Nphi = -0.0001424;
+            Nvvv = 0.001492;  Nrrr = -0.00229; Nvvr = -0.0424; Nvrr = 0.00156;
+            Nvvphi = -0.019058; Nvphiphi = -0.0053766; Nrrphi = -0.0038592; Nrphiphi = 0.0024195;
+            zR = 0.033;
             
-            Xuu      = -0.0004226;  Xvr    = -0.00311;   Xrr      =  0.00020;
-            Xphiphi  = -0.00020;    Xvv    = -0.00386;
-            
-            Kv       =  0.0003026;  Kr     = -0.000063;  Kp       = -0.0000075;
-            Kphi     = -0.000021;   Kvvv   =  0.002843;  Krrr     = -0.0000462;
-            Kvvr     = -0.000588;   Kvrr   =  0.0010565; Kvvphi   = -0.0012012;
-            Kvphiphi = -0.0000793;  Krrphi = -0.000243;  Krphiphi =  0.00003569;
-            
-            Yv       = -0.0116;     Yr     =  0.00242;   Yp       =  0;
-            Yphi     = -0.000063;   Yvvv   = -0.109;     Yrrr     =  0.00177;
-            Yvvr     =  0.0214;     Yvrr   = -0.0405;    Yvvphi   =  0.04605;
-            Yvphiphi =  0.00304;    Yrrphi =  0.009325;  Yrphiphi = -0.001368;
-            
-            Nv       = -0.0038545;  Nr     = -0.00222;   Np       =  0.000213;
-            Nphi     = -0.0001424;  Nvvv   =  0.001492;  Nrrr     = -0.00229;
-            Nvvr     = -0.0424;     Nvrr   =  0.00156;   Nvvphi   = -0.019058;
-            Nvphiphi = -0.0053766;  Nrrphi = -0.0038592; Nrphiphi =  0.0024195;
-            
-            kk   = 0.631;  epsilon = 0.921;  xR   = -0.5;
-            wp   = 0.184;  tau     = 1.09;   xp   = -0.526;
-            cpv  = 0.0;    cpr     = 0.0;    ga   = 0.088;
-            cRr  = -0.156; cRrrr   = -0.275; cRrrv = 1.96;
-            cRX  = 0.71;   aH      = 0.237;  zR   = 0.033;
-            xH   = -0.48;
-            
-            % --- Mass matrix ---
+            % --- Mass matrix (EXACT from container.m) ---
             m11 = m + mx;
             m22 = m + my;
             m32 = -my * ly;
             m42 = my * alphay;
             m33 = Ix + Jx;
             m44 = Iz + Jz;
+            detM = m22*m33*m44 - m32^2*m44 - m42^2*m33 + 1e-9;  % epsilon for numerical stability
             
-            % --- Rudder saturation & dynamics ---
-            delta_max_r = 35*pi/180;
-            delta_max  = 10*pi/180;
+            % --- AZIPOD THRUSTER MODEL (EXACT from container.m) ---
+            lx_bow  = 80.0;
+            lx_stern = -80.0;
+            KT0 = 0.527;
+            eps = 0.001;
             
-            delta_c_sat = if_else(delta_c >  delta_max_r,  delta_max_r, ...
-                          if_else(delta_c < -delta_max_r, -delta_max_r, delta_c));
-            delta_dot_raw = delta_c_sat - delta;
-            delta_dot = if_else(delta_dot_raw >  delta_max,  delta_max, ...
-                        if_else(delta_dot_raw < -delta_max, -delta_max, delta_dot_raw));
+            n_bow_nd  = (n_bow/60.0) * L/U;
+            n_stern_nd = (n_stern/60.0) * L/U;
             
-            % --- Shaft saturation & dynamics ---
-            n_c_revs = n_c * Uv / L;
-            n_revs   = n   * Uv / L;
-            n_revs_safe = if_else(n_revs < 0.01, 0.01, n_revs);
-            n_c_clamped = if_else(n_c_revs >  n_max_revs,  n_max_revs, ...
-                          if_else(n_c_revs < 0, 0, n_c_revs));
-            Tm = if_else(n_revs_safe > 0.3, 5.65 / n_revs_safe, 18.83);
-            n_dot = (1/Tm) * (n_c_clamped - n_revs_safe) * 60;
+            T_bow  = 2*rho*D^4 / (U^2*L^2*rho + 1e-11) * KT0 * n_bow_nd * sqrt(n_bow_nd^2 + eps);
+            T_stern = 2*rho*D^4 / (U^2*L^2*rho + 1e-11) * KT0 * n_stern_nd * sqrt(n_stern_nd^2 + eps);
             
-            % --- Propeller / rudder ---
-            vR = ga*v + cRr*r + cRrrr*r^3 + cRrrv*r^2*v;
-            uP = u * ( (1 - wp) + tau*((v + xp*r)^2 + cpv*v + cpr*r) );
+            Thrust_X = T_bow * cos(alpha_bow) + T_stern * cos(alpha_stern);
+            Thrust_Y = T_bow * sin(alpha_bow) + T_stern * sin(alpha_stern);
+            Thrust_N = (lx_bow/L) * T_bow * sin(alpha_bow) + (lx_stern/L) * T_stern * sin(alpha_stern);
             
-            J_prop = uP * Uv / (n_revs_safe * D);
-            KT     = 0.527 - 0.455 * J_prop;
+            % --- FORCES & MOMENTS (EXACT from container.m, split for clarity) ---
+            Xuu_term   = Xuu * u * u;
+            Xvr_term   = Xvr * v * r;
+            Xvv_term   = Xvv * v * v;
+            Xrr_term   = Xrr * r * r;
+            Xphiphi_term = Xphiphi * phi * phi;
+            my_vr_term = (m + my) * v * r;
             
-            sqrt_arg = 1 + 8*kk*KT / (pi*J_prop^2 + 1e-6);
-            sqrt_arg = if_else(sqrt_arg < 1e-6, 1e-6, sqrt_arg);
-            uR = uP * epsilon * sqrt(sqrt_arg);
+            X_f = Xuu_term + (1 - t_ded)*Thrust_X + Xvr_term + Xvv_term + Xrr_term + Xphiphi_term + my_vr_term;
             
-            uR_safe = if_else(uR*uR < 1e-8, 1e-4, uR);
-            alphaR = delta + atan2(vR, uR_safe);
-            FN = -((6.13*Delta_hull)/(Delta_hull + 2.25)) * (AR/L^2) * ...
-                  (uR^2 + vR^2) * sin(alphaR);
-            T_thrust = 2*rho*D^4 / (Uv^2*L^2*rho) * KT * n_revs_safe * abs(n_revs_safe);
+            Yv_term = Yv * v;
+            Yr_term = Yr * r;
+            Yp_term = Yp * p;
+            Yphi_term = Yphi * phi;
+            Yvvv_term = Yvvv * v^3;
+            Yrrr_term = Yrrr * r^3;
+            Yvvr_term = Yvvr * v^2 * r;
+            Yvrr_term = Yvrr * v * r^2;
+            Yvvphi_term = Yvvphi * v^2 * phi;
+            Yvphiphi_term = Yvphiphi * v * phi^2;
+            Yrrphi_term = Yrrphi * r^2 * phi;
+            Yrphiphi_term = Yrphiphi * r * phi^2;
+            mx_ur_term = (m + mx) * u * r;
             
-            % --- Forces & moments ---
-            X_f = Xuu*u^2 + (1-t_ded)*T_thrust + Xvr*v*r + Xvv*v^2 + ...
-                  Xrr*r^2 + Xphiphi*phi^2 + cRX*FN*sin(delta) + (m+my)*v*r;
+            Y_f = Yv_term + Yr_term + Yp_term + Yphi_term + Yvvv_term + Yrrr_term + Yvvr_term + Yvrr_term ...
+                + Yvvphi_term + Yvphiphi_term + Yrrphi_term + Yrphiphi_term + Thrust_Y - mx_ur_term;
             
-            Y_f = Yv*v + Yr*r + Yp*p + Yphi*phi + Yvvv*v^3 + Yrrr*r^3 + ...
-                  Yvvr*v^2*r + Yvrr*v*r^2 + Yvvphi*v^2*phi + Yvphiphi*v*phi^2 + ...
-                  Yrrphi*r^2*phi + Yrphiphi*r*phi^2 + ...
-                  (1+aH)*FN*cos(delta) - (m+mx)*u*r;
+            Kv_term = Kv * v;
+            Kr_term = Kr * r;
+            Kp_term = Kp * p;
+            Kphi_term = Kphi * phi;
+            Kvvv_term = Kvvv * v^3;
+            Krrr_term = Krrr * r^3;
+            Kvvr_term = Kvvr * v^2 * r;
+            Kvrr_term = Kvrr * v * r^2;
+            Kvvphi_term = Kvvphi * v^2 * phi;
+            Kvphiphi_term = Kvphiphi * v * phi^2;
+            Krrphi_term = Krrphi * r^2 * phi;
+            Krphiphi_term = Krphiphi * r * phi^2;
+            stability_term = -W * GM * phi;
+            thrust_roll_term = zR * Thrust_Y;
+            inertia_coupling_term = mx * lx * u * r;
             
-            K_f = Kv*v + Kr*r + Kp*p + Kphi*phi + Kvvv*v^3 + Krrr*r^3 + ...
-                  Kvvr*v^2*r + Kvrr*v*r^2 + Kvvphi*v^2*phi + Kvphiphi*v*phi^2 + ...
-                  Krrphi*r^2*phi + Krphiphi*r*phi^2 - ...
-                  (1+aH)*zR*FN*cos(delta) + mx*lx*u*r - W*GM*phi;
+            K_f = Kv_term + Kr_term + Kp_term + Kphi_term + Kvvv_term + Krrr_term + Kvvr_term + Kvrr_term ...
+                + Kvvphi_term + Kvphiphi_term + Krrphi_term + Krphiphi_term + stability_term + thrust_roll_term + inertia_coupling_term;
             
-            N_f = Nv*v + Nr*r + Np*p + Nphi*phi + Nvvv*v^3 + Nrrr*r^3 + ...
-                  Nvvr*v^2*r + Nvrr*v*r^2 + Nvvphi*v^2*phi + Nvphiphi*v*phi^2 + ...
-                  Nrrphi*r^2*phi + Nrphiphi*r*phi^2 + ...
-                  (xR + aH*xH)*FN*cos(delta);
+            Nv_term = Nv * v;
+            Nr_term = Nr * r;
+            Np_term = Np * p;
+            Nphi_term = Nphi * phi;
+            Nvvv_term = Nvvv * v^3;
+            Nrrr_term = Nrrr * r^3;
+            Nvvr_term = Nvvr * v^2 * r;
+            Nvrr_term = Nvrr * v * r^2;
+            Nvvphi_term = Nvvphi * v^2 * phi;
+            Nvphiphi_term = Nvphiphi * v * phi^2;
+            Nrrphi_term = Nrrphi * r^2 * phi;
+            Nrphiphi_term = Nrphiphi * r * phi^2;
             
-            % --- State derivatives ---
-            detM = m22*m33*m44 - m32^2*m44 - m42^2*m33;
+            N_f = Nv_term + Nr_term + Np_term + Nphi_term + Nvvv_term + Nrrr_term + Nvvr_term + Nvrr_term ...
+                + Nvvphi_term + Nvphiphi_term + Nrrphi_term + Nrphiphi_term + Thrust_N;
             
-            xdot = [
-                X_f*(Uv^2/L) / m11                                                          % u_dot
-                -((-m33*m44*Y_f + m32*m44*K_f + m42*m33*N_f)/detM) * (Uv^2/L)               % v_dot
-                 ((-m42*m33*Y_f + m32*m42*K_f + N_f*m22*m33 - N_f*m32^2)/detM) * (Uv^2/L^2) % r_dot
-                cos(psi)*x(1) - sin(psi)*cos(phi)*x(2)                                      % x_dot  (absolute vel)
-                sin(psi)*x(1) + cos(psi)*cos(phi)*x(2)                                      % y_dot  (absolute vel)
-                cos(phi)*x(3)                                                                % psi_dot
-                ((-m32*m44*Y_f + K_f*m22*m44 - K_f*m42^2 + m32*m42*N_f)/detM) * (Uv^2/L^2) % p_dot
-                x(7)                                                                         % phi_dot
-                delta_dot                                                                    % delta_dot
-                n_dot                                                                        % n_dot [RPM/s]
-            ];
-        end
-        
-        %% DYNAMICS — SIMPLIFIED (linear damping from Lcontainer.m) =======
-        function xdot = dynamics_simplified_casadi(obj, x, u_in, env)
-            import casadi.*
+            % --- STATE DERIVATIVES (EXACT from container.m) ---
+            u_dot = X_f * (U^2/L) / m11;
+            v_dot = -((-m33*m44*Y_f + m32*m44*K_f + m42*m33*N_f) / detM) * (U^2/L);
+            r_dot = ((-m42*m33*Y_f + m32*m42*K_f + N_f*m22*m33 - N_f*m32^2) / detM) * (U^2/L^2);
             
-            L  = 175;
-            V_c_   = env(1);
-            beta_c_ = env(2);
-            psi = x(6);
-            phi = x(8);
+            cos_psi = cos(psi);
+            sin_psi = sin(psi);
+            cos_phi = cos(phi);
             
-            % --- Relative velocities ---
-            u_r = x(1) - V_c_ * cos(beta_c_ - psi);
-            v_r = x(2) - V_c_ * sin(beta_c_ - psi);
-            Uv  = sqrt(u_r^2 + v_r^2);
-            Uv  = if_else(Uv < 0.1, 0.1, Uv);
+            x_dot   = (cos_psi * u - sin_psi * cos_phi * v) * U;
+            y_dot   = (sin_psi * u + cos_psi * cos_phi * v) * U;
+            psi_dot = cos_phi * r * (U/L);
             
-            % --- Rudder dynamics (same as full) ---
-            delta_c = u_in(1);
-            delta = x(9);
-            delta_max_r = 35*pi/180;
-            Ddelta_max  = 10*pi/180;
+            p_dot = ((-m32*m44*Y_f + K_f*m22*m44 - K_f*m42^2 + m32*m42*N_f) / detM) * (U^2/L^2);
+            phi_dot = p * (U/L);
             
-            delta_c_sat = if_else(delta_c >  delta_max_r,  delta_max_r, ...
-                          if_else(delta_c < -delta_max_r, -delta_max_r, delta_c));
-            delta_dot_raw = delta_c_sat - delta;
-            delta_dot = if_else(delta_dot_raw >  Ddelta_max,  Ddelta_max, ...
-                        if_else(delta_dot_raw < -Ddelta_max, -Ddelta_max, delta_dot_raw));
+            % --- ACTUATOR DYNAMICS (first-order response) ---
+            n_dot_bow = (n_c_bow - n_bow) / 2.0;
+            n_dot_stern = (n_c_stern - n_stern) / 2.0;
+            alpha_dot_bow = (alpha_c_bow - alpha_bow) / 2.0;
+            alpha_dot_stern = (alpha_c_stern - alpha_stern) / 2.0;
             
-            % --- Shaft dynamics (same as full) ---
-            n_revs     = x(10) / 60;
-            n_c_revs   = u_in(2) / 60;
-            n_max_revs = 160 / 60;
-            n_c_clamped = if_else(n_c_revs > n_max_revs, n_max_revs, ...
-                          if_else(n_c_revs < 0, 0, n_c_revs));
-            n_revs_safe = if_else(n_revs < 0.01, 0.01, n_revs);
-            Tm = if_else(n_revs_safe > 0.3, 5.65 / n_revs_safe, 18.83);
-            n_dot = (1/Tm) * (n_c_clamped - n_revs_safe) * 60;
-            
-            % --- Linearized sway-yaw-roll (Lcontainer.m M, N, G, b) ---
-            % NOTE: Linear model is accurate near U0 = 7 m/s.
-            T_mat    = [1 0 0; 0 1/L 0; 0 0 1/L];
-            Tinv_mat = [1 0 0; 0 L 0; 0 0 L];
-            M_mat = [0.01497, 0.0003525, -0.0002205; ...
-                     0.0003525, 0.000875, 0; ...
-                    -0.0002205, 0, 0.0000210];
-            N_mat = [0.012035, 0.00522, 0; ...
-                     0.0038436, 0.00243, -0.000213; ...
-                    -0.000314, 0.0000692, 0.0000075];
-            G_mat = [0, 0, 0.0000704; ...
-                     0, 0, 0.0001468; ...
-                     0, 0, 0.0004966];
-            b_vec = [-0.002578; 0.00126; 0.0000855];
-            
-            M_bar     = T_mat * M_mat * Tinv_mat;
-            M_bar_inv = inv(M_bar);
-            N_bar     = T_mat * N_mat * Tinv_mat;
-            G_bar     = T_mat * G_mat * Tinv_mat;
-            b_bar     = T_mat * b_vec;
-            
-            nu_vec = [x(2); x(3); x(7)];    % [v, r, p] dimensional
-            eta    = [x(5); x(6); x(8)];    % [y, psi, phi]
-            
-            nudot = M_bar_inv * ((Uv^2/L)*b_bar*delta - ...
-                    (Uv/L)*N_bar*nu_vec - (Uv/L)^2*G_bar*eta);
-            
-            % --- Surge: simplified resistance + thrust ---
-            m11 = 0.00792 + 0.000238;
-            Xuu = -0.0004226;
-            t_ded = 0.175;
-            D_prop = 6.533;
-            rho = 1025;
-            
-            u_nd = u_r / Uv;
-            wp_frac = 0.184;
-            uP = u_nd * (1 - wp_frac);
-            J_prop = uP * Uv / (n_revs_safe * D_prop + 1e-6);
-            KT = 0.527 - 0.455 * J_prop;
-            T_thrust = 2*rho*D_prop^4 / (Uv^2*L^2*rho) * KT * n_revs_safe * abs(n_revs_safe);
-            
-            u_dot = (Xuu*u_nd^2 + (1-t_ded)*T_thrust) * (Uv^2/L) / m11;
-            
-            % --- State derivatives ---
-            xdot = [
-                u_dot                                                  % u_dot
-                nudot(1)                                               % v_dot (linear)
-                nudot(2)                                               % r_dot (linear)
-                cos(psi)*x(1) - sin(psi)*cos(phi)*x(2)                % x_dot (absolute vel)
-                sin(psi)*x(1) + cos(psi)*cos(phi)*x(2)                % y_dot (absolute vel)
-                cos(phi)*x(3)                                          % psi_dot
-                nudot(3)                                               % p_dot (linear)
-                x(7)                                                   % phi_dot
-                delta_dot                                              % delta_dot
-                n_dot                                                  % n_dot
-            ];
+            % --- Assemble all state derivatives ---
+            xdot = vertcat(u_dot, v_dot, r_dot, ...
+                          x_dot, y_dot, psi_dot, ...
+                          p_dot, phi_dot, ...
+                          n_dot_bow, n_dot_stern, ...
+                          alpha_dot_bow, alpha_dot_stern);
         end
         
         %% SOLVE ==========================================================
@@ -618,7 +569,8 @@ classdef NMPC_Container < handle
             end
             
             % --- Assemble parameter vector ---
-            u_ref = repmat([0; max(x0(10), obj.n_min_rpm)], 1, obj.N);
+            % Reference control: maintain stern RPM, zero angles
+            u_ref = repmat([0; max(x0(10), 10); 0; 0], 1, obj.N);
             p_val = [x0(:); x_ref(:); u_ref(:); obs_pos(:); obs_rad(:); obj.V_c; obj.beta_c];
             
             % --- Initial guess (warm start) ---
@@ -649,7 +601,8 @@ classdef NMPC_Container < handle
                 % Cold start: propagate with container()
                 X_init = zeros(nx, N_h+1);
                 X_init(:,1) = x0;
-                U_init = repmat([0; max(x0(10), obj.n_min_rpm)], 1, N_h);
+                % 4 Controls: [Bow RPM; Stern RPM; Bow Angle; Stern Angle]
+                U_init = repmat([0; max(x0(10), 10); 0; 0], 1, N_h);
                 for k = 1:N_h
                     try
                         xk = X_init(:,k);
@@ -690,8 +643,8 @@ classdef NMPC_Container < handle
                 obj.solve_ok = obj.solve_ok + 1;
                 
             catch ME
-                % Fallback: zero rudder, maintain RPM
-                u_opt  = [0; max(x0(10), obj.n_min_rpm)];
+                % Fallback: zero angles, maintain Stern RPM
+                u_opt  = [0; max(x0(10), 10); 0; 0];
                 X_pred = repmat(x0, 1, N_h+1);
                 
                 info.success = false;
