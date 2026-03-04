@@ -193,17 +193,16 @@ classdef NMPC_Container < handle
             obj.np_total = size(P_all, 1);
             
             %% ---- Cost function ----
-            % Heading-tracker architecture (like autobargesim):
-            %   - Primary: track psi_ref (heading) with angle wrapping
-            %   - Secondary: track r_ref (yaw rate) for smooth steering
-            %   - Rudder effort + rate-of-change penalties
-            %   - No position tracking in cost (LOS handles that)
-            %
-            % Q(6,6) = heading weight,  Q(3,3) = yaw-rate weight
-            % All other Q entries should be 0 for this architecture.
+            % NMPC tracking architecture:
+            %   - Track psi_ref (wrapped), r_ref and surge speed u_ref
+            %   - Add mild x/y path-position pull (from x_ref rollout)
+            %   - Keep control effort + control rate penalties
             
-            Q_psi = obj.Q(6,6);   % heading gain
+            Q_u   = obj.Q(1,1);   % surge speed gain
             Q_r   = obj.Q(3,3);   % yaw-rate gain
+            Q_x   = obj.Q(4,4);   % x-position gain
+            Q_y   = obj.Q(5,5);   % y-position gain
+            Q_psi = obj.Q(6,6);   % heading gain
             
             J = 0;
             for k = 1:N_h
@@ -211,6 +210,12 @@ classdef NMPC_Container < handle
                 dpsi = X(6,k) - P_xref(6,k);
                 psi_err = atan2(sin(dpsi), cos(dpsi));
                 J = J + Q_psi * psi_err^2;
+
+                % Speed + position errors
+                u_err = X(1,k) - P_xref(1,k);
+                x_err = X(4,k) - P_xref(4,k);
+                y_err = X(5,k) - P_xref(5,k);
+                J = J + Q_u * u_err^2 + Q_x * x_err^2 + Q_y * y_err^2;
                 
                 % Yaw rate error
                 r_err = X(3,k) - P_xref(3,k);
@@ -229,6 +234,8 @@ classdef NMPC_Container < handle
             dpsi_N = X(6,N_h+1) - P_xref(6,N_h+1);
             psi_err_N = atan2(sin(dpsi_N), cos(dpsi_N));
             J = J + 2*Q_psi * psi_err_N^2 + 2*Q_r * (X(3,N_h+1) - P_xref(3,N_h+1))^2;
+            J = J + 2*Q_u * (X(1,N_h+1) - P_xref(1,N_h+1))^2;
+            J = J + 2*Q_x * (X(4,N_h+1) - P_xref(4,N_h+1))^2 + 2*Q_y * (X(5,N_h+1) - P_xref(5,N_h+1))^2;
             % Slack penalty
             J = J + obj.penalty_slack * sumsqr(slack);
             

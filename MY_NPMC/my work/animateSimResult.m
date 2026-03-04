@@ -58,6 +58,7 @@ testName   = cfgGet(cfg, 'testName',    '');
 shipSize   = cfgGet(cfg, 'shipSize',    0.08);
 maxFrames  = cfgGet(cfg, 'maxFrames',  150);
 pauseTime  = cfgGet(cfg, 'pauseTime',  0.05);
+imgFile    = cfgGet(cfg, 'shipImgFile', 'vessel_top.png');
 
 % =========================================================================
 %  1. Load image once  (only when file path changes)
