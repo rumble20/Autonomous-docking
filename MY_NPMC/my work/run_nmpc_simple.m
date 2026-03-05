@@ -106,7 +106,7 @@ x0_heading = atan2(wp_A(2,2)-wp_A(1,2), wp_A(2,1)-wp_A(1,1));
 x = [7; 0; 0; wp_A(1,1); wp_A(1,2); x0_heading; 0; 0; 0; 70];
 
 wp_idx = 1;
-R_accept = 60;   % Waypoint acceptance radius [m]
+R_accept = 35;   % Waypoint acceptance radius [m] - reduced to prevent corner-cutting
 
 % Preallocate logging
 traj_A     = zeros(10, length(t)+1);
@@ -232,6 +232,11 @@ obs_B(1).radius   = 40;
 x0_heading_B = atan2(wp_B(2,2)-wp_B(1,2), wp_B(2,1)-wp_B(1,1));
 x = [7; 0; 0; wp_B(1,1); wp_B(1,2); x0_heading_B; 0; 0; 0; 70];
 wp_idx = 1;
+R_accept_B = 25;  % tighter switching for obstacle test (prevents checkpoint skipping)
+
+% Reset warm-start between tests (A -> B) to avoid cross-test bias
+nmpc.prev_sol = [];
+nmpc.prev_u   = [];
 
 % Preallocate
 traj_B     = zeros(10, length(t)+1);
@@ -246,7 +251,7 @@ fprintf('  Obstacle at (%.0f, %.0f) r=%.0f m\n', ...
 
 for i = 1:length(t)
     % ---- 1) Simple waypoint guidance ------------------------------------
-    [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, wp_B, wp_speed_B, wp_idx, R_accept);
+    [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, wp_B, wp_speed_B, wp_idx, R_accept_B);
     xte = computeXTE(x, wp_B, wp_idx);
 
     % ---- 2) Build reference  --------------------------------------------
@@ -266,10 +271,35 @@ for i = 1:length(t)
     % ---- 5) Simulate plant (RK4) ----------------------------------------
     x = rk4Step(x, u_opt, dt);
     
-    % ---- 6) Collision check (AFTER step) --------------------------------
+    % ---- 6) Collision checks (AFTER step) -------------------------------
+    % 6a) Circular obstacle collision
     d_obs = norm(x(4:5) - obs_B(1).position);
     if d_obs < obs_B(1).radius
-        fprintf('  >> OBSTACLE COLLISION at t=%.1f s, d=%.1f m\n', t(i), d_obs);
+        fprintf('  >> CIRCULAR OBSTACLE COLLISION at t=%.1f s, d=%.1f m\n', t(i), d_obs);
+        steps_B = i;
+        traj_B(:, i+1) = x;
+        ctrl_B(:, i)   = u_opt;
+        solve_ok_B(i)  = info.success;
+        xte_B(i)       = xte;
+        break;
+    end
+
+    % 6b) Map polygon collision (island / shoreline)
+    map_collision = false;
+    if ~isempty(map) && isfield(map, 'polygons')
+        xN = x(4);  % North
+        yE = x(5);  % East
+        for j = 1:length(map.polygons)
+            if inpolygon(xN, yE, map.polygons(j).X, map.polygons(j).Y)
+                map_collision = true;
+                break;
+            end
+        end
+    end
+
+    if map_collision
+        fprintf('  >> MAP COLLISION (inside polygon %d) at t=%.1f s, pos=(%.1f, %.1f)\n', ...
+            j, t(i), x(4), x(5));
         steps_B = i;
         traj_B(:, i+1) = x;
         ctrl_B(:, i)   = u_opt;
@@ -292,7 +322,7 @@ for i = 1:length(t)
     end
 
     % ---- 9) Done? --------------------------------------------------------
-    if norm(x(4:5) - wp_B(end,:)') < R_accept
+    if norm(x(4:5) - wp_B(end,:)') < R_accept_B
         fprintf('  >> FINAL WAYPOINT REACHED at t=%.1f s!\n', t(i));
         break;
     end
@@ -381,27 +411,33 @@ function [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, wp, wp_speed, wp_idx, 
     n_wps = size(wp, 1);
     pos   = [x(4); x(5)];
 
-    % Switch waypoint using pass-angle method (more robust than radius-only)
-    for i = wp_idx:(n_wps - 1)
-        d_0wp = wp(i+1, :)' - pos;  % vec to next wp
-        L_seg = wp(i+1, :)' - wp(i, :)';  % segment vector
-        
-        % Check if passed waypoint (dot product + distance)
-        if norm(L_seg) > 1
-            % Angle between vessel-to-wp and segment vectors
-            cos_angle = dot(d_0wp, L_seg) / (norm(d_0wp)*norm(L_seg) + 1e-6);
-            pass_angle = acos(max(-1, min(1, cos_angle)));  % clamp for numerical safety
-            
-            if pass_angle > deg2rad(90) || norm(d_0wp) < R_accept
-                wp_idx = wp_idx + 1;
-            else
-                break;
+    % Switch waypoint: only when ship has actually reached it
+    % (not when it just gets close but is still approaching)
+    target_wp = wp(min(wp_idx+1, n_wps), :)';
+    d_to_target = norm(pos - target_wp);
+    
+    % Check if we should switch: either very close, OR we've passed it
+    % (use dot product to see if we're past the waypoint)
+    should_switch = false;
+    if wp_idx < n_wps - 1
+        if d_to_target < R_accept
+            % Check if we're moving away from the waypoint (passed it)
+            vel_vec = [x(1)*cos(x(6)); x(1)*sin(x(6))];  % velocity in NED
+            to_wp = target_wp - pos;
+            % If dot product is negative, we're moving away
+            if norm(vel_vec) > 0.1 && norm(to_wp) > 0.1
+                cos_angle = dot(vel_vec, to_wp) / (norm(vel_vec)*norm(to_wp));
+                if cos_angle < 0 || d_to_target < R_accept/2  % Passed it or very close
+                    should_switch = true;
+                end
+            elseif d_to_target < R_accept/2
+                should_switch = true;
             end
-        elseif norm(d_0wp) < R_accept
-            wp_idx = wp_idx + 1;
-        else
-            break;
         end
+    end
+    
+    if should_switch
+        wp_idx = wp_idx + 1;
     end
     
     % Clamp to valid range
