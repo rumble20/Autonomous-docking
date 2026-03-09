@@ -28,7 +28,8 @@ The order below reflects both technical readiness and computational burden:
 2. **Azimuth Thrusters** → Finalize vehicle dynamics before implementing higher-level algorithms
 3. **RRTx Warm-Start** → Replace weak LOS guidance with collision-free path planning (lighter computation than obstacle avoidance)
 4. **Dynamic Obstacle Avoidance** → Add moving obstacles *atop* proven guidance + actuation
-5. **SB-MPC COLAV** → Add maritime rules as policy layer
+5. **(optional) SB-MPC COLAV** → Add maritime rules as policy layer
+6. **Compare results with Giacomo's solution to the obstacle detection problem**
 
 This avoids building obstacle avoidance on top of weak guidance, and staggers computational complexity.
 
