@@ -411,45 +411,58 @@ function [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, wp, wp_speed, wp_idx, 
     n_wps = size(wp, 1);
     pos   = [x(4); x(5)];
 
-    % Switch waypoint: only when ship has actually reached it
-    % (not when it just gets close but is still approaching)
-    target_wp = wp(min(wp_idx+1, n_wps), :)';
-    d_to_target = norm(pos - target_wp);
-    
-    % Check if we should switch: either very close, OR we've passed it
-    % (use dot product to see if we're past the waypoint)
-    should_switch = false;
-    if wp_idx < n_wps - 1
-        if d_to_target < R_accept
-            % Check if we're moving away from the waypoint (passed it)
-            vel_vec = [x(1)*cos(x(6)); x(1)*sin(x(6))];  % velocity in NED
-            to_wp = target_wp - pos;
-            % If dot product is negative, we're moving away
-            if norm(vel_vec) > 0.1 && norm(to_wp) > 0.1
-                cos_angle = dot(vel_vec, to_wp) / (norm(vel_vec)*norm(to_wp));
-                if cos_angle < 0 || d_to_target < R_accept/2  % Passed it or very close
-                    should_switch = true;
-                end
-            elseif d_to_target < R_accept/2
-                should_switch = true;
-            end
+    % Clamp index to the active segment [wp_idx -> wp_idx+1]
+    wp_idx = min(max(1, wp_idx), max(1, n_wps - 1));
+
+    % Robust segment switching: geometric progress only.
+    % Advance when the vessel has projected past segment end, or is within
+    % acceptance radius of the segment-end waypoint.
+    while wp_idx < n_wps - 1
+        p_from = wp(wp_idx, :)';
+        p_to   = wp(wp_idx + 1, :)';
+        seg    = p_to - p_from;
+        seg_l2 = seg' * seg;
+
+        if seg_l2 < 1e-9
+            wp_idx = wp_idx + 1;
+            continue;
+        end
+
+        proj = dot(pos - p_from, seg) / seg_l2;  % unbounded [0..1] on segment
+        d_to_waypoint = norm(pos - p_to);
+
+        if proj >= 1.0 || d_to_waypoint <= R_accept
+            wp_idx = wp_idx + 1;
+        else
+            break;
         end
     end
-    
-    if should_switch
-        wp_idx = wp_idx + 1;
+
+    % Active segment for guidance target
+    p1 = wp(wp_idx, :)';
+    p2 = wp(min(wp_idx + 1, n_wps), :)';
+    seg = p2 - p1;
+    seg_len = norm(seg);
+
+    if seg_len < 1e-6
+        target = p2;
+    else
+        % Follow-the-carrot target: projection + lookahead on active segment.
+        s_proj = dot(pos - p1, seg) / seg_len;
+        s_proj = max(0, min(seg_len, s_proj));
+
+        U_now = max(1.0, sqrt(x(1)^2 + x(2)^2));
+        lookahead = max(30, 4 * U_now);
+        s_target = min(seg_len, s_proj + lookahead);
+
+        target = p1 + (s_target / seg_len) * seg;
     end
-    
-    % Clamp to valid range
-    wp_idx = min(wp_idx, n_wps - 1);
 
-    % Target: next waypoint
-    target = wp(min(wp_idx+1, n_wps), :)';
-    dp     = target - pos;
-    chi_d  = atan2(dp(2), dp(1));
+    dp = target - pos;
+    chi_d = atan2(dp(2), dp(1));
 
-    % Speed: interpolate between current and next wp speed
-    U_d = wp_speed(min(wp_idx+1, n_wps));
+    % Use speed target from the next waypoint in active segment.
+    U_d = wp_speed(min(wp_idx + 1, n_wps));
 
     % Slow down when approaching final waypoint
     d_final = norm(pos - wp(end,:)');
@@ -487,20 +500,30 @@ function x_ref = buildSimpleRef(x0, chi_d, U_d, N, dt, wp, wp_idx)
 
     x_ref = repmat(x0(:), 1, N+1);
 
-    % Desired yaw rate: gentle steering towards chi_d
-    psi_err = atan2(sin(chi_d - x0(6)), cos(chi_d - x0(6)));
-    r_d = 0.7 * psi_err;
-    r_d = max(-0.20, min(0.20, r_d));
-
     % Position rollout along path segments
     n_wps = size(wp, 1);
     seg_idx = min(max(1, wp_idx), max(1, n_wps-1));
     p_ref = [x0(4); x0(5)];
+    chi_ref = chi_d;  % Initialize with current desired heading
     
     for k = 1:(N+1)
+        % Update heading reference based on current segment direction
+        if seg_idx < n_wps
+            p_to = wp(seg_idx+1, :)';
+            dp_heading = p_to - p_ref;
+            if norm(dp_heading) > 1e-6
+                chi_ref = atan2(dp_heading(2), dp_heading(1));
+            end
+        end
+        
+        % Desired yaw rate: gentle steering towards chi_ref
+        psi_err = atan2(sin(chi_ref - x0(6)), cos(chi_ref - x0(6)));
+        r_d = 0.7 * psi_err;
+        r_d = max(-0.20, min(0.20, r_d));
+        
         x_ref(1, k)  = U_d;        % speed
         x_ref(3, k)  = r_d;        % yaw rate
-        x_ref(6, k)  = chi_d;      % heading
+        x_ref(6, k)  = chi_ref;    % heading (now updates with segment)
         x_ref(10, k) = 70;         % RPM nominal
 
         % Keep x_ref(:,1) at current position; rollout starts from k=2
@@ -517,11 +540,11 @@ function x_ref = buildSimpleRef(x0, chi_d, U_d, N, dt, wp, wp_idx)
                 if norm(dp) > 1e-6
                     dir_vec = dp / norm(dp);
                 else
-                    dir_vec = [cos(chi_d); sin(chi_d)];
+                    dir_vec = [cos(chi_ref); sin(chi_ref)];
                 end
                 p_ref = p_ref + dir_vec * U_d * dt;
             else
-                p_ref = p_ref + [cos(chi_d); sin(chi_d)] * U_d * dt;
+                p_ref = p_ref + [cos(chi_ref); sin(chi_ref)] * U_d * dt;
             end
         end
 

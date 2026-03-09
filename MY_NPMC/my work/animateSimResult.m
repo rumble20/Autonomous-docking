@@ -171,10 +171,10 @@ if isfield(cfg, 'circObs') && ~isempty(cfg.circObs)
     end
 end
 
-% --- Ghost trajectory (full path at low opacity) --------------------------
+% --- Ghost trajectory of the executed path (full run, low opacity) -------
 plot(ax, yPath, xPath, '-', ...
      'Color', [0.35 0.55 1.00 0.40], 'LineWidth', 1.2, ...
-     'DisplayName', 'Planned path');
+    'DisplayName', 'Executed path (ghost)');
 
 % --- Extra paths (e.g. target ship trajectory) ---------------------------
 if isfield(cfg, 'extraPaths') && ~isempty(cfg.extraPaths)
