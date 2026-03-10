@@ -1,34 +1,36 @@
 classdef NMPC_Container_Lite < handle
-    % NMPC_Container_Lite  Simplified NMPC for container ship (CasADi nlpsol)
+    % NMPC_Container_Lite  Simplified NMPC for container ship with azipod thrusters (CasADi nlpsol)
     %
     % Minimal viable NMPC for path-following + static obstacle avoidance.
-    % Uses the full 10-state nonlinear container.m dynamics in CasADi.
+    % Uses simplified 6-DOF nonlinear dynamics with dual azipod thrusters (no roll).
     %
-    %   States:  x = [u v r x y psi p phi delta n]'   (10)
-    %   Controls: u = [delta_c  n_c]'                  (2)
+    %   States:  x = [u v r x y psi]'                  (6)
+    %   Controls: u = [alpha1 alpha2 F1 F2]'           (4)
+    %            (azimuth angles in rad, thrust in kN)
     %
-    % Features kept:
-    %   - Full nonlinear dynamics (matches container.m line-by-line)
+    % Features:
+    %   - Simplified nonlinear 6-DOF dynamics (roll removed)
+    %   - Twin azipod thrust vectoring thrusters
     %   - Obstacle avoidance via slack-penalised distance constraints
-    %   - Control rate-of-change penalty (R_rate) for smooth rudder
+    %   - Control rate-of-change penalty (R_rate) for smooth azimuth/thrust
     %   - Build-once / solve-many nlpsol architecture
     %
-    % Removed vs full version (deferred to Phase 2+):
+    % Removed for simplification:
+    %   - Roll and pitch dynamics (roll = 0)
+    %   - Rudder and propeller model (replaced by azipods)
     %   - Environment / current effects
     %   - Map polygon integration
-    %   - Warm start shifting
-    %   - Simplified (linear) dynamics option
     %
     % Usage:
     %   cfg = struct('N', 20, 'dt', 1.0, ...
-    %                'Q', diag([2 0 0.8 0.03 0.03 15 0 0 0 0]), ...
-    %                'R', diag([0.005, 0.001]));
+    %                'Q', diag([2 0 0.8 0.03 0.03 15]), ...
+    %                'R', diag([0.1, 0.1, 10, 10]));
     %   nmpc = NMPC_Container_Lite(cfg);
     %   nmpc.buildSolver();
     %   [u_opt, X_pred, info] = nmpc.solve(x0, x_ref, obstacles);
     %
-    % Author: Riccardo Legnini (simplified from NMPC_Container)
-    % Date:   2025
+    % Author: Riccardo Legnini (adapted for azipod thrusters)
+    % Date:   2026-03-10
 
     properties
         % Horizon
@@ -36,18 +38,20 @@ classdef NMPC_Container_Lite < handle
         dt              % Sample time [s]
 
         % Cost weights
-        Q               % State error weight  (10×10)
-        R               % Control effort weight (2×2)
-        R_rate          % Control rate-of-change weight (2×2)
+        Q               % State error weight  (6×6)
+        R               % Control effort weight (4×4)
+        R_rate          % Control rate-of-change weight (4×4)
 
         % Dimensions (fixed)
-        nx = 10
-        nu = 2
+        nx = 6          % States: [u v r x y psi]
+        nu = 4          % Controls: [alpha1 alpha2 F1 F2]
 
-        % Actuator limits (from container.m)
-        delta_max_rad = deg2rad(35)
-        n_max_rpm     = 160
-        n_min_rpm     = 10
+        % Azipod thruster limits (based on ABB azipod specifications)
+        % Ref: ABB Azipod XO/Pro/Ultra series for medium-large ships
+        % For a 41,000 ton container ship (LOA ~175m): typical 2x300kN azipods
+        F_max_kN     = 300    % Max thrust per thruster [kN] (300 kN ea. ~ 2.9 MW @ 10 m/s)
+        alpha_max    = pi     % Max azimuth angle [rad] (bidirectional)
+        alpha_rate_max = deg2rad(15)  % Max azimuth rate [rad/s] (15°/s is typical for azipods)
 
         % Obstacle settings
         max_obs       = 15      % Fixed obstacle slots in NLP
@@ -70,6 +74,9 @@ classdef NMPC_Container_Lite < handle
         % Warm-start storage
         prev_sol       % Previous solution vector for warm-start
         prev_u         % Previous control for rate-of-change
+
+        % Runtime debug toggles
+        enable_diagnostics = false
     end
 
     methods
@@ -81,19 +88,22 @@ classdef NMPC_Container_Lite < handle
                 cfg = struct();
             end
 
-            % Required fields with defaults
+            % Required fields with defaults (6-DOF model)
             obj.N  = getOr(cfg, 'N',  20);
             obj.dt = getOr(cfg, 'dt', 1.0);
-            obj.Q  = getOr(cfg, 'Q',  diag([2.0, 0, 0.8, 0.03, 0.03, 15, 0, 0, 0, 0]));
-            obj.R  = getOr(cfg, 'R',  diag([0.005, 0.001]));
+            % Q weights: [u, v, r, x, y, psi]
+            obj.Q  = getOr(cfg, 'Q',  diag([2.0, 0, 0.8, 0.03, 0.03, 15]));
+            % R weights: [alpha1, alpha2, F1, F2] - azimuth angles have lower priority
+            obj.R  = getOr(cfg, 'R',  diag([0.1, 0.1, 10, 10]));
 
             % Optional fields with defaults
-            obj.R_rate = getOr(cfg, 'R_rate', diag([0.08, 0.001]));
+            obj.R_rate = getOr(cfg, 'R_rate', diag([0.05, 0.05, 5, 5]));
             obj.max_obs       = getOr(cfg, 'max_obs',       15);
             obj.r_safety      = getOr(cfg, 'r_safety',      30);
             obj.penalty_slack = getOr(cfg, 'penalty_slack',  10000);
+            obj.enable_diagnostics = logical(getOr(cfg, 'enable_diagnostics', false));
 
-            fprintf('NMPC_Container_Lite: N=%d, dt=%.2f, obs_slots=%d\n', ...
+            fprintf('NMPC_Container_Lite: N=%d, dt=%.2f, obs_slots=%d (6-DOF azipod model)\n', ...
                 obj.N, obj.dt, obj.max_obs);
         end
 
@@ -102,8 +112,8 @@ classdef NMPC_Container_Lite < handle
             import casadi.*
 
             N_h   = obj.N;
-            nx    = obj.nx;
-            nu    = obj.nu;
+            nx    = obj.nx; %#ok<*PROP>
+            nu    = obj.nu; %#ok<*PROP>
             n_obs = obj.max_obs;
 
             % Decision variables
@@ -200,18 +210,40 @@ classdef NMPC_Container_Lite < handle
             % State bounds
             for k = 1:(N_h+1)
                 base = (k-1)*nx;
-                lbx(base + 1)  = 0.1;   % u > 0
-                lbx(base + 10) = 1;     % n > 0
+                lbx(base + 1)  = 0.1;   % u > 0.1 (prevent singularities)
+            end
+
+            for k = 1:(N_h+1)
+                base = (k-1)*nx;
+                % State bounds (all 6 DOF)
+                lbx(base + 1)  =  0.1;      % u >= 0.1 m/s (minimum non-zero speed)
+                ubx(base + 1)  = 20;        % u <= 20 m/s (max realistic speed)
+                lbx(base + 2)  = -5;        % v in [-5, 5] m/s (sway velocity)
+                ubx(base + 2)  = 5;
+                lbx(base + 3)  = -1;        % r in [-1, 1] rad/s (yaw rate)
+                ubx(base + 3)  = 1;
+                lbx(base + 4)  = -10000;    % x in [-10km, 10km] (East position)
+                ubx(base + 4)  = 10000;
+                lbx(base + 5)  = -10000;    % y in [-10km, 10km] (North position)
+                ubx(base + 5)  = 10000;
+                lbx(base + 6)  = -pi;       % psi in [-pi, pi] (heading)
+                ubx(base + 6)  = pi;
             end
 
             % Control bounds
             u_off = nx*(N_h+1);
             for k = 1:N_h
                 base = u_off + (k-1)*nu;
-                lbx(base+1) = -obj.delta_max_rad;
-                ubx(base+1) =  obj.delta_max_rad;
-                lbx(base+2) =  obj.n_min_rpm;
-                ubx(base+2) =  obj.n_max_rpm;
+                % Azimuth angles in [-pi, pi]
+                lbx(base+1) = -obj.alpha_max;
+                ubx(base+1) =  obj.alpha_max;
+                lbx(base+2) = -obj.alpha_max;
+                ubx(base+2) =  obj.alpha_max;
+                % Thrust magnitudes in [-F_max, F_max] kN (bidirectional)
+                lbx(base+3) = -obj.F_max_kN;
+                ubx(base+3) =  obj.F_max_kN;
+                lbx(base+4) = -obj.F_max_kN;
+                ubx(base+4) =  obj.F_max_kN;
             end
 
             % Slack >= 0
@@ -258,7 +290,7 @@ classdef NMPC_Container_Lite < handle
             end
 
             N_h   = obj.N;
-            nx    = obj.nx;
+            nx    = obj.nx; %#ok<*PROPLC>
             nu    = obj.nu;
             n_obs = obj.max_obs;
 
@@ -275,14 +307,19 @@ classdef NMPC_Container_Lite < handle
                 end
             end
 
-            % --- Control reference (zero rudder, current RPM) -------------
-            u_ref = repmat([0; max(x0(10), obj.n_min_rpm)], 1, N_h);
+            % --- Control reference (zero azimuth, zero thrust) ------------------
+            u_ref = zeros(nu, N_h);  % [alpha1, alpha2, F1, F2]
 
             % --- Assemble parameter vector --------------------------------
             p_val = [x0(:); x_ref(:); u_ref(:); obs_pos(:); obs_rad(:)];
 
+            % Optional pre-solve diagnostics (verbose)
+            if obj.enable_diagnostics
+                obj.diagnosticsPreSolve(x0, x_ref, u_ref, p_val);
+            end
+
             % --- Warm-start initial guess (shift previous solution) -------
-            if ~isempty(obj.prev_sol)
+            if ~isempty(obj.prev_sol) && (obj.solve_ok > 3)
                 % Extract previous solution
                 X_prev = reshape(obj.prev_sol(1:nx*(N_h+1)), nx, N_h+1);
                 u_s    = nx*(N_h+1) + 1;
@@ -301,16 +338,27 @@ classdef NMPC_Container_Lite < handle
                 % Cold-start on first iteration
                 X_init = zeros(nx, N_h+1);
                 X_init(:,1) = x0;
-                U_init = repmat([0; max(x0(10), obj.n_min_rpm)], 1, N_h);
+                U_init = zeros(nu, N_h);  % [alpha1, alpha2, F1, F2]
 
+                % ✅ Simple forward propagation with constant controls
                 for k = 1:N_h
                     xk = X_init(:,k);
-                    xk(1)  = max(xk(1), 0.1);
-                    xk(10) = max(xk(10), 1);
+                    
+                    % ✅ Safeguards (NO psi clamping!)
+                    xk(1) = max(xk(1), 0.1);  % Minimum speed
+                    
                     try
                         [xdot_k, ~] = container(xk, U_init(:,k));
-                        X_init(:,k+1) = xk + xdot_k * obj.dt;
-                    catch
+                        
+                        % ✅ Check for NaN in dynamics
+                        if any(isnan(xdot_k)) || any(isinf(xdot_k))
+                            warning('[Cold-start] NaN in container() at k=%d, using constant state', k);
+                            X_init(:,k+1) = xk;
+                        else
+                            X_init(:,k+1) = xk + xdot_k * obj.dt;
+                        end
+                    catch ME
+                        warning(ME.identifier, '[Cold-start] container() failed: %s)', ME.message);
                         X_init(:,k+1) = xk;
                     end
                 end
@@ -319,10 +367,19 @@ classdef NMPC_Container_Lite < handle
                 x0_guess = [X_init(:); U_init(:); s_init(:)];
             end
 
+
             % --- Solve NLP ------------------------------------------------
+            % ✅ ENFORCE initial condition by explicitly bounding first state to x0
+            lbx_local = obj.lbx_vec;
+            ubx_local = obj.ubx_vec;
+            for i = 1:nx
+                lbx_local(i) = x0(i);  % X(i,1) >= x0(i)
+                ubx_local(i) = x0(i);  % X(i,1) <= x0(i)  → X(i,1) = x0(i)
+            end
+            
             try
                 sol = obj.solver('x0', x0_guess, ...
-                    'lbx', obj.lbx_vec, 'ubx', obj.ubx_vec, ...
+                    'lbx', lbx_local, 'ubx', ubx_local, ...
                     'lbg', obj.lbg_vec, 'ubg', obj.ubg_vec, ...
                     'p', p_val);
 
@@ -334,6 +391,15 @@ classdef NMPC_Container_Lite < handle
                 u_opt  = U_sol(:,1);
                 X_pred = X_sol;
 
+                % ✅ VALIDATION: Verify initial condition is satisfied
+                ic_error = X_pred(:,1) - x0;
+                if norm(ic_error) > 1e-6
+                    warning('NMPC: Initial condition violated by %.2e (expect <1e-6)', norm(ic_error));
+                    fprintf('  x0 requested  = [%.3f, %.3f, %.3f, %.1f, %.1f, %.4f]\n', x0(1), x0(2), x0(3), x0(4), x0(5), x0(6));
+                    fprintf('  X_pred(:,1)   = [%.3f, %.3f, %.3f, %.1f, %.1f, %.4f]\n', X_pred(1,1), X_pred(2,1), X_pred(3,1), X_pred(4,1), X_pred(5,1), X_pred(6,1));
+                    fprintf('  IC error      = [%.3e, %.3e, %.3e, %.3e, %.3e, %.3e]\n', ic_error(1), ic_error(2), ic_error(3), ic_error(4), ic_error(5), ic_error(6));
+                end
+
                 % Store solution for warm-start next iteration
                 obj.prev_sol = sol_x;
                 obj.prev_u   = u_opt;
@@ -344,7 +410,7 @@ classdef NMPC_Container_Lite < handle
                 obj.solve_ok    = obj.solve_ok + 1;
 
             catch ME
-                u_opt  = [0; max(x0(10), obj.n_min_rpm)];
+                u_opt  = zeros(nu, 1);  % Zero azimuth angles and zero thrust
                 X_pred = repmat(x0, 1, N_h+1);
 
                 info.success    = false;
@@ -360,151 +426,175 @@ classdef NMPC_Container_Lite < handle
             info.solve_time = toc(t_start);
         end
 
+        %% PRE-SOLVE DIAGNOSTICS ============================================
+        function diagnosticsPreSolve(obj, x0, x_ref, u_ref, p_val)
+            % Run comprehensive diagnostics before calling solver.
+            % Can be called manually for debugging, or automatically in solve().
+            
+            N_h = obj.N;
+            nx = obj.nx;
+            
+            fprintf('\n========== PRE-SOLVE DIAGNOSTICS ==========\n');
+            
+            % 1. Check initial state
+            fprintf('  Initial State (x0):\n');
+            fprintf('    u=%.3f m/s, v=%.3f m/s, r=%.4f rad/s\n', x0(1), x0(2), x0(3));
+            fprintf('    x=%.1f m, y=%.1f m, psi=%.2f°\n', x0(4), x0(5), rad2deg(x0(6)));
+            
+            if any(isnan(x0)) || any(isinf(x0))
+                error('  ❌ NaN/Inf detected in x0!');
+            end
+            if x0(1) < 0.01
+                warning('  ⚠️  Surge velocity u=%.3f is very low (may cause numerical issues)', x0(1));
+            end
+            fprintf('  ✅ x0 valid\n\n');
+            
+            % 2. Check reference trajectory
+            fprintf('  Reference Trajectory (x_ref):\n');
+            fprintf('    Size: %d states × %d horizon steps\n', nx, N_h+1);
+            fprintf('    First point: u=%.3f, psi=%.2f°\n', x_ref(1,1), rad2deg(x_ref(6,1)));
+            fprintf('    Last point:  u=%.3f, psi=%.2f°\n', x_ref(1,N_h+1), rad2deg(x_ref(6,N_h+1)));
+            
+            if any(isnan(x_ref(:))) || any(isinf(x_ref(:)))
+                error('  ❌ NaN/Inf detected in x_ref!');
+            end
+            fprintf('  ✅ x_ref valid\n\n');
+            
+            % 3. Check control reference
+            fprintf('  Control Reference (u_ref):\n');
+            fprintf('    Mean azimuth:  α₁=%.3f rad, α₂=%.3f rad\n', ...
+                mean(u_ref(1,:)), mean(u_ref(2,:)));
+            fprintf('    Mean thrust:   F₁=%.1f kN, F₂=%.1f kN\n', ...
+                mean(u_ref(3,:)), mean(u_ref(4,:)));
+            
+            if any(isnan(u_ref(:))) || any(isinf(u_ref(:)))
+                error('  ❌ NaN/Inf detected in u_ref!');
+            end
+            fprintf('  ✅ u_ref valid\n\n');
+            
+            % 4. Check parameter vector
+            fprintf('  Parameter Vector (p_val):\n');
+            fprintf('    Length: %d elements\n', length(p_val));
+            fprintf('    Expected: %d (6 + 6×%d + 4×%d + 2×15 + 15)\n', ...
+                6 + 6*(N_h+1) + 4*N_h + 2*15 + 15, N_h+1, N_h);
+            
+            if any(isnan(p_val)) || any(isinf(p_val))
+                error('  ❌ NaN/Inf detected in parameter vector!');
+            end
+            fprintf('  ✅ p_val valid\n\n');
+            
+            % 5. Test dynamics at x0
+            fprintf('  Testing Dynamics at x0:\n');
+            try
+                u_test = zeros(4, 1);  % Zero control input
+                xdot_ref = container(x0, u_test);  % Use reference model (works with doubles)
+                
+                fprintf('    u_dot=%.6f, v_dot=%.6f, r_dot=%.6f\n', ...
+                    xdot_ref(1), xdot_ref(2), xdot_ref(3));
+                
+                if any(isnan(xdot_ref)) || any(isinf(xdot_ref))
+                    error('  ❌ NaN/Inf in dynamics!');
+                end
+                fprintf('  ✅ Dynamics valid\n\n');
+                
+            catch ME
+                fprintf('  ❌ Dynamics evaluation failed: %s\n', ME.message);
+                rethrow(ME);
+            end
+            
+            % 6. Summary
+            fprintf('========== ALL DIAGNOSTICS PASSED ✅ ==========\n\n');
+        end
+
         %% FULL NONLINEAR DYNAMICS (CasADi) ================================
         % Line-by-line match with container.m (Son & Nomoto 1982)
         function xdot = containerCasADi(~, x, u_in)
+            % Simplified 6-DOF model with dual azipod thrusters (MUST MATCH container.m exactly!)
+            % States: x = [u, v, r, x_pos, y_pos, psi]
+            % Controls: u = [alpha1, alpha2, F1, F2]
             import casadi.*
 
-            L = 175;
+            L = 175;          % Ship length [m]
+            m_ship = 41000 * 1000;   % Total mass [kg]
+            
+            % State extraction
+            u = x(1);
+            v = x(2);
+            r = x(3);
+            x_pos = x(4); %#ok<*NASGU>
+            y_pos = x(5);
+            psi = x(6);
+            
+            % Control extraction
+            alpha1 = u_in(1);  % Azimuth angle thruster 1 [rad]
+            alpha2 = u_in(2);  % Azimuth angle thruster 2 [rad]
+            F1 = u_in(3);      % Thrust magnitude thruster 1 [kN]
+            F2 = u_in(4);      % Thrust magnitude thruster 2 [kN]
+            
+            % Speed magnitude with safeguard
+            U = sqrt(u^2 + v^2);
+            U = if_else(U < 0.1, 0.1, U);
+            
+            % === AZIPOD FORCES (body-fixed) ===
+            Fx_thrust = F1 * cos(alpha1) + F2 * cos(alpha2);  % kN
+            Fy_thrust = F1 * sin(alpha1) + F2 * sin(alpha2);  % kN
+            
+            % Yaw moment from thrusters
+            x_thruster_1 = -0.2;  % Normalized position (same as container.m)
+            x_thruster_2 = -0.2;
+            Mz_thrust = F1 * sin(alpha1) * x_thruster_1 + F2 * sin(alpha2) * x_thruster_2;
+            
+            % === HYDRODYNAMIC DAMPING (EXACT MATCH TO container.m) ===
+            % Hydrodynamic forces [normalized]
+            Xuu = -0.04;
+            Yv = -0.5;
+            Yr = 0.25;
+            Nr = -0.15;
+            Nv = -0.1;
+            Xvv = -0.1;
+            Yvv = -2.0;
+            Yrrr = 0.05;
+            Nvv = -0.05;
+            Nrr = -0.1;
+            
+            % ========== CORRECTED FORCE CALCULATION ==========
 
-            % Speed (with safeguard)
-            Uv = sqrt(x(1)^2 + x(2)^2);
-            Uv = if_else(Uv < 0.1, 0.1, Uv);
+            % 1. Hydrodynamic forces (NORMALIZED, dimensionless coefficients)
+            Xhyd = Xuu * u * abs(u) + Xvv * v * abs(v);
+            Yhyd = Yv * v + Yr * r + Yvv * v * abs(v) + Yrrr * r^2 * abs(r);
+            Nhyd = Nv * v + Nr * r + Nvv * v * abs(v) + Nrr * r * abs(r);
 
-            psi   = x(6);
-            phi   = x(8);
-            delta = x(9);
+            % 2. Denormalize ONLY hydrodynamic terms to physical units (kN)
+            rho = 1025;  % kg/m³
+            X_hydro_kN = Xhyd * (0.5 * rho * L^2 * U^2) / 1000;  % kN
+            Y_hydro_kN = Yhyd * (0.5 * rho * L^2 * U^2) / 1000;  % kN
+            N_hydro_kN = Nhyd * (0.5 * rho * L^3 * U^2) / 1000;  % kN·m
 
-            % Nondimensional states
-            delta_c = u_in(1);
-            n_c     = u_in(2) / 60 * L / Uv;
+            % 3. Azipod thrust forces (ALREADY in kN, NO scaling needed!)
+            Fx_thrust = F1 * cos(alpha1) + F2 * cos(alpha2);  % kN
+            Fy_thrust = F1 * sin(alpha1) + F2 * sin(alpha2);  % kN
+            Mz_thrust = F1 * sin(alpha1) * x_thruster_1 + F2 * sin(alpha2) * x_thruster_2;  % kN·m (dimensionless x L)
 
-            u = x(1) / Uv;
-            v = x(2) / Uv;
-            p = x(7) * L / Uv;
-            r = x(3) * L / Uv;
-            n = x(10) / 60 * L / Uv;
+            % Convert moment to physical units
+            Mz_thrust_kN = Mz_thrust * L;  % kN·m
 
-            % Ship parameters (container.m)
-            m  = 0.00792;    mx     = 0.000238;   my = 0.007049;
-            Ix = 0.0000176;  alphay = 0.05;       lx = 0.0313;
-            ly = 0.0313;     Iz = 0.000456;
-            Jx = 0.0000034;  Jz = 0.000419;
+            % 4. Total forces (both in kN now!)
+            X_total = X_hydro_kN + Fx_thrust;   % kN
+            Y_total = Y_hydro_kN + Fy_thrust;   % kN
+            N_total = N_hydro_kN + Mz_thrust_kN; % kN·m
 
-            B     = 25.40;   dF = 8.00;    g_acc  = 9.81;
-            dA    = 9.00;    d  = 8.50;    nabla  = 21222;
-            KM    = 10.39;   KB = 4.6154;  AR     = 33.0376;
-            Delta_hull = 1.8219;  D_prop = 6.533;
-            GM    = 0.3/L;
-            rho   = 1025;    t_ded = 0.175;
-            n_max_revs = 160/60;
+            % ========== STATE DERIVATIVES ==========
 
-            W = rho*g_acc*nabla / (rho*L^2*Uv^2/2);
+            u_dot = (X_total * 1000 / m_ship) + v * r;  % Convert kN → N, then m/s²
+            v_dot = (Y_total * 1000 / m_ship) - u * r;
+            r_dot = (N_total * 1000) / (0.1 * m_ship * L);  % rad/s²
 
-            % Hydrodynamic derivatives
-            Xuu      = -0.0004226;  Xvr    = -0.00311;   Xrr      =  0.00020;
-            Xphiphi  = -0.00020;    Xvv    = -0.00386;
-
-            Kv       =  0.0003026;  Kr     = -0.000063;  Kp       = -0.0000075;
-            Kphi     = -0.000021;   Kvvv   =  0.002843;  Krrr     = -0.0000462;
-            Kvvr     = -0.000588;   Kvrr   =  0.0010565; Kvvphi   = -0.0012012;
-            Kvphiphi = -0.0000793;  Krrphi = -0.000243;  Krphiphi =  0.00003569;
-
-            Yv       = -0.0116;     Yr     =  0.00242;   Yp       =  0;
-            Yphi     = -0.000063;   Yvvv   = -0.109;     Yrrr     =  0.00177;
-            Yvvr     =  0.0214;     Yvrr   = -0.0405;    Yvvphi   =  0.04605;
-            Yvphiphi =  0.00304;    Yrrphi =  0.009325;  Yrphiphi = -0.001368;
-
-            Nv       = -0.0038545;  Nr     = -0.00222;   Np       =  0.000213;
-            Nphi     = -0.0001424;  Nvvv   =  0.001492;  Nrrr     = -0.00229;
-            Nvvr     = -0.0424;     Nvrr   =  0.00156;   Nvvphi   = -0.019058;
-            Nvphiphi = -0.0053766;  Nrrphi = -0.0038592; Nrphiphi =  0.0024195;
-
-            kk     =  0.631;  epsilon =  0.921;  xR    = -0.5;
-            wp_frac =  0.184;  tau    =  1.09;   xp    = -0.526;
-            cpv    =  0.0;    cpr     =  0.0;    ga    =  0.088;
-            cRr    = -0.156;  cRrrr   = -0.275;  cRrrv =  1.96;
-            cRX    =  0.71;   aH      =  0.237;  zR    =  0.033;
-            xH     = -0.48;
-
-            % Mass matrix
-            m11 = m + mx;
-            m22 = m + my;
-            m32 = -my*ly;
-            m42 = my*alphay;
-            m33 = Ix + Jx;
-            m44 = Iz + Jz;
-
-            % Rudder saturation & dynamics
-            delta_max_r = 35*pi/180;
-            Ddelta_max  = 10*pi/180;
-
-            delta_c_sat = if_else(delta_c >  delta_max_r,  delta_max_r, ...
-                          if_else(delta_c < -delta_max_r, -delta_max_r, delta_c));
-            delta_dot_raw = delta_c_sat - delta;
-            delta_dot = if_else(delta_dot_raw >  Ddelta_max,  Ddelta_max, ...
-                        if_else(delta_dot_raw < -Ddelta_max, -Ddelta_max, delta_dot_raw));
-
-            % Shaft saturation & dynamics
-            n_c_revs    = n_c * Uv / L;
-            n_revs      = n   * Uv / L;
-            n_revs_safe = if_else(n_revs < 0.01, 0.01, n_revs);
-            n_c_clamped = if_else(n_c_revs >  n_max_revs,  n_max_revs, ...
-                          if_else(n_c_revs < 0, 0, n_c_revs));
-            Tm = if_else(n_revs_safe > 0.3, 5.65 / n_revs_safe, 18.83);
-            n_dot = (1/Tm) * (n_c_clamped - n_revs_safe) * 60;
-
-            % Propeller / rudder forces
-            vR = ga*v + cRr*r + cRrrr*r^3 + cRrrv*r^2*v;
-            uP = u * ((1 - wp_frac) + tau*((v + xp*r)^2 + cpv*v + cpr*r));
-
-            J_prop = uP * Uv / (n_revs_safe * D_prop);
-            KT     = 0.527 - 0.455 * J_prop;
-
-            sqrt_arg = 1 + 8*kk*KT / (pi*J_prop^2 + 1e-6);
-            sqrt_arg = if_else(sqrt_arg < 1e-6, 1e-6, sqrt_arg);
-            uR = uP * epsilon * sqrt(sqrt_arg);
-
-            uR_safe = if_else(uR*uR < 1e-8, 1e-4, uR);
-            alphaR  = delta + atan2(vR, uR_safe);
-            FN = -((6.13*Delta_hull)/(Delta_hull+2.25)) * (AR/L^2) * ...
-                  (uR^2 + vR^2) * sin(alphaR);
-            T_thrust = 2*rho*D_prop^4 / (Uv^2*L^2*rho) * KT * n_revs_safe * abs(n_revs_safe);
-
-            % Forces & moments
-            X_f = Xuu*u^2 + (1-t_ded)*T_thrust + Xvr*v*r + Xvv*v^2 + ...
-                  Xrr*r^2 + Xphiphi*phi^2 + cRX*FN*sin(delta) + (m+my)*v*r;
-
-            Y_f = Yv*v + Yr*r + Yp*p + Yphi*phi + Yvvv*v^3 + Yrrr*r^3 + ...
-                  Yvvr*v^2*r + Yvrr*v*r^2 + Yvvphi*v^2*phi + Yvphiphi*v*phi^2 + ...
-                  Yrrphi*r^2*phi + Yrphiphi*r*phi^2 + ...
-                  (1+aH)*FN*cos(delta) - (m+mx)*u*r;
-
-            K_f = Kv*v + Kr*r + Kp*p + Kphi*phi + Kvvv*v^3 + Krrr*r^3 + ...
-                  Kvvr*v^2*r + Kvrr*v*r^2 + Kvvphi*v^2*phi + Kvphiphi*v*phi^2 + ...
-                  Krrphi*r^2*phi + Krphiphi*r*phi^2 - ...
-                  (1+aH)*zR*FN*cos(delta) + mx*lx*u*r - W*GM*phi;
-
-            N_f = Nv*v + Nr*r + Np*p + Nphi*phi + Nvvv*v^3 + Nrrr*r^3 + ...
-                  Nvvr*v^2*r + Nvrr*v*r^2 + Nvvphi*v^2*phi + Nvphiphi*v*phi^2 + ...
-                  Nrrphi*r^2*phi + Nrphiphi*r*phi^2 + ...
-                  (xR + aH*xH)*FN*cos(delta);
-
-            % Solve for accelerations
-            detM = m22*m33*m44 - m32^2*m44 - m42^2*m33;
-
-            xdot = [
-                X_f*(Uv^2/L) / m11
-               -((-m33*m44*Y_f + m32*m44*K_f + m42*m33*N_f) / detM) * (Uv^2/L)
-                ((-m42*m33*Y_f + m32*m42*K_f + N_f*m22*m33 - N_f*m32^2) / detM) * (Uv^2/L^2)
-                cos(psi)*x(1) - sin(psi)*cos(phi)*x(2)
-                sin(psi)*x(1) + cos(psi)*cos(phi)*x(2)
-                cos(phi)*x(3)
-                ((-m32*m44*Y_f + K_f*m22*m44 - K_f*m42^2 + m32*m42*N_f) / detM) * (Uv^2/L^2)
-                x(7)
-                delta_dot
-                n_dot
-            ];
+            
+            x_dot = cos(psi) * u - sin(psi) * v;
+            y_dot = sin(psi) * u + cos(psi) * v;
+            psi_dot = r;
+            
+            xdot = [u_dot; v_dot; r_dot; x_dot; y_dot; psi_dot];
         end
 
     end % methods

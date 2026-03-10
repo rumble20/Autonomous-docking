@@ -1,6 +1,7 @@
 function animateSimResult(traj, waypoints, t_vec, harbor, cfg)
 % animateSimResult  Generalised post-simulation ship animation
-%   Replays a recorded 10-DOF container-ship trajectory on a 2-D map.
+%   Replays a recorded 6-DOF container-ship trajectory on a 2-D map.
+%   Supports both 6-DOF (azipod) and 10-DOF (legacy rudder) formats.
 %   Designed to be fast and non-blocking during the NMPC simulation loop:
 %   call this AFTER the simulation loop, on already-collected trajectory data.
 %
@@ -11,8 +12,9 @@ function animateSimResult(traj, waypoints, t_vec, harbor, cfg)
 %   · Automatic downsampling to at most maxFrames rendered frames.
 %
 % Inputs:
-%   traj      - 10×N state matrix  (rows: u v r x y psi p phi δ n)
-%               x = traj(4,:), y = traj(5,:), psi = traj(6,:)
+%   traj      - 6×N state matrix  (rows: u v r x y psi)      [6-DOF azipod model]
+%               OR 10×N state matrix (rows: u v r x y psi p phi δ n) [legacy]
+%               x = traj(4,:), y = traj(5,:), psi = traj(6,:) [position & heading]
 %   waypoints - W×2 [x, y] matrix  (NED convention), or []
 %   t_vec     - 1×N simulation time vector [s], or []
 %   harbor    - HarborObstacles object (calls harbor.plotMap() if available),
