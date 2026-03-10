@@ -37,6 +37,7 @@ fprintf('    Speed U=%.2f m/s (should be ~7)\n\n', U_test);
 nmpc_cfg = struct();
 nmpc_cfg.N  = 50;
 nmpc_cfg.dt = 1.0;
+nmpc_cfg.M_rk4 = 4;          % RK4 sub-steps per shooting interval
 
 % Q weights (8 states): [u, v, r, x, y, psi, n1, n2]
 nmpc_cfg.Q = diag([2.0, 0.1, 0.8, 0.03, 0.03, 15, 0.001, 0.001]);
@@ -50,9 +51,10 @@ nmpc_cfg.R_rate = diag([0.05, 0.05, 0.005, 0.005]);
 nmpc_cfg.max_obs       = 15;
 nmpc_cfg.r_safety      = 50;
 nmpc_cfg.penalty_slack = 1e6;
+nmpc_cfg.max_sqp_iter  = 1;   % 1 = pure RTI, increase for more accuracy
 nmpc_cfg.enable_diagnostics = false;
 
-nmpc = NMPC_Container_Lite(nmpc_cfg);
+nmpc = NMPC_Container_RTI(nmpc_cfg);
 
 %% ===== CasADi dynamics consistency check =================================
 fprintf('--- CasADi consistency check ---\n');
