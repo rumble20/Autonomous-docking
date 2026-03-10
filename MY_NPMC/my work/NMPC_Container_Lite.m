@@ -185,7 +185,7 @@ classdef NMPC_Container_Lite < handle
             J = J + 2*Q_y * (X(5,N_h+1) - P_xref(5,N_h+1))^2;
 
             % Slack penalty
-            J = J + obj.penalty_slack * sumsqr(slack);
+            J = J + obj.penalty_slack * sumsqr(slack) + 1000 * sumsqr(slack.^2);
 
             % ---- Constraints ---------------------------------------------
             g = [];

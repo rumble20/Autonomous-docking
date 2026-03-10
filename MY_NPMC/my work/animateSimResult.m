@@ -288,10 +288,10 @@ for k = 1:length(idx)
     pause(pauseTime); % pacing: default 0.05 s → ~20 fps
 end
 
-% Mark final position
-plot(ax, yPath(end), xPath(end), 'r^', ...
-     'MarkerSize', 9, 'MarkerFaceColor', [1 0.3 0.3], ...
-     'DisplayName', 'End', 'LineWidth', 1.5);
+% Mark final position without the large arrow marker.
+plot(ax, yPath(end), xPath(end), 'ro', ...
+    'MarkerSize', 6, 'MarkerFaceColor', [1 0.3 0.3], ...
+    'DisplayName', 'End', 'LineWidth', 1.0);
 drawnow;
 
 end % ---- end of animateSimResult ----------------------------------------
