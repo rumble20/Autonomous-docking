@@ -1,4 +1,4 @@
-specify that the truster allocation control is implemented in the NMPC by considering forces and 4 azimuth thrusters as can be seen in the MSS example, 
+specify that the truster allocation control is implemented in the NMPC by considering forces and 2 azimuth thrusters as can be seen in the MSS example, 
 not in RPM control or any further complication since that is not the scope of the thesis
 
 %%
@@ -11,3 +11,6 @@ But for dynamic circular obstacles (like in congested harbors with moving vessel
 
 %%
 
+The software development process initially followed a traditional, requirements-driven plan.
+After early prototyping, it became clear that fixing all requirements upfront was not practical for this project due to the iterative nature of tuning, solver behaviour, and scenario-dependent constraint handling.
+Therefore, the implementation was carried out using an agile, incremental workflow with frequent integration and testing.
