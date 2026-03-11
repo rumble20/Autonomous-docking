@@ -13,7 +13,7 @@ classdef NMPC_Container_Lite < handle
     %   - Propeller model with KT-J curve, wake fraction, thrust deduction
     %   - Shaft dynamics with time constant
     %   - Twin azipod thrust vectoring (aft + forward)
-    %   - Obstacle avoidance via slack-penalised distance constraints
+    %   - Obstacle avoidance via hard sqrt-distance constraints (no slack)
     %   - Control rate-of-change penalty for smooth actuation
     %
     % Usage:
@@ -59,9 +59,8 @@ classdef NMPC_Container_Lite < handle
         Dn_max = 10             % Max shaft acceleration [rpm/s]
 
         % Obstacle settings
-        max_obs = 15            % Fixed obstacle slots in NLP
+        max_obs = 5             % Max obstacle slots in NLP (only real ones get constraints)
         r_safety = 30           % Safety margin [m]
-        penalty_slack = 10000   % Slack penalty in cost
 
         % --- nlpsol internals ---
         solver
@@ -96,7 +95,10 @@ classdef NMPC_Container_Lite < handle
             obj.dt = getOr(cfg, 'dt', 1.0);
 
             % Q weights: [u, v, r, x, y, psi, n1, n2]
-            obj.Q = getOr(cfg, 'Q', diag([2.0, 0.1, 0.8, 0.03, 0.03, 15, 0.001, 0.001]));
+            % Position weights (x,y) must dominate heading (psi) so the
+            % optimizer actively steers around obstacles instead of
+            % rigidly tracking the desired heading.
+            obj.Q = getOr(cfg, 'Q', diag([2.0, 0.1, 0.5, 5.0, 5.0, 3.0, 0.001, 0.001]));
 
             % R weights: [alpha1, alpha2, n1_c, n2_c]
             obj.R = getOr(cfg, 'R', diag([0.1, 0.1, 0.01, 0.01]));
@@ -104,9 +106,8 @@ classdef NMPC_Container_Lite < handle
             % R_rate weights for smooth control
             obj.R_rate = getOr(cfg, 'R_rate', diag([0.05, 0.05, 0.005, 0.005]));
 
-            obj.max_obs = getOr(cfg, 'max_obs', 15);
+            obj.max_obs = getOr(cfg, 'max_obs', 5);
             obj.r_safety = getOr(cfg, 'r_safety', 30);
-            obj.penalty_slack = getOr(cfg, 'penalty_slack', 10000);
             obj.enable_diagnostics = logical(getOr(cfg, 'enable_diagnostics', false));
 
             fprintf('NMPC_Container_Lite: N=%d, dt=%.2f, obs_slots=%d\n', ...
@@ -124,19 +125,19 @@ classdef NMPC_Container_Lite < handle
             nu = obj.nu;
             n_obs = obj.max_obs;
 
-            % Decision variables
+            % Decision variables (no slack — hard obstacle constraints)
             X = SX.sym('X', nx, N_h+1);
             U = SX.sym('U', nu, N_h);
-            slack = SX.sym('slack', n_obs, N_h+1);
 
             % Parameters
             P_x0 = SX.sym('P_x0', nx, 1);
             P_xref = SX.sym('P_xref', nx, N_h+1);
             P_uref = SX.sym('P_uref', nu, N_h);
+            P_n_obs_real = SX.sym('P_n_obs_real', 1, 1);  % number of active obstacles
             P_obs_pos = SX.sym('P_obs_pos', 2, n_obs);
             P_obs_rad = SX.sym('P_obs_rad', n_obs, 1);
 
-            P_all = vertcat(P_x0, P_xref(:), P_uref(:), P_obs_pos(:), P_obs_rad);
+            P_all = vertcat(P_x0, P_xref(:), P_uref(:), P_n_obs_real, P_obs_pos(:), P_obs_rad);
             obj.np_total = size(P_all, 1);
 
             % ---- Cost function -------------------------------------------
@@ -184,9 +185,6 @@ classdef NMPC_Container_Lite < handle
             J = J + 2*Q_x * (X(4,N_h+1) - P_xref(4,N_h+1))^2;
             J = J + 2*Q_y * (X(5,N_h+1) - P_xref(5,N_h+1))^2;
 
-            % Slack penalty
-            J = J + obj.penalty_slack * sumsqr(slack) + 1000 * sumsqr(slack.^2);
-
             % ---- Constraints ---------------------------------------------
             g = [];
 
@@ -199,19 +197,24 @@ classdef NMPC_Container_Lite < handle
                 g = vertcat(g, X(:,k+1) - (X(:,k) + xdot_k * obj.dt));
             end
 
-            % Obstacle avoidance
+            % Obstacle avoidance — hard sqrt-distance constraints
+            % Following the Python reference implementation:
+            %   sqrt(dx² + dy² + ε) - r_obs - r_safety >= 0
+            % Only real obstacles get constraints (unused slots are at 1e8
+            % so their constraints are trivially satisfied).
+            % Using sqrt with a small epsilon (1e-3) prevents gradient
+            % singularity at d=0, equivalent to bias trick in Python code.
             for k = 1:(N_h+1)
                 for j = 1:n_obs
                     dx = X(4,k) - P_obs_pos(1,j);
                     dy = X(5,k) - P_obs_pos(2,j);
-                    dist_sq = dx^2 + dy^2;
-                    min_d = P_obs_rad(j) + obj.r_safety - slack(j,k);
-                    g = vertcat(g, dist_sq - min_d^2);
+                    dist = sqrt(dx^2 + dy^2 + 1e-3);
+                    g = vertcat(g, dist - P_obs_rad(j) - obj.r_safety);
                 end
             end
 
-            % ---- Flatten decision variables ------------------------------
-            OPT = vertcat(X(:), U(:), slack(:));
+            % ---- Flatten decision variables (no slack) -----------------
+            OPT = vertcat(X(:), U(:));
             n_vars = size(OPT, 1);
 
             % ---- Variable bounds -----------------------------------------
@@ -240,10 +243,6 @@ classdef NMPC_Container_Lite < handle
                 lbx(base+3) = obj.n_min;       ubx(base+3) = obj.n_max;      % n1_c
                 lbx(base+4) = obj.n_min;       ubx(base+4) = obj.n_max;      % n2_c
             end
-
-            % Slack >= 0
-            s_off = u_off + nu*N_h;
-            lbx(s_off+1:end) = 0;
 
             % ---- Constraint bounds ---------------------------------------
             n_eq = nx + nx*N_h;
@@ -308,35 +307,35 @@ classdef NMPC_Container_Lite < handle
             u_ref(4,:) = x0(8);  % n2_c = current n2
 
             % --- Assemble parameter vector --------------------------------
-            p_val = [x0(:); x_ref(:); u_ref(:); obs_pos(:); obs_rad(:)];
+            % Includes n_real so the solver knows how many obstacles are active
+            p_val = [x0(:); x_ref(:); u_ref(:); n_real; obs_pos(:); obs_rad(:)];
 
             % --- Initial guess --------------------------------------------
-            if ~isempty(obj.prev_sol) && (obj.solve_ok > 3)
+            % Always warm-start when a previous solution exists (no gating).
+            % This matches the Python implementation which always provides
+            % shifted previous solution as initial guess.
+            if ~isempty(obj.prev_sol)
                 % Warm-start: shift previous solution
                 X_prev = reshape(obj.prev_sol(1:nx*(N_h+1)), nx, N_h+1);
                 u_s = nx*(N_h+1) + 1;
                 U_prev = reshape(obj.prev_sol(u_s:u_s+nu*N_h-1), nu, N_h);
-                s_s = u_s + nu*N_h;
-                s_prev = obj.prev_sol(s_s:end);
 
                 X_init = [X_prev(:,2:end), X_prev(:,end)];
                 X_init(:,1) = x0;
                 U_init = [U_prev(:,2:end), U_prev(:,end)];
-                s_init = s_prev;
 
-                x0_guess = [X_init(:); U_init(:); s_init(:)];
+                x0_guess = [X_init(:); U_init(:)];
             else
                 % Cold-start
                 X_init = repmat(x0, 1, N_h+1);
                 U_init = u_ref;
-                s_init = zeros(n_obs, N_h+1);
 
                 % Forward propagation for better initial guess
                 for k = 1:N_h
                     xk = X_init(:,k);
                     xk(1) = max(xk(1), 0.1);  % Minimum speed
                     try
-                        [xdot_k, ~] = container_azipod(xk, U_init(:,k));
+                        [xdot_k, ~] = container(xk, U_init(:,k));
                         if any(isnan(xdot_k)) || any(isinf(xdot_k))
                             X_init(:,k+1) = xk;
                         else
@@ -347,7 +346,7 @@ classdef NMPC_Container_Lite < handle
                     end
                 end
 
-                x0_guess = [X_init(:); U_init(:); s_init(:)];
+                x0_guess = [X_init(:); U_init(:)];
             end
 
             % --- Enforce initial condition --------------------------------

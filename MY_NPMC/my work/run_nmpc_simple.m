@@ -34,32 +34,37 @@ fprintf('    Speed U=%.2f m/s (should be ~7)\n\n', U_test);
 %% ===== NMPC configuration ===============================================
 % For 8-DOF azipod model: [u, v, r, x, y, psi, n1, n2]
 %                         + [alpha1, alpha2, n1_c, n2_c]
-nmpc_cfg = struct();
-nmpc_cfg.N  = 50;
-nmpc_cfg.dt = 1.0;
-
-% Q weights (8 states): [u, v, r, x, y, psi, n1, n2]
-nmpc_cfg.Q = diag([2.0, 0.1, 0.8, 0.03, 0.03, 15, 0.001, 0.001]);
+base_nmpc_cfg = struct();
+base_nmpc_cfg.N  = 40;
+base_nmpc_cfg.dt = 1.0;
 
 % R weights (4 controls): [alpha1, alpha2, n1_c, n2_c]
-nmpc_cfg.R = diag([0.1, 0.1, 0.01, 0.01]);
+base_nmpc_cfg.R = diag([0.1, 0.1, 0.01, 0.01]);
 
 % R_rate for smooth control transitions
-nmpc_cfg.R_rate = diag([0.05, 0.05, 0.005, 0.005]);
+base_nmpc_cfg.R_rate = diag([0.20, 0.20, 0.010, 0.010]);
+base_nmpc_cfg.enable_diagnostics = false;
 
-nmpc_cfg.max_obs       = 15;
-nmpc_cfg.r_safety      = 50;
-nmpc_cfg.penalty_slack = 1e6;
-nmpc_cfg.enable_diagnostics = false;
+% Test A: increase damping and reduce heading aggressiveness to reduce wobble.
+Q_testA = diag([2.0, 0.1, 1.2, 0.08, 0.08, 10, 0.001, 0.001]);
 
-nmpc = NMPC_Container_Lite(nmpc_cfg);
+% Test B needs more position authority than heading authority so the ship
+% can move away from the obstacle while still tracking the route.
+Q_testB = diag([2.0, 0.1, 0.5, 5.0, 5.0, 3.0, 0.001, 0.001]);
+
+% Probe object for dynamics consistency check only.
+nmpc_probe_cfg = base_nmpc_cfg;
+nmpc_probe_cfg.Q = Q_testA;
+nmpc_probe_cfg.max_obs = 0;
+nmpc_probe_cfg.r_safety = 0;
+nmpc_probe = NMPC_Container_Lite(nmpc_probe_cfg);
 
 %% ===== CasADi dynamics consistency check =================================
 fprintf('--- CasADi consistency check ---\n');
 import casadi.*
 x_sym   = SX.sym('x', 8, 1);    % 8-DOF model
 u_sym   = SX.sym('u', 4, 1);    % 4 azipod controls
-xdot_sym = nmpc.dynamicsCasADi(x_sym, u_sym);
+xdot_sym = nmpc_probe.dynamicsCasADi(x_sym, u_sym);
 f_check  = casadi.Function('f_check', {x_sym, u_sym}, {xdot_sym});
 
 xdot_cas = full(f_check(x_test, u_test));
@@ -79,10 +84,6 @@ else
     fprintf('  >> FAIL: Large mismatch!\n\n');
 end
 
-%% ===== Build solver ONCE ================================================
-fprintf('--- Building nlpsol ---\n');
-nmpc.buildSolver();
-
 %% ===== Ship image path (for animation) ==================================
 scriptDir = fileparts(mfilename('fullpath'));
 repoRoot = fileparts(fileparts(scriptDir));
@@ -93,8 +94,8 @@ if ~isfile(shipImgPath)
 end
 
 %% ===== Shared simulation parameters =====================================
-T_final = 300;          % seconds
-dt = nmpc_cfg.dt;
+T_final = 500;          % seconds
+dt = base_nmpc_cfg.dt;
 t  = 0:dt:T_final;
 
 % Default shaft speeds for cruising
@@ -122,181 +123,190 @@ if ~isempty(map)
     harbor_anim = HarborAnimHelper(map);
 end
 
-% %% ========================================================================
-% %  TEST A — Multi-waypoint path following (no obstacles)
-% %% ========================================================================
-% if run_test_A
-% fprintf('\n==============================================================\n');
-% fprintf('  TEST A: Multi-waypoint path following (NMPC)\n');
-% fprintf('==============================================================\n');
+%% ========================================================================
+%  TEST A — Multi-waypoint path following (no obstacles)
+%% ========================================================================
+if run_test_A
+fprintf('\n==============================================================\n');
+fprintf('  TEST A: Multi-waypoint path following (NMPC)\n');
+fprintf('==============================================================\n');
 
-% wp_A = [-5800, -2800;
-%          -5500, -2700;
-%          -5000, -2500;
-%          -4450, -2200];
-% wp_speed_A = [7; 7; 7; 5];
+nmpc_cfg_A = base_nmpc_cfg;
+nmpc_cfg_A.Q = Q_testA;
+nmpc_cfg_A.max_obs = 0;
+nmpc_cfg_A.r_safety = 0;
 
-% % Initial state (8-DOF model)
-% x0_heading = atan2(wp_A(2,2)-wp_A(1,2), wp_A(2,1)-wp_A(1,1));
-% % x = [u, v, r, x, y, psi, n1, n2]
-% x = [7; 0; 0; wp_A(1,1); wp_A(1,2); x0_heading; n1_cruise; n2_cruise];
+fprintf('--- Building Test A nlpsol (no obstacle constraints) ---\n');
+nmpc_A = NMPC_Container_Lite(nmpc_cfg_A);
+nmpc_A.buildSolver();
 
-% wp_idx = 1;
-% R_accept = 35;   % Waypoint acceptance radius [m]
+wp_A = [-5800, -2800;
+         -5500, -2700;
+         -5000, -2500;
+         -4450, -2200];
+wp_speed_A = [7; 7; 7; 5];
 
-% % Preallocate logging (8-DOF states + 4 azipod controls)
-% traj_A     = zeros(8, length(t)+1);
-% ctrl_A     = zeros(4, length(t));
-% solve_ok_A = false(1, length(t));
-% xte_A      = zeros(1, length(t));
-% fallback_A = false(1, length(t));
-% traj_A(:,1) = x;
-% steps_A = 0;
+% Initial state (8-DOF model)
+x0_heading = atan2(wp_A(2,2)-wp_A(1,2), wp_A(2,1)-wp_A(1,1));
+% x = [u, v, r, x, y, psi, n1, n2]
+x = [7; 0; 0; wp_A(1,1); wp_A(1,2); x0_heading; n1_cruise; n2_cruise];
 
-% % PID integral term
-% psi_err_int = 0;
-% psi_err_prev = 0;
+wp_idx = 1;
+R_accept = 35;   % Waypoint acceptance radius [m]
 
-% fprintf('  Waypoints: ');
-% for w = 1:size(wp_A,1), fprintf('(%.0f, %.0f) ', wp_A(w,1), wp_A(w,2)); end
-% fprintf('\n');
+% Preallocate logging (8-DOF states + 4 azipod controls)
+traj_A     = zeros(8, length(t)+1);
+ctrl_A     = zeros(4, length(t));
+solve_ok_A = false(1, length(t));
+xte_A      = zeros(1, length(t));
+fallback_A = false(1, length(t));
+traj_A(:,1) = x;
+steps_A = 0;
 
-% for i = 1:length(t)
-%     % ---- 1) Simple waypoint guidance ------------------------------------
-%     [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, wp_A, wp_speed_A, wp_idx, R_accept);
-%     xte = computeXTE(x, wp_A, wp_idx);
+% PID integral term
+psi_err_int = 0;
+psi_err_prev = 0;
 
-%     % ---- 2) Build reference trajectory for NMPC (8 states) --------------
-%     x_ref = buildSimpleRef8(x, chi_d, U_d, nmpc.N, dt, n1_cruise, n2_cruise);
+fprintf('  Waypoints: ');
+for w = 1:size(wp_A,1), fprintf('(%.0f, %.0f) ', wp_A(w,1), wp_A(w,2)); end
+fprintf('\n');
 
-%     % ---- 3) Solve NMPC (no obstacles) -----------------------------------
-%     [u_opt, ~, info] = nmpc.solve(x, x_ref, []);
+for i = 1:length(t)
+    % ---- 1) Simple waypoint guidance ------------------------------------
+    [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, wp_A, wp_speed_A, wp_idx, R_accept);
+    xte = computeXTE(x, wp_A, wp_idx);
 
-%     % ---- 4) PID fallback (for azipods with rpm control) -----------------
-%     if ~info.success
-%         psi_err = wrapToPi(chi_d - x(6));
-%         psi_err_int = psi_err_int + psi_err * dt;
-%         psi_err_int = max(-1, min(1, psi_err_int));  % Anti-windup
-%         psi_err_dot = (psi_err - psi_err_prev) / dt;
-%         psi_err_prev = psi_err;
+    % ---- 2) Build reference trajectory for NMPC (8 states) --------------
+    x_ref = buildSimpleRef8(x, chi_d, U_d, nmpc_A.N, dt, n1_cruise, n2_cruise);
+
+    % ---- 3) Solve NMPC (no obstacles) -----------------------------------
+    [u_opt, ~, info] = nmpc_A.solve(x, x_ref, []);
+
+    % ---- 4) PID fallback (for azipods with rpm control) -----------------
+    if ~info.success
+        psi_err = wrapToPi(chi_d - x(6));
+        psi_err_int = psi_err_int + psi_err * dt;
+        psi_err_int = max(-1, min(1, psi_err_int));  % Anti-windup
+        psi_err_dot = (psi_err - psi_err_prev) / dt;
+        psi_err_prev = psi_err;
         
-%         % Azimuth angle from PID
-%         alpha = pid_Kp * psi_err + pid_Ki * psi_err_int + pid_Kd * psi_err_dot;
-%         alpha = max(-pi/4, min(pi/4, alpha));
+        % Azimuth angle from PID
+        alpha = pid_Kp * psi_err + pid_Ki * psi_err_int + pid_Kd * psi_err_dot;
+        alpha = max(-pi/4, min(pi/4, alpha));
         
-%         % Shaft speed proportional to desired speed
-%         n1_cmd = n1_cruise * (U_d / 7.0);
-%         n1_cmd = max(0, min(160, n1_cmd));
+        % Shaft speed proportional to desired speed
+        n1_cmd = n1_cruise * (U_d / 7.0);
+        n1_cmd = max(0, min(160, n1_cmd));
         
-%         u_opt = [alpha; 0; n1_cmd; 0];
-%         fallback_A(i) = true;
-%     end
+        u_opt = [alpha; 0; n1_cmd; 0];
+        fallback_A(i) = true;
+    end
 
-%     % ---- 5) Simulate plant (RK4) ----------------------------------------
-%     x_old = x;
-%     x = rk4Step8(x, u_opt, dt);
+    % ---- 5) Simulate plant (RK4) ----------------------------------------
+    x_old = x;
+    x = rk4Step8(x, u_opt, dt);
     
-%     % Catch position explosion
-%     if abs(x(4)) > 50000 || abs(x(5)) > 50000 || any(isnan(x)) || any(isinf(x))
-%         fprintf('\n  ❌ RK4 EXPLOSION AT ITERATION %d\n', i);
-%         fprintf('     x_before = [u=%.2f, v=%.2f, r=%.4f, x=%.0f, y=%.0f, n1=%.0f]\n', ...
-%             x_old(1), x_old(2), x_old(3), x_old(4), x_old(5), x_old(7));
-%         fprintf('     u_opt = [α₁=%.4f, α₂=%.4f, n₁_c=%.1f, n₂_c=%.1f]\n', ...
-%             u_opt(1), u_opt(2), u_opt(3), u_opt(4));
-%         break;
-%     end
+    % Catch position explosion
+    if abs(x(4)) > 50000 || abs(x(5)) > 50000 || any(isnan(x)) || any(isinf(x))
+        fprintf('\n  ❌ RK4 EXPLOSION AT ITERATION %d\n', i);
+        fprintf('     x_before = [u=%.2f, v=%.2f, r=%.4f, x=%.0f, y=%.0f, n1=%.0f]\n', ...
+            x_old(1), x_old(2), x_old(3), x_old(4), x_old(5), x_old(7));
+        fprintf('     u_opt = [α₁=%.4f, α₂=%.4f, n₁_c=%.1f, n₂_c=%.1f]\n', ...
+            u_opt(1), u_opt(2), u_opt(3), u_opt(4));
+        break;
+    end
 
-%     % ---- 6) Logging ------------------------------------------------------
-%     steps_A = i;
-%     traj_A(:, i+1)  = x;
-%     ctrl_A(:, i)    = u_opt;
-%     solve_ok_A(i)   = info.success;
-%     xte_A(i)        = xte;
+    % ---- 6) Logging ------------------------------------------------------
+    steps_A = i;
+    traj_A(:, i+1)  = x;
+    ctrl_A(:, i)    = u_opt;
+    solve_ok_A(i)   = info.success;
+    xte_A(i)        = xte;
 
-%     % ---- 7) Progress -----------------------------------------------------
-%     if i == 1 || mod(i, 30) == 0
-%         fprintf('  [t=%5.1f] pos=(%7.1f,%6.1f) psi=%+5.1f° wp=%d xte=%+.1fm n1=%.0f ok=%d\n', ...
-%             t(i), x(4), x(5), rad2deg(x(6)), wp_idx, xte, x(7), info.success);
-%     end
+    % ---- 7) Progress -----------------------------------------------------
+    if i == 1 || mod(i, 30) == 0
+        fprintf('  [t=%5.1f] pos=(%7.1f,%6.1f) psi=%+5.1f° wp=%d xte=%+.1fm n1=%.0f ok=%d\n', ...
+            t(i), x(4), x(5), rad2deg(x(6)), wp_idx, xte, x(7), info.success);
+    end
 
-%     % ---- 8) Done? --------------------------------------------------------
-%     if norm(x(4:5) - wp_A(end,:)') < R_accept
-%         fprintf('  >> FINAL WAYPOINT REACHED at t=%.1f s!\n', t(i));
-%         break;
-%     end
-% end
+    % ---- 8) Done? --------------------------------------------------------
+    if norm(x(4:5) - wp_A(end,:)') < R_accept
+        fprintf('  >> FINAL WAYPOINT REACHED at t=%.1f s!\n', t(i));
+        break;
+    end
+end
 
-% % Trim logs
-% traj_A     = traj_A(:, 1:steps_A+1);
-% ctrl_A     = ctrl_A(:, 1:steps_A);
-% solve_ok_A = solve_ok_A(1:steps_A);
-% xte_A      = xte_A(1:steps_A);
-% fallback_A = fallback_A(1:steps_A);
-% t_A        = (0:steps_A) * dt;
+% Trim logs
+traj_A     = traj_A(:, 1:steps_A+1);
+ctrl_A     = ctrl_A(:, 1:steps_A);
+solve_ok_A = solve_ok_A(1:steps_A);
+xte_A      = xte_A(1:steps_A);
+fallback_A = fallback_A(1:steps_A);
+t_A        = (0:steps_A) * dt;
 
-% nA_ok = sum(solve_ok_A);  nA_tot = length(solve_ok_A);
-% fprintf('  Solver: %d/%d (%.0f%%), fallback=%d, mean XTE: %.1f m, max XTE: %.1f m\n', ...
-%     nA_ok, nA_tot, 100*nA_ok/max(nA_tot,1), sum(fallback_A), mean(abs(xte_A)), max(abs(xte_A)));
+nA_ok = sum(solve_ok_A);  nA_tot = length(solve_ok_A);
+fprintf('  Solver: %d/%d (%.0f%%), fallback=%d, mean XTE: %.1f m, max XTE: %.1f m\n', ...
+    nA_ok, nA_tot, 100*nA_ok/max(nA_tot,1), sum(fallback_A), mean(abs(xte_A)), max(abs(xte_A)));
 
-% % ------ Test A: Plots -----------------------------------------------------
-% figure(1); clf;
+% ------ Test A: Plots -----------------------------------------------------
+figure(1); clf;
 
-% subplot(3,2,1);
-% plotMapBackground(map);
-% hold on;
-% plot(traj_A(5,:), traj_A(4,:), 'b-', 'LineWidth', 2);
-% plot(wp_A(:,2), wp_A(:,1), 'r*-', 'MarkerSize', 12, 'LineWidth', 1);
-% plot(traj_A(5,1), traj_A(4,1), 'go', 'MarkerSize', 10, 'MarkerFaceColor', 'g');
-% xlabel('y [m]'); ylabel('x [m]'); title('A: Path following'); grid on; axis equal;
+subplot(3,2,1);
+plotMapBackground(map);
+hold on;
+plot(traj_A(5,:), traj_A(4,:), 'b-', 'LineWidth', 2);
+plot(wp_A(:,2), wp_A(:,1), 'r*-', 'MarkerSize', 12, 'LineWidth', 1);
+plot(traj_A(5,1), traj_A(4,1), 'go', 'MarkerSize', 10, 'MarkerFaceColor', 'g');
+xlabel('y [m]'); ylabel('x [m]'); title('A: Path following'); grid on; axis equal;
 
-% subplot(3,2,2);
-% t_ctrl_A = (0:size(ctrl_A,2)-1)*dt;
-% plot(t_ctrl_A, rad2deg(ctrl_A(1,:)), 'b-', 'LineWidth', 1.5); hold on;
-% plot(t_ctrl_A, rad2deg(ctrl_A(2,:)), 'r--', 'LineWidth', 1.5);
-% xlabel('Time [s]'); ylabel('Azimuth [deg]');
-% title('A: Azimuth Angles'); grid on;
-% legend('\alpha_1 (aft)', '\alpha_2 (fwd)');
+subplot(3,2,2);
+t_ctrl_A = (0:size(ctrl_A,2)-1)*dt;
+plot(t_ctrl_A, rad2deg(ctrl_A(1,:)), 'b-', 'LineWidth', 1.5); hold on;
+plot(t_ctrl_A, rad2deg(ctrl_A(2,:)), 'r--', 'LineWidth', 1.5);
+xlabel('Time [s]'); ylabel('Azimuth [deg]');
+title('A: Azimuth Angles'); grid on;
+legend('\alpha_1 (aft)', '\alpha_2 (fwd)');
 
-% subplot(3,2,3);
-% plot(t_ctrl_A, ctrl_A(3,:), 'b-', 'LineWidth', 1.5); hold on;
-% plot(t_ctrl_A, ctrl_A(4,:), 'r--', 'LineWidth', 1.5);
-% xlabel('Time [s]'); ylabel('Commanded rpm');
-% title('A: Shaft Speed Commands'); grid on;
-% legend('n_{1,c}', 'n_{2,c}');
+subplot(3,2,3);
+plot(t_ctrl_A, ctrl_A(3,:), 'b-', 'LineWidth', 1.5); hold on;
+plot(t_ctrl_A, ctrl_A(4,:), 'r--', 'LineWidth', 1.5);
+xlabel('Time [s]'); ylabel('Commanded rpm');
+title('A: Shaft Speed Commands'); grid on;
+legend('n_{1,c}', 'n_{2,c}');
 
-% subplot(3,2,4);
-% plot(t_A, traj_A(7,:), 'b-', 'LineWidth', 1.5); hold on;
-% plot(t_A, traj_A(8,:), 'r--', 'LineWidth', 1.5);
-% xlabel('Time [s]'); ylabel('Actual rpm');
-% title('A: Actual Shaft Speeds'); grid on;
-% legend('n_1', 'n_2');
+subplot(3,2,4);
+plot(t_A, traj_A(7,:), 'b-', 'LineWidth', 1.5); hold on;
+plot(t_A, traj_A(8,:), 'r--', 'LineWidth', 1.5);
+xlabel('Time [s]'); ylabel('Actual rpm');
+title('A: Actual Shaft Speeds'); grid on;
+legend('n_1', 'n_2');
 
-% subplot(3,2,5);
-% t_xte_A = (0:length(xte_A)-1)*dt;
-% plot(t_xte_A, xte_A, 'b-', 'LineWidth', 1.5);
-% yline(0, 'k--');
-% xlabel('Time [s]'); ylabel('XTE [m]'); title('A: Cross-track error'); grid on;
+subplot(3,2,5);
+t_xte_A = (0:length(xte_A)-1)*dt;
+plot(t_xte_A, xte_A, 'b-', 'LineWidth', 1.5);
+yline(0, 'k--');
+xlabel('Time [s]'); ylabel('XTE [m]'); title('A: Cross-track error'); grid on;
 
-% subplot(3,2,6);
-% plot(t_A, traj_A(1,:), 'b-', 'LineWidth', 1.5);
-% xlabel('Time [s]'); ylabel('Speed [m/s]');
-% title('A: Surge Velocity'); grid on;
+subplot(3,2,6);
+plot(t_A, traj_A(1,:), 'b-', 'LineWidth', 1.5);
+xlabel('Time [s]'); ylabel('Speed [m/s]');
+title('A: Surge Velocity'); grid on;
 
-% sgtitle('Test A: Path Following (8-State Azipod Model)');
+sgtitle('Test A: Path Following (8-State Azipod Model)');
 
-% % ------ Test A: Animation ------------------------------------------------
-% cfg_anim_A = struct();
-% cfg_anim_A.figNo       = 10;
-% cfg_anim_A.testName    = 'A: Path Following';
-% cfg_anim_A.shipImgFile = shipImgPath;
-% cfg_anim_A.shipSize    = 0.08;
-% cfg_anim_A.maxFrames   = 150;
-% cfg_anim_A.pauseTime   = 0.05;
+% ------ Test A: Animation ------------------------------------------------
+cfg_anim_A = struct();
+cfg_anim_A.figNo       = 10;
+cfg_anim_A.testName    = 'A: Path Following';
+cfg_anim_A.shipImgFile = shipImgPath;
+cfg_anim_A.shipSize    = 0.08;
+cfg_anim_A.maxFrames   = 150;
+cfg_anim_A.pauseTime   = 0.05;
 
-% % Convert 8-state to 6-state for animation (uses rows 1-6)
-% traj_A_anim = traj_A(1:6, :);
-% animateSimResult(traj_A_anim, wp_A, t_A, harbor_anim, cfg_anim_A);
-% end
+% Convert 8-state to 6-state for animation (uses rows 1-6)
+traj_A_anim = traj_A(1:6, :);
+animateSimResult(traj_A_anim, wp_A, t_A, harbor_anim, cfg_anim_A);
+end
 
 
 %% ========================================================================
@@ -317,6 +327,15 @@ wp_speed_B = [7; 7; 7; 5];
 obs_B(1).position = [-3000; -1400];
 obs_B(1).radius   = 30;
 
+nmpc_cfg_B = base_nmpc_cfg;
+nmpc_cfg_B.Q = Q_testB;
+nmpc_cfg_B.max_obs = length(obs_B);
+nmpc_cfg_B.r_safety = 25;
+
+fprintf('--- Building Test B nlpsol (%d obstacle slot) ---\n', nmpc_cfg_B.max_obs);
+nmpc_B = NMPC_Container_Lite(nmpc_cfg_B);
+nmpc_B.buildSolver();
+
 x0_heading_B = atan2(wp_B(2,2)-wp_B(1,2), wp_B(2,1)-wp_B(1,1));
 % 8-DOF model: [u, v, r, x, y, psi, n1, n2]
 x = [7; 0; 0; wp_B(1,1); wp_B(1,2); x0_heading_B; n1_cruise; n2_cruise];
@@ -325,8 +344,8 @@ wp_idx = 1;
 R_accept_B = 50;
 
 % Reset warm-start between tests
-nmpc.prev_sol = [];
-nmpc.prev_u   = [];
+nmpc_B.prev_sol = [];
+nmpc_B.prev_u   = [];
 
 % Reset PID integral
 psi_err_int = 0;
@@ -353,10 +372,13 @@ for i = 1:length(t)
     xte = computeXTE(x, wp_B, wp_idx);
 
     % ---- 2) Build reference (8 states, obstacle-aware) -----------------
-    x_ref = buildObstacleAwareRef8(x, chi_d, U_d, nmpc.N, dt, n1_cruise, n2_cruise, obs_B);
+    % For this sluggish ship model, the deflected reference gives the NMPC
+    % enough anticipation to turn before the hard obstacle constraint
+    % becomes active. The hard constraint remains the safety backstop.
+    x_ref = buildObstacleAwareRef8(x, chi_d, U_d, nmpc_B.N, dt, n1_cruise, n2_cruise, obs_B);
 
     % ---- 3) Solve NMPC (with obstacle) ----------------------------------
-    [u_opt, X_pred, info] = nmpc.solve(x, x_ref, obs_B);
+    [u_opt, X_pred, info] = nmpc_B.solve(x, x_ref, obs_B);
 
     d_to_obs = norm(x(4:5) - obs_B(1).position);
     if d_to_obs < 200
@@ -506,12 +528,17 @@ fprintf('\n=== SUMMARY ===\n');
 if run_test_A && exist('nA_ok', 'var')
     fprintf('  Test A — %d/%d solves (%.0f%%), mean XTE: %.1f m, max XTE: %.1f m\n', ...
         nA_ok, nA_tot, 100*nA_ok/max(nA_tot,1), mean(abs(xte_A)), max(abs(xte_A)));
+    if exist('nmpc_A', 'var')
+        fprintf('           solver stats: OK=%d, Fail=%d\n', nmpc_A.solve_ok, nmpc_A.solve_fail);
+    end
 end
 if run_test_B && exist('nB_ok', 'var')
     fprintf('  Test B — %d/%d solves (%.0f%%), fallback=%d, mean XTE: %.1f m\n', ...
         nB_ok, nB_tot, 100*nB_ok/max(nB_tot,1), sum(fallback_B), mean(abs(xte_B)));
+    if exist('nmpc_B', 'var')
+        fprintf('           solver stats: OK=%d, Fail=%d\n', nmpc_B.solve_ok, nmpc_B.solve_fail);
+    end
 end
-fprintf('  Total solver: OK=%d, Fail=%d\n', nmpc.solve_ok, nmpc.solve_fail);
 fprintf('\nDone. Check figures.\n');
 
 
@@ -562,7 +589,7 @@ function [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, wp, wp_speed, wp_idx, 
         s_proj = max(0, min(seg_len, s_proj));
 
         U_now = max(1.0, sqrt(x(1)^2 + x(2)^2));
-        lookahead = max(30, 4 * U_now);
+        lookahead = max(60, 8 * U_now);
         s_target = min(seg_len, s_proj + lookahead);
 
         target = p1 + (s_target / seg_len) * seg;
@@ -606,8 +633,8 @@ function x_ref = buildSimpleRef8(x0, chi_d, U_d, N, dt, n1_ref, n2_ref)
     x_ref(:, 1) = x0;
     
     psi_err = atan2(sin(chi_d - x0(6)), cos(chi_d - x0(6)));
-    r_d = 0.5 * psi_err;
-    r_d = max(-0.15, min(0.15, r_d));
+    r_d = 0.35 * psi_err;
+    r_d = max(-0.10, min(0.10, r_d));
     
     for k = 2:(N+1)
         x_ref(1, k) = U_d;          % Speed
@@ -637,7 +664,7 @@ function x_ref = buildObstacleAwareRef8(x0, chi_d, U_d, N, dt, n1_ref, n2_ref, o
 % perpendicular to the path by (safety_margin - signed_dist) to place the
 % reference on the far side of the obstacle.
 
-    safety_margin = 150;   % [m] pull reference this far away from obstacle centre
+    safety_margin = 100;   % [m] reference deflection around obstacle centre
 
     % First build the naive straight-line reference
     x_ref = buildSimpleRef8(x0, chi_d, U_d, N, dt, n1_ref, n2_ref);
@@ -690,7 +717,7 @@ function x_ref = buildObstacleAwareRef8(x0, chi_d, U_d, N, dt, n1_ref, n2_ref, o
             % Bell-shaped weight: peak near the obstacle along-track position
             s_peak = along / horizon_dist;
             s_peak = max(0.05, min(0.95, s_peak));
-            w = exp(-((s - s_peak)^2) / (0.15^2));
+            w = exp(-((s - s_peak)^2) / (0.22^2));
 
             x_ref(4, k) = x_ref(4, k) + w * deflect * perp(1);
             x_ref(5, k) = x_ref(5, k) + w * deflect * perp(2);
@@ -702,7 +729,7 @@ function x_ref = buildObstacleAwareRef8(x0, chi_d, U_d, N, dt, n1_ref, n2_ref, o
             dy_ref = x_ref(5, N+1) - x_ref(5, 1);
             chi_deflected = atan2(dy_ref, dx_ref);
             psi_err2 = atan2(sin(chi_deflected - x0(6)), cos(chi_deflected - x0(6)));
-            r_d2 = max(-0.15, min(0.15, 0.5 * psi_err2));
+            r_d2 = max(-0.10, min(0.10, 0.35 * psi_err2));
             for k = 2:(N+1)
                 x_ref(3, k) = r_d2;
                 x_ref(6, k) = chi_deflected;
