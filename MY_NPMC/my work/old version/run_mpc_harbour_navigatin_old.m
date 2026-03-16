@@ -240,18 +240,12 @@ for i = 1:length(t)
     [xdot_sim, ~] = container(x, u_opt);
     x = x + xdot_sim * dt;
 
-    % ---- map collision check (inpolygon) ----
+    % ---- map collision check ----
     if ~isempty(map)
-        in_collision = false;
-        for j = 1:length(map.polygons)
-            if inpolygon(x(4), x(5), map.polygons(j).X, map.polygons(j).Y)
-                in_collision = true;
-                break;
-            end
-        end
+        [in_collision, zone_type, zone_idx] = NavUtils.isInsideAnyMapZone(x(4:5), map);
         if in_collision
-            fprintf('  >> COLLISION with map polygon at t=%.1f s, pos=(%.1f, %.1f)\n', ...
-                t(i), x(4), x(5));
+            fprintf('  >> COLLISION with map zone (%s #%d) at t=%.1f s, pos=(%.1f, %.1f)\n', ...
+                zone_type, zone_idx, t(i), x(4), x(5));
             collision_B = true;
             break;
         end
@@ -341,18 +335,12 @@ for i = 1:length(t)
     [xdot_sim, ~] = container(x, u_opt);
     x = x + xdot_sim * dt;
 
-    % ---- map collision check (inpolygon) ----
+    % ---- map collision check ----
     if ~isempty(map)
-        in_collision = false;
-        for j = 1:length(map.polygons)
-            if inpolygon(x(4), x(5), map.polygons(j).X, map.polygons(j).Y)
-                in_collision = true;
-                break;
-            end
-        end
+        [in_collision, zone_type, zone_idx] = NavUtils.isInsideAnyMapZone(x(4:5), map);
         if in_collision
-            fprintf('  >> COLLISION with map polygon at t=%.1f s, pos=(%.1f, %.1f)\n', ...
-                t(i), x(4), x(5));
+            fprintf('  >> COLLISION with map zone (%s #%d) at t=%.1f s, pos=(%.1f, %.1f)\n', ...
+                zone_type, zone_idx, t(i), x(4), x(5));
             collision_C = true;
             break;
         end

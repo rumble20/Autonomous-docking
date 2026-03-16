@@ -224,9 +224,9 @@ classdef NMPC_Container_Lite < handle
             % State bounds
             for k = 1:(N_h+1)
                 base = (k-1)*nx;
-                lbx(base+1) = 0.1;      ubx(base+1) = 20;       % u [m/s]
+                lbx(base+1) = 0.1;      ubx(base+1) = 10;       % u [m/s]
                 lbx(base+2) = -5;       ubx(base+2) = 5;        % v [m/s]
-                lbx(base+3) = -0.5;     ubx(base+3) = 0.5;      % r [rad/s]
+                lbx(base+3) = -0.25;     ubx(base+3) = 0.25;      % r [rad/s]
                 lbx(base+4) = -1e5;     ubx(base+4) = 1e5;      % x [m]
                 lbx(base+5) = -1e5;     ubx(base+5) = 1e5;      % y [m]
                 lbx(base+6) = -inf;     ubx(base+6) = inf;      % psi [rad]
