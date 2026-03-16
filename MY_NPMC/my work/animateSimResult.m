@@ -2,14 +2,8 @@ function animateSimResult(traj, waypoints, t_vec, harbor, cfg)
 % animateSimResult  Generalised post-simulation ship animation
 %   Replays a recorded 6-DOF container-ship trajectory on a 2-D map.
 %   Supports both 6-DOF (azipod) and 10-DOF (legacy rudder) formats.
-%   Designed to be fast and non-blocking during the NMPC simulation loop:
-%   call this AFTER the simulation loop, on already-collected trajectory data.
+%   Call this AFTER the simulation loop, on already-collected trajectory data.
 %
-% Performance features:
-%   · Image is loaded once and cached; subsequent calls for the same file
-%     are instant (persistent storage).
-%   · drawnow flushes every frame for a smooth animation.
-%   · Automatic downsampling to at most maxFrames rendered frames.
 %
 % Inputs:
 %   traj      - 6×N state matrix  (rows: u v r x y psi)      [6-DOF azipod model]
@@ -40,19 +34,16 @@ function animateSimResult(traj, waypoints, t_vec, harbor, cfg)
 %   cfg.shipSize    = 0.04;
 %   animateSimResult(traj_A, wp_A, t, harbor, cfg);
 %
-% Note: add  clear animateSimResult  near the top of your script to reset
+%   add  clear animateSimResult  near the top of your script to reset
 %       the persistent cache when you change the image file.
 %
 % Author: Riccardo Legnini (2025)
 
-% =========================================================================
+
 %  Persistent image cache (loaded once, fixed orientation)
-% =========================================================================
 persistent cachedImgFile shipImg shipAlpha shipWidthPx shipHeightPx
 
-% -------------------------------------------------------------------------
 %  0. Parse configuration
-% -------------------------------------------------------------------------
 if nargin < 5 || isempty(cfg), cfg = struct(); end
 
 figNo      = cfgGet(cfg, 'figNo',       200);
@@ -61,10 +52,10 @@ shipSize   = cfgGet(cfg, 'shipSize',    0.08);
 maxFrames  = cfgGet(cfg, 'maxFrames',  150);
 pauseTime  = cfgGet(cfg, 'pauseTime',  0.05);
 imgFile    = cfgGet(cfg, 'shipImgFile', 'vessel_top.png');
+showLegend = cfgGet(cfg, 'showLegend', false);
+showCollisionCircles = cfgGet(cfg, 'showCollisionCircles', true);
 
-% =========================================================================
 %  1. Load image once  (only when file path changes)
-% =========================================================================
 useImage = true;  % set false if loading fails
 
 if isempty(cachedImgFile) || ~strcmp(imgFile, cachedImgFile) || isempty(shipImg)
@@ -103,9 +94,7 @@ else
     % Cache hit — reuse already-loaded image.
 end
 
-% =========================================================================
-%  2. Prepare trajectory data
-% =========================================================================
+%  2. Prepare trajectory data — extract x/y/psi from state matrix, apply frame-skip for animation
 N     = size(traj, 2);
 xPath = traj(4, :);   % North
 yPath = traj(5, :);   % East
@@ -117,9 +106,7 @@ idx  = 1 : skip : N;
 
 if isempty(t_vec), t_vec = (0:N-1); end
 
-% =========================================================================
-%  3. Set up figure & static elements
-% =========================================================================
+%  3. Set up figure & static elements — create styled figure, draw harbor map, obstacles, ghost path and waypoints
 hFig = figure(figNo);
 clf(hFig);
 set(hFig, 'Name',        sprintf('NMPC Animation — %s', testName), ...
@@ -140,7 +127,6 @@ ylabel(ax, 'North / x  [m]', 'Color', [0.90 0.90 0.95], 'FontSize', 12);
 title( ax, sprintf('Ship Simulation — %s', testName), ...
        'Color', [1 1 1], 'FontSize', 13, 'FontWeight', 'bold');
 
-% --- Harbor map -----------------------------------------------------------
 % plotMap() creates many patch objects; we capture them and clear them from
 % the legend (HandleVisibility='off') so they don't appear as 'data1...dataN'.
 if ~isempty(harbor) && isobject(harbor) && ismethod(harbor, 'plotMap')
@@ -160,16 +146,15 @@ if ~isempty(harbor) && isobject(harbor) && ismethod(harbor, 'plotMap')
 end
 
 % --- Circular obstacles ---------------------------------------------------
-if isfield(cfg, 'circObs') && ~isempty(cfg.circObs)
+if showCollisionCircles && isfield(cfg, 'circObs') && ~isempty(cfg.circObs)
     th = linspace(0, 2*pi, 64);
     for k = 1:length(cfg.circObs)
         ox = cfg.circObs(k).position(2);  % East (plot x-axis)
         oy = cfg.circObs(k).position(1);  % North (plot y-axis)
         r  = cfg.circObs(k).radius;
-        fill(ax, ox + r*cos(th), oy + r*sin(th), ...
-             [0.85 0.20 0.20], 'FaceAlpha', 0.30, ...
-             'EdgeColor', [1.0 0.40 0.40], 'LineWidth', 1.5, ...
-             'DisplayName', 'Obstacle');
+        plot(ax, ox + r*cos(th), oy + r*sin(th), ...
+             'Color', [1.0 0.35 0.35], 'LineWidth', 1.1, ...
+             'HandleVisibility', 'off');
     end
 end
 
@@ -246,15 +231,15 @@ hTime = text(ax, xlims(1) + 0.02*diff(xlims), ...
                  'Color', [1 1 1], 'FontSize', 11, 'FontWeight', 'bold');
 
 % Legend
-legend(ax, 'show', 'Location', 'best', ...
-       'TextColor', [0.90 0.90 0.95], 'Color', [0.09 0.09 0.13], ...
-       'EdgeColor', [0.35 0.35 0.45]);
+if showLegend
+    legend(ax, 'show', 'Location', 'best', ...
+        'TextColor', [0.90 0.90 0.95], 'Color', [0.09 0.09 0.13], ...
+        'EdgeColor', [0.35 0.35 0.45]);
+end
 
 drawnow;
 
-% =========================================================================
-%  4. Animate
-% =========================================================================
+%  4. Animate — step through downsampled frames, update ship icon position and live trail
 trailX = yPath(1);
 trailY = xPath(1);
 
@@ -296,9 +281,7 @@ drawnow;
 
 end % ---- end of animateSimResult ----------------------------------------
 
-% =========================================================================
-%  Triangle fallback: pointy bow in direction psi [rad]
-% =========================================================================
+%  Triangle fallback — arrowhead icon pointing in direction psi [rad], used when no image file is loaded
 function [tx, ty] = shipTriangle(cx, cy, w, psi)
     % A simple arrow-head: bow at top (North = psi=0)
     h = w * 2.5;
@@ -311,9 +294,7 @@ function [tx, ty] = shipTriangle(cx, cy, w, psi)
     ty = cy + s.*lx + c.*ly;   % North
 end
 
-% =========================================================================
-%  Local helper: read struct field with default
-% =========================================================================
+%  Local helper — cfgGet returns cfg.(name) if present and non-empty, otherwise returns default
 function v = cfgGet(s, name, default)
     if isfield(s, name) && ~isempty(s.(name))
         v = s.(name);

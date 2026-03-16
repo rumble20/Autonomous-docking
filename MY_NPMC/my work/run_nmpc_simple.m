@@ -143,7 +143,7 @@ nmpc_A.buildSolver();
 wp_A = [-5800, -2800;
          -5500, -2700;
          -5000, -2500;
-         -4450, -2200];
+         -4200, -2600];
 wp_speed_A = [7; 7; 7; 5];
 
 % Initial state (8-DOF model)
@@ -216,20 +216,35 @@ for i = 1:length(t)
         break;
     end
 
-    % ---- 6) Logging ------------------------------------------------------
+    % ---- 6) Map collision check -----------------------------------------
+    if ~isempty(map)
+        [in_map_collision, zone_type, zone_idx] = NavUtils.isInsideAnyMapZone(x(4:5), map);
+        if in_map_collision
+            fprintf('  >> MAP COLLISION (%s #%d) at t=%.1f s, pos=(%.1f, %.1f)\n', ...
+                zone_type, zone_idx, t(i), x(4), x(5));
+            steps_A = i;
+            traj_A(:, i+1)  = x;
+            ctrl_A(:, i)    = u_opt;
+            solve_ok_A(i)   = info.success;
+            xte_A(i)        = xte;
+            break;
+        end
+    end
+
+    % ---- 7) Logging ------------------------------------------------------
     steps_A = i;
     traj_A(:, i+1)  = x;
     ctrl_A(:, i)    = u_opt;
     solve_ok_A(i)   = info.success;
     xte_A(i)        = xte;
 
-    % ---- 7) Progress -----------------------------------------------------
+    % ---- 8) Progress -----------------------------------------------------
     if i == 1 || mod(i, 30) == 0
         fprintf('  [t=%5.1f] pos=(%7.1f,%6.1f) psi=%+5.1f° wp=%d xte=%+.1fm n1=%.0f ok=%d\n', ...
             t(i), x(4), x(5), rad2deg(x(6)), wp_idx, xte, x(7), info.success);
     end
 
-    % ---- 8) Done? --------------------------------------------------------
+    % ---- 9) Done? --------------------------------------------------------
     if norm(x(4:5) - wp_A(end,:)') < R_accept
         fprintf('  >> FINAL WAYPOINT REACHED at t=%.1f s!\n', t(i));
         break;
@@ -423,6 +438,22 @@ for i = 1:length(t)
         solve_ok_B(i)  = info.success;
         xte_B(i)       = xte;
         break;
+    end
+
+    % Robust map collision check (handles NaN-separated rings, on-edge,
+    % and inconsistent X/Y map convention).
+    if ~isempty(map)
+        [in_map_collision, zone_type, zone_idx] = NavUtils.isInsideAnyMapZone(x(4:5), map);
+        if in_map_collision
+            fprintf('  >> MAP COLLISION (%s #%d) at t=%.1f s, pos=(%.1f, %.1f)\n', ...
+                zone_type, zone_idx, t(i), x(4), x(5));
+            steps_B = i;
+            traj_B(:, i+1) = x;
+            ctrl_B(:, i)   = u_opt;
+            solve_ok_B(i)  = info.success;
+            xte_B(i)       = xte;
+            break;
+        end
     end
 
     % ---- 7) Logging ------------------------------------------------------
@@ -779,3 +810,4 @@ function plotMapBackground(map)
         end
     end
 end
+

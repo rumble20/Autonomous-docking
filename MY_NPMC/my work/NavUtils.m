@@ -70,20 +70,8 @@ classdef NavUtils
         
         function navigable = isNavigable(point, map)
             % Check if point [x;y] is in navigable water (not inside any polygon)
-            navigable = true;
-            if isempty(map), return; end
-            
-            if isfield(map, 'polygons')
-                for j = 1:length(map.polygons)
-                    px = map.polygons(j).X(:);
-                    py = map.polygons(j).Y(:);
-                    valid = ~isnan(px) & ~isnan(py);
-                    if inpolygon(point(1), point(2), px(valid), py(valid))
-                        navigable = false;
-                        return;
-                    end
-                end
-            end
+            [in_zone, ~, ~] = NavUtils.isInsideAnyMapZone(point, map);
+            navigable = ~in_zone;
         end
         
         function valid = validatePath(waypoints, map, resolution)
@@ -112,12 +100,117 @@ classdef NavUtils
             % Check if point is inside at least one mapPoly boundary
             inMap = false;
             if isempty(map) || ~isfield(map, 'mapPoly'), return; end
-            for j = 1:length(map.mapPoly)
-                px = map.mapPoly(j).X(:);
-                py = map.mapPoly(j).Y(:);
-                valid = ~isnan(px) & ~isnan(py);
-                if inpolygon(point(1), point(2), px(valid), py(valid))
-                    inMap = true;
+            [inMap, ~] = NavUtils.isInsidePolygonSet(point, map.mapPoly);
+        end
+
+        function [hit, zone_type, zone_idx] = isInsideAnyMapZone(point, map)
+            % Robust collision with harbour map zones.
+            % Checks both map.polygons (red hazard zones) and
+            % map.mapPoly (land/boundary polygons).
+            hit = false;
+            zone_type = '';
+            zone_idx = 0;
+
+            if isempty(map)
+                return;
+            end
+
+            if isfield(map, 'polygons') && ~isempty(map.polygons)
+                [in_poly, idx] = NavUtils.isInsidePolygonSet(point, map.polygons);
+                if in_poly
+                    hit = true;
+                    zone_type = 'polygons';
+                    zone_idx = idx;
+                    return;
+                end
+            end
+
+            if isfield(map, 'mapPoly') && ~isempty(map.mapPoly)
+                [in_poly, idx] = NavUtils.isInsidePolygonSet(point, map.mapPoly);
+                if in_poly
+                    hit = true;
+                    zone_type = 'mapPoly';
+                    zone_idx = idx;
+                    return;
+                end
+            end
+        end
+
+        function [hit, idx] = isInsidePolygonSet(point, polygons)
+            % Check point against an array of polygon structs with fields X,Y.
+            hit = false;
+            idx = 0;
+
+            if isempty(polygons)
+                return;
+            end
+
+            x = point(1);
+            y = point(2);
+
+            for j = 1:length(polygons)
+                px = polygons(j).X(:);
+                py = polygons(j).Y(:);
+                if NavUtils.pointInPolygonRobust(x, y, px, py)
+                    hit = true;
+                    idx = j;
+                    return;
+                end
+            end
+        end
+
+        function inside = pointInPolygonRobust(x, y, px, py)
+            % Robust point-in-polygon test:
+            % 1) ignores non-finite vertices,
+            % 2) supports NaN-separated rings,
+            % 3) counts edge contact as inside,
+            % 4) checks swapped X/Y convention fallback.
+            inside = false;
+
+            if isempty(px) || isempty(py)
+                return;
+            end
+
+            finite_mask = isfinite(px) & isfinite(py);
+            if ~any(finite_mask)
+                return;
+            end
+
+            keep = finite_mask | (isnan(px) & isnan(py));
+            px = px(keep);
+            py = py(keep);
+
+            sep = isnan(px) | isnan(py);
+            idx_sep = find(sep);
+            starts = [1; idx_sep + 1];
+            ends = [idx_sep - 1; numel(px)];
+
+            for k = 1:numel(starts)
+                s = starts(k);
+                e = ends(k);
+                if s > e
+                    continue;
+                end
+
+                rx = px(s:e);
+                ry = py(s:e);
+                ring_ok = isfinite(rx) & isfinite(ry);
+                rx = rx(ring_ok);
+                ry = ry(ring_ok);
+
+                if numel(rx) < 3
+                    continue;
+                end
+
+                [in, on] = inpolygon(x, y, rx, ry);
+                if in || on
+                    inside = true;
+                    return;
+                end
+
+                [in2, on2] = inpolygon(x, y, ry, rx);
+                if in2 || on2
+                    inside = true;
                     return;
                 end
             end

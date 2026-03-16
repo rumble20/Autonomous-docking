@@ -14,3 +14,78 @@ But for dynamic circular obstacles (like in congested harbors with moving vessel
 The software development process initially followed a traditional, requirements-driven plan.
 After early prototyping, it became clear that fixing all requirements upfront was not practical for this project due to the iterative nature of tuning, solver behaviour, and scenario-dependent constraint handling.
 Therefore, the implementation was carried out using an agile, incremental workflow with frequent integration and testing.
+
+%%
+
+The computational speed-up was achieved through a multi-layer strategy: reducing NMPC problem size, tuning the nonlinear solver for real-time operation, compressing obstacle geometry, and optimizing online data flow.
+
+At the discretization level, a fast profile was adopted with a longer control period and an equivalent prediction horizon. This preserved long-horizon look-ahead while reducing the number of optimization decision variables.
+
+At the solver level, IPOPT was retained for robustness, but configured with real-time-oriented stopping settings: reduced maximum iterations, relaxed acceptable tolerances, limited-memory Hessian approximation, and a CPU-time cap per solve.
+
+At the geometric level, the harbor map was converted into a compact set of circular obstacle primitives using merging and capping. This significantly reduced per-step obstacle handling cost while maintaining shoreline representation.
+
+At the online execution level, nearest-obstacle selection was vectorized and cached, reducing non-optimization overhead at each control update.
+
+To preserve safety under coarser temporal discretization, obstacle-distance constraints were enforced both at prediction nodes and at mid-interval points. This prevents trajectory segments from cutting through obstacles between two consecutive nodes.
+
+Finally, local speed modulation was introduced as a function of obstacle clearance. Near tight obstacles, desired speed is reduced to improve yaw authority and turning feasibility; in open water, cruise speed is preserved.
+
+Compact mathematical summary:
+
+Decision variables: nvar=nx(N+1)+nuNnvar
+​
+ =n 
+x
+​
+ (N+1)+n 
+u
+​
+ N
+Obstacle inequalities with midpoint constraints enabled:
+
+n
+ineq
+=
+n
+obs
+[
+(
+N
++
+1
+)
++
+N
+]
+n 
+ineq
+​
+ =n 
+obs
+​
+ [(N+1)+N]
+Real-time feasibility index:
+
+ρ
+=
+t
+plan
+T
+s
+,
+real-time feasible if 
+ρ
+<
+1
+ρ= 
+T 
+s
+​
+ 
+t 
+plan
+​
+ 
+​
+ ,real-time feasible if ρ<1
