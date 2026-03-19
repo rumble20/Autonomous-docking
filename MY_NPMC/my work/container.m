@@ -203,7 +203,6 @@ xdot = [u_dot; v_dot; r_dot; x_dot; y_dot; psi_dot; n1_dot; n2_dot];
 
 end
 
-%% ========== HELPER FUNCTIONS ==========
 
 function [T, Q] = azipod_thrust(n_rpm, u, v, r, x_pos, alpha, D, wp, t, rho, U, L)
 % AZIPOD_THRUST Computes thrust and torque for an azipod thruster
@@ -273,8 +272,6 @@ Q = rho * D^5 * n * abs(n) * KQ;
 end
 
 function Tm = shaft_time_constant(n_rpm)
-% SHAFT_TIME_CONSTANT Returns the shaft dynamics time constant
-%
 % Based on original Son & Nomoto model
 
 if abs(n_rpm) > 18    % 0.3 rps = 18 rpm

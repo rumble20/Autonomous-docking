@@ -10,7 +10,7 @@ classdef NavUtils
     %   [d, pt] = NavUtils.pointToSegment(px, py, x1, y1, x2, y2);
     %
     % Author: Riccardo Legnini (refactored from autobargesim)
-    % Date: 2025
+    % Date: 2026
     
     methods (Static)
         
@@ -163,8 +163,7 @@ classdef NavUtils
             % Robust point-in-polygon test:
             % 1) ignores non-finite vertices,
             % 2) supports NaN-separated rings,
-            % 3) counts edge contact as inside,
-            % 4) checks swapped X/Y convention fallback.
+            % 3) counts edge contact as inside.
             inside = false;
 
             if isempty(px) || isempty(py)
@@ -208,13 +207,15 @@ classdef NavUtils
                     return;
                 end
 
-                [in2, on2] = inpolygon(x, y, ry, rx);
-                if in2 || on2
-                    inside = true;
-                    return;
-                end
+                
+                % [in2, on2] = inpolygon(x, y, ry, rx);
+                % if in2 || on2
+                %     inside = true;
+                %     return;
+                % end
             end
         end
+
         
     end
 end

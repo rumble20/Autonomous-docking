@@ -1,3 +1,61 @@
+## About the distinction between past work and my work
+
+"This work presents an integrated motion planning and control framework for autonomous ship docking. Unlike traditional two-stage approaches where a global planner generates a fixed collision-free path that a separate controller blindly tracks, the proposed method employs a Nonlinear Model Predictive Controller that jointly performs trajectory generation and tracking by optimizing control inputs online while explicitly enforcing obstacle-avoidance constraints. A lightweight guidance layer provides high-level navigation directives (desired heading, speed, and waypoint sequencing), but the NMPC retains full authority to deviate from the reference trajectory when necessary to satisfy safety constraints or actuator limitations."
+Technical Arguments for Your Thesis
+1. The Reference is Soft, Constraints are Hard
+Table
+Copy
+Component	Traditional Decoupled	Your Integrated Approach
+Path/Reference	Hard requirement (must follow)	Soft guidance (can deviate)
+Obstacle avoidance	Planner's job (fixed)	NMPC's job (online)
+Actuator limits	Often ignored by planner	Enforced in NMPC
+Dynamic feasibility	Assumed	Guaranteed by dynamics model
+
+2. Trajectory is Generated Online, Not Pre-computed
+The NMPC's X_pred output IS a trajectory. Every timestep, it computes:
+Optimal state trajectory: 
+X∗={x0...xn}}
+Optimal control sequence: 
+U∗={u0...um}}
+This is trajectory generation, not just tracking!
+3. Guidance ≠ Planning
+Your guidance layer does not solve a planning problem. It:
+Selects waypoints (sequential logic)
+Computes heading toward waypoint (trigonometry)
+Builds a reference (linear propagation)
+It does not:
+Check collision feasibility
+Optimize paths
+Consider dynamics
+The NMPC does all of that.
+
+Literature Support
+From your available papers:
+
+3
+
+ - 2022 Autonomous Docking MPC: Uses similar approach where MPC generates trajectory to reach waypoints, not just track a fixed path.
+
+4
+
+ - Martinsen et al. 2020: Explicitly discusses that using NMPC directly (vs. planner + tracker) allows handling of drift and disturbances through optimization.
+
+6
+
+ - CBF-MPC paper: States that "combining planning with control to find an ideal trajectory" is a key advantage of optimization-based methods.
+
+5
+
+ - Former thesis: Discusses receding horizon trajectory optimization where the trajectory is generated online, segment by segment.
+
+
+When your coworker's RRT* is added, you can frame it as:
+"The proposed system employs a hierarchical architecture where:
+RRT provides global path guidance and warm-start initialization*
+NMPC performs local trajectory optimization with safety guarantees
+Unlike purely hierarchical approaches, the NMPC layer retains authority to deviate from the RRT path when real-time obstacle constraints require it, making the overall system robust to dynamic obstacles and modeling errors."*
+This positions RRT* as an enhancement (warm-start, global guidance), not a replacement for the NMPC's trajectory generation capability.
+
 ## Thruster allocation
 
 specify that the truster allocation control is implemented in the NMPC by considering forces and 2 azimuth thrusters as can be seen in the MSS example, 
@@ -97,64 +155,76 @@ In summary, the current controller is correctly formulated as hard-constrained N
 
 ## Moving and actuating limits
 
-For the high-level path planner, I use the same practical limits as the NMPC and the container + dual-azipod model, so both planning and control are consistent.
+For the high-level guidance layer, I use the same practical limits as the NMPC and the container + dual-azipod model, so both guidance and control are consistent.
 
 Simple idea:
-- The planner should not ask the vessel to do maneuvers that the low-level model cannot physically track.
+- The guidance should not ask the vessel to do maneuvers that the low-level model cannot physically track.
 - So I pass speed, heading-rate, azimuth, and shaft limits directly from the control model.
 
 Main state and input limits used in my setup:
 
 1) Surge speed limit
 - u_min = 0.1 m/s
-- u_max = 10 m/s
+- u_max = 12 m/s (approximately 0.2 to 23 knots operational range)
 
-2) Yaw rate limit
-- r_min = -0.25 rad/s
-- r_max = 0.25 rad/s
+2) Sway speed limit
+- v_min = -3 m/s
+- v_max = +3 m/s (realistic lateral drift bounds)
 
-3) Shaft speed limits (both azipods)
+3) Yaw rate limit
+- r_min = -0.15 rad/s
+- r_max = +0.15 rad/s (approximately ±8.6 deg/s, realistic for large vessel)
+
+4) Shaft speed limits (both azipods)
 - n_min = -80 rpm
 - n_max = 160 rpm
 
-4) Azimuth angle limits (both azipods)
+5) Azimuth angle limits (both azipods)
 - alpha_min = -pi rad
-- alpha_max = +pi rad
+- alpha_max = +pi rad (full rotation capability)
 
-5) Commanded shaft limits (both commands n1_c and n2_c)
+6) Commanded shaft limits (both commands n1_c and n2_c)
 - same as shaft state limits: [-80, 160] rpm
 
 Moving (state-dependent) actuation limits that are very important:
 
-1) Shaft first-order dynamics
+1) Azimuth steering rate limit
+- alpha_dot is limited to ±0.21 rad/s (approximately 12 deg/s)
+- This is a mechanical constraint on how fast the azipod can rotate.
+- In the NMPC, this is enforced as: |alpha(k+1) - alpha(k)| <= alpha_rate_max * dt
+
+2) First-step azimuth rate constraint
+- The first control step must also respect the rate limit relative to the previous applied control.
+- Enforced as: |alpha(1) - alpha_prev| <= alpha_rate_max * dt
+- Without this, the NMPC may command azimuth angles that are physically unreachable in one timestep.
+- Missing this constraint causes trajectory mismatch and oscillatory behavior (spiral instability).
+
+3) Shaft first-order dynamics
 - n_dot = (n_command - n_actual) / Tm
 - This means shaft speed cannot jump instantly.
 
-2) Shaft acceleration hard limit
+4) Shaft acceleration hard limit
 - n_dot is clipped to [-10, +10] rpm/s
 - So even if command changes a lot, actual shaft speed changes gradually.
 
-3) Time constant Tm depends on current shaft speed
-- Tm is not fixed, it changes with operating point (and is bounded in practice).
-- This gives different response speed at low and high shaft speeds.
+5) Time constant Tm depends on current shaft speed
+- Tm = 5.65 / (|n|/60) when |n| > 18 rpm, otherwise Tm = 18.83
+- Tm is bounded to [1, 20] seconds for numerical stability.
+- This gives slower response at low shaft speeds and faster response at high speeds.
 
-4) Heading kinematics
+6) Heading kinematics
 - psi_dot = r
 - So heading change rate is directly limited by yaw-rate feasibility.
 
-What this means for high-level planning:
+What this means for high-level guidance:
 
-- The path planner should plan trajectories that respect a realistic turn capability at the current speed.
-- In narrow areas, it should avoid aggressive curvature requests because azipod/shaft dynamics may not track them in time.
-- It should use the same obstacle clearance policy as NMPC, otherwise the planner says “feasible” and NMPC says “not feasible.”
+- The guidance layer should generate references that respect realistic turn capability at the current speed.
+- In narrow areas, it should avoid aggressive curvature requests because azipod steering rate may not track them in time.
+- The azimuth rate constraint is particularly important for azipod vessels since they can rotate fully, but the steering rate is mechanically limited.
+- The first-step constraint connects the NMPC prediction to the real actuator state, ensuring continuity between planned and executed motion.
+- Guidance and NMPC should use the same obstacle clearance policy, otherwise guidance says "feasible" and NMPC says "not feasible."
 
-Recommended planner contract (easy to implement):
-
-- Dynamic bounds passed as rules:
-	abs(n_dot) <= 10 rpm/s
-	first-order shaft lag with variable Tm
 
 ## About the actuation motors mounted
 
 Even if with the current limits it still works, the high volatile changing yaw now actuated by the control of the azipod would be best suited rather by ABB DynaFin, which could prove useful for this case
-

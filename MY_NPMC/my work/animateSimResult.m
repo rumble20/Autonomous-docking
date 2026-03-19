@@ -1,13 +1,11 @@
 function animateSimResult(traj, waypoints, t_vec, harbor, cfg)
 % animateSimResult  Generalised post-simulation ship animation
 %   Replays a recorded 6-DOF container-ship trajectory on a 2-D map.
-%   Supports both 6-DOF (azipod) and 10-DOF (legacy rudder) formats.
 %   Call this AFTER the simulation loop, on already-collected trajectory data.
 %
 %
 % Inputs:
 %   traj      - 6×N state matrix  (rows: u v r x y psi)      [6-DOF azipod model]
-%               OR 10×N state matrix (rows: u v r x y psi p phi δ n) [legacy]
 %               x = traj(4,:), y = traj(5,:), psi = traj(6,:) [position & heading]
 %   waypoints - W×2 [x, y] matrix  (NED convention), or []
 %   t_vec     - 1×N simulation time vector [s], or []
@@ -37,7 +35,7 @@ function animateSimResult(traj, waypoints, t_vec, harbor, cfg)
 %   add  clear animateSimResult  near the top of your script to reset
 %       the persistent cache when you change the image file.
 %
-% Author: Riccardo Legnini (2025)
+% Author: Riccardo Legnini (2026)
 
 
 %  Persistent image cache (loaded once, fixed orientation)
@@ -95,6 +93,11 @@ else
 end
 
 %  2. Prepare trajectory data — extract x/y/psi from state matrix, apply frame-skip for animation
+if size(traj, 1) ~= 6
+    error('animateSimResult:InvalidTrajectorySize', ...
+        'Expected traj to be 6xN [u v r x y psi]. Got %dx%d.', size(traj,1), size(traj,2));
+end
+
 N     = size(traj, 2);
 xPath = traj(4, :);   % North
 yPath = traj(5, :);   % East

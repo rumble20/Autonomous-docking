@@ -85,15 +85,11 @@ classdef NMPC_Container_final < handle
             nu = obj.nu;
             n_obs = obj.max_obs;
 
-            % ═══════════════════════════════════════════════════════════
             %  DECISION VARIABLES
-            % ═══════════════════════════════════════════════════════════
             X = SX.sym('X', nx, N_h+1);
             U = SX.sym('U', nu, N_h);
 
-            % ═══════════════════════════════════════════════════════════
             %  PARAMETERS
-            % ═══════════════════════════════════════════════════════════
             P_x0       = SX.sym('P_x0', nx, 1);
             P_xref     = SX.sym('P_xref', nx, N_h+1);
             P_uref     = SX.sym('P_uref', nu, N_h);
@@ -106,9 +102,7 @@ classdef NMPC_Container_final < handle
                             P_obs_pos(:), P_obs_rad, P_u_prev);
             obj.np_total = size(P_all, 1);
 
-            % ═══════════════════════════════════════════════════════════
             %  COST FUNCTION
-            % ═══════════════════════════════════════════════════════════
             Q_u   = obj.Q(1,1);  Q_v   = obj.Q(2,2);  Q_r   = obj.Q(3,3);
             Q_x   = obj.Q(4,4);  Q_y   = obj.Q(5,5);  Q_psi = obj.Q(6,6);
             Q_n1  = obj.Q(7,7);  Q_n2  = obj.Q(8,8);
@@ -147,9 +141,7 @@ classdef NMPC_Container_final < handle
             J = J + 2*Q_y   * (X(5,N_h+1) - P_xref(5,N_h+1))^2;
             J = J + 2*Q_psi * psi_err_N^2;
 
-            % ═══════════════════════════════════════════════════════════
             %  CONSTRAINTS
-            % ═══════════════════════════════════════════════════════════
             g = [];
 
             % --- Initial condition (nx equalities) ---
@@ -194,9 +186,7 @@ classdef NMPC_Container_final < handle
                 g = vertcat(g, -d_alpha2 - obj.alpha_rate_max * obj.dt);
             end
 
-            % ═══════════════════════════════════════════════════════════
             %  VARIABLE BOUNDS
-            % ═══════════════════════════════════════════════════════════
             OPT = vertcat(X(:), U(:));
             n_vars = size(OPT, 1);
 
@@ -226,9 +216,7 @@ classdef NMPC_Container_final < handle
                 lbx(base+4) = obj.n_min;       ubx(base+4) = obj.n_max;
             end
 
-            % ═══════════════════════════════════════════════════════════
             %  CONSTRAINT BOUNDS
-            % ═══════════════════════════════════════════════════════════
             n_eq        = nx + nx*N_h;
             n_obs_ineq  = n_obs * (N_h+1);
             n_rate_ineq = 4 + 4*(N_h-1);  % 4 for first step + 4*(N-1) for rest
@@ -253,9 +241,7 @@ classdef NMPC_Container_final < handle
             lbg(rate_start:rate_end) = -inf;
             ubg(rate_start:rate_end) = 0;
 
-            % ═══════════════════════════════════════════════════════════
             %  BUILD SOLVER
-            % ═══════════════════════════════════════════════════════════
             nlp = struct('f', J, 'x', OPT, 'g', g, 'p', P_all);
 
             opts = struct;
@@ -425,7 +411,6 @@ classdef NMPC_Container_final < handle
         end
 
         function xdot = dynamicsCasADi(obj, x, u_in)
-            % (Same as before - no changes needed)
             import casadi.*
 
             L = obj.L;  rho = obj.rho;  nabla = obj.nabla;

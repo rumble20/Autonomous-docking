@@ -23,15 +23,19 @@ fprintf('═══════════════════════�
 fprintf('  NMPC HARBOR NAVIGATION — Unified Test (8-State Azipod)\n');
 fprintf('══════════════════════════════════════════════════════════════\n\n');
 
-%% ═══════════════════════════════════════════════════════════════════════
 %  USER CONFIGURATION — EDIT THIS SECTION
-%% ═══════════════════════════════════════════════════════════════════════
 
 % ---- WAYPOINTS (rows = [x, y] in meters, NED frame) ----
 waypoints = [-3250, -1600;
              -2800, -1600;
              -2400, -1900;
-             -2000, -2050];
+             -2100, -2100
+             -1700, -1820
+             -1370, -1660];
+
+% waypoints = [-2350, -2050;
+%              -2150, -1950;
+%              -1850, -1950];
 
 % ---- WAYPOINT SPEEDS (m/s) — one per segment + final ----
 waypoint_speeds = [7; 7; 7; 5];
@@ -50,10 +54,10 @@ n2_cruise   = 0;        % Forward thruster (off during cruise)
 
 % ---- MAP OBSTACLE SAMPLING ----
 enable_map_obstacles = true;   % Set false to disable red-zone awareness
-max_map_obstacles    = 4;      % Max map sample points as obstacles (keep low!)
+max_map_obstacles    = 6;      % Max map sample points as obstacles (keep low!)
 map_lookahead_m      = 350;    % Forward lookahead distance [m]
-map_half_width_m     = 100;    % Corridor half-width [m]
-map_sample_radius_m  = 12;     % Virtual obstacle radius for map points
+map_half_width_m     = 200;    % Corridor half-width [m]
+map_sample_radius_m  = 13;     % Virtual obstacle radius for map points
 
 % ---- NMPC TUNING ----
 nmpc_N  = 40;           % Prediction horizon steps
@@ -76,9 +80,10 @@ pid_Kp = 0.8;
 pid_Ki = 0.01;
 pid_Kd = 5.0;
 
-%% ═══════════════════════════════════════════════════════════════════════
+% ---- REAL-TIME DIAGNOSTICS ----
+enable_rt_terminal_plots = true;
+
 %  INITIALIZATION (DO NOT EDIT BELOW UNLESS DEBUGGING)
-%% ═══════════════════════════════════════════════════════════════════════
 
 %% ===== Sanity check on container.m ======================================
 x_test = [7; 0; 0; 0; 0; 0; 100; 0];
@@ -147,14 +152,14 @@ x = [7; 0; 0; waypoints(1,1); waypoints(1,2); x0_heading; n1_cruise; n2_cruise];
 in_start_zone = false;
 start_zone_type = '';
 start_zone_idx = 0;
-if ~isempty(map)
-    [in_start_zone, start_zone_type, start_zone_idx] = ...
-        NavUtils.isInsideAnyMapZone(x(4:5), map);
-    if in_start_zone
-        fprintf('  [WARN] Start inside map zone (%s #%d) — grace enabled.\n', ...
-            start_zone_type, start_zone_idx);
-    end
-end
+% if ~isempty(map)
+%     [in_start_zone, start_zone_type, start_zone_idx] = ...
+%         NavUtils.isInsideAnyMapZone(x(4:5), map);
+%     if in_start_zone
+%         fprintf('  [WARN] Start inside map zone (%s #%d) — grace enabled.\n', ...
+%             start_zone_type, start_zone_idx);
+%     end
+% end
 
 %% ===== Simulation setup =================================================
 dt = nmpc_cfg.dt;
@@ -167,6 +172,16 @@ ctrl     = zeros(4, length(t));
 solve_ok = false(1, length(t));
 xte_log  = zeros(1, length(t));
 fallback = false(1, length(t));
+step_time_log     = nan(1, length(t));
+guide_time_log    = nan(1, length(t));
+obs_time_log      = nan(1, length(t));
+ref_time_log      = nan(1, length(t));
+solve_call_log    = nan(1, length(t));
+solve_time_log    = nan(1, length(t));
+integr_time_log   = nan(1, length(t));
+rt_ratio_log      = nan(1, length(t));
+n_obs_log         = nan(1, length(t));
+cost_log          = nan(1, length(t));
 traj(:,1) = x;
 steps = 0;
 
@@ -178,18 +193,23 @@ psi_err_prev = 0;
 u_prev = [0; 0; n1_cruise; n2_cruise];
 
 fprintf('\n  Waypoints: ');
-% ... rest of print statements ...
+for i = 1:size(waypoints, 1)
+    fprintf('(%d, %d) ', waypoints(i,1), waypoints(i,2));
+end
 
-%% ═══════════════════════════════════════════════════════════════════════
 %  MAIN SIMULATION LOOP
-%% ═══════════════════════════════════════════════════════════════════════
 
 for i = 1:length(t)
+    t_step = tic;
+
     % ---- 1) Waypoint guidance -------------------------------------------
+    t_seg = tic;
     [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, waypoints, waypoint_speeds, wp_idx, R_accept);
     xte = computeXTE(x, waypoints, wp_idx);
+    guide_time_log(i) = toc(t_seg);
 
     % ---- 2) Gather obstacles (static + map samples) ---------------------
+    t_seg = tic;
     obs_local = static_obstacles;
     
     if enable_map_obstacles && ~isempty(map_sample_pts)
@@ -198,13 +218,31 @@ for i = 1:length(t)
             map_lookahead_m, map_half_width_m, map_sample_radius_m);
         obs_local = [obs_local, obs_map];
     end
+    obs_time_log(i) = toc(t_seg);
 
     % ---- 3) Build reference trajectory ----------------------------------
+    t_seg = tic;
     x_ref = buildObstacleAwareRef8(x, chi_d, U_d, nmpc.N, dt, ...
                                    n1_cruise, n2_cruise, obs_local);
+    ref_time_log(i) = toc(t_seg);
 
     % ---- 4) Solve NMPC (MODIFIED - now passes u_prev) -------------------
+    t_seg = tic;
     [u_opt, ~, info] = nmpc.solve(x, x_ref, obs_local, u_prev);
+    solve_call_log(i) = toc(t_seg);
+    if isfield(info, 'solve_time')
+        solve_time_log(i) = info.solve_time;
+    else
+        solve_time_log(i) = solve_call_log(i);
+    end
+    if isfield(info, 'n_obs_real')
+        n_obs_log(i) = info.n_obs_real;
+    else
+        n_obs_log(i) = length(obs_local);
+    end
+    if isfield(info, 'cost')
+        cost_log(i) = info.cost;
+    end
 
     % ---- 5) PID fallback if NMPC fails ----------------------------------
     if ~info.success
@@ -229,8 +267,12 @@ for i = 1:length(t)
     end
 
     % ---- 6) Simulate plant (RK4) ----------------------------------------
+    t_seg = tic;
     x_old = x;
     x = rk4Step8(x, u_opt, dt);
+    integr_time_log(i) = toc(t_seg);
+    step_time_log(i) = toc(t_step);
+    rt_ratio_log(i) = step_time_log(i) / max(dt, 1e-9);
     
     % ... collision checks ...
 
@@ -245,13 +287,16 @@ for i = 1:length(t)
     u_prev = u_opt;
 
     % ---- 9) Progress print ----------------------------------------------
-    if i == 1 || mod(i, 20) == 0
+    if i == 1 || mod(i, 20) == 0 || ~info.success || rt_ratio_log(i) > 1.0
         d_nearest_obs = inf;
         for j = 1:length(static_obstacles)
             d_nearest_obs = min(d_nearest_obs, norm(x(4:5) - static_obstacles(j).position));
         end
-        fprintf('  [t=%5.1f] pos=(%7.1f,%6.1f) ψ=%+6.1f° wp=%d xte=%+.1fm obs_d=%.0fm ok=%d\n', ...
-            t(i), x(4), x(5), rad2deg(x(6)), wp_idx, xte, d_nearest_obs, info.success);
+        fprintf(['  [t=%5.1f] pos=(%7.1f,%6.1f) psi=%+6.1fdeg wp=%d xte=%+.1fm ', ...
+                 'obs_d=%.0fm ok=%d comp=%.1fms solve=%.1fms RT=%.2f obs=%d fb=%d\n'], ...
+            t(i), x(4), x(5), rad2deg(x(6)), wp_idx, xte, d_nearest_obs, info.success, ...
+            1e3*step_time_log(i), 1e3*solve_time_log(i), rt_ratio_log(i), ...
+            round(n_obs_log(i)), fallback(i));
     end
 
     % ---- 10) Check if done ----------------------------------------------
@@ -261,9 +306,7 @@ for i = 1:length(t)
     end
 end
 
-%% ═══════════════════════════════════════════════════════════════════════
 %  POST-PROCESSING
-%% ═══════════════════════════════════════════════════════════════════════
 
 % Trim logs
 traj     = traj(:, 1:steps+1);
@@ -272,6 +315,16 @@ solve_ok = solve_ok(1:steps);
 xte_log  = xte_log(1:steps);
 fallback = fallback(1:steps);
 t_sim    = (0:steps) * dt;
+step_time_log   = step_time_log(1:steps);
+guide_time_log  = guide_time_log(1:steps);
+obs_time_log    = obs_time_log(1:steps);
+ref_time_log    = ref_time_log(1:steps);
+solve_call_log  = solve_call_log(1:steps);
+solve_time_log  = solve_time_log(1:steps);
+integr_time_log = integr_time_log(1:steps);
+rt_ratio_log    = rt_ratio_log(1:steps);
+n_obs_log       = n_obs_log(1:steps);
+cost_log        = cost_log(1:steps);
 
 n_ok = sum(solve_ok);  n_tot = length(solve_ok);
 fprintf('\n══════════════════════════════════════════════════════════════\n');
@@ -281,6 +334,43 @@ fprintf('  NMPC solves: %d/%d (%.1f%%)\n', n_ok, n_tot, 100*n_ok/max(n_tot,1));
 fprintf('  PID fallback: %d times\n', sum(fallback));
 fprintf('  Mean |XTE|: %.1f m, Max |XTE|: %.1f m\n', mean(abs(xte_log)), max(abs(xte_log)));
 fprintf('  Final position: (%.1f, %.1f)\n', traj(4,end), traj(5,end));
+
+valid_step = isfinite(step_time_log);
+valid_solve = isfinite(solve_time_log);
+n_overrun = sum(step_time_log(valid_step) > dt);
+
+fprintf('\n  REAL-TIME FEASIBILITY (dt = %.3f s)\n', dt);
+fprintf('  Step compute [ms]: mean=%.2f, p95=%.2f, max=%.2f\n', ...
+    1e3*mean(step_time_log(valid_step)), ...
+    1e3*safePercentile(step_time_log(valid_step), 95), ...
+    1e3*max(step_time_log(valid_step)));
+fprintf('  NMPC solve  [ms]: mean=%.2f, p95=%.2f, max=%.2f\n', ...
+    1e3*mean(solve_time_log(valid_solve)), ...
+    1e3*safePercentile(solve_time_log(valid_solve), 95), ...
+    1e3*max(solve_time_log(valid_solve)));
+fprintf('  RT overruns (step_time > dt): %d/%d (%.2f%%)\n', ...
+    n_overrun, steps, 100*n_overrun/max(steps,1));
+fprintf('  Worst RT ratio: %.3f\n', max(rt_ratio_log(valid_step)));
+
+if any(valid_step)
+    [~, worst_idx] = sort(step_time_log, 'descend');
+    n_worst = min(5, numel(worst_idx));
+    fprintf('\n  TOP-%d SLOWEST STEPS\n', n_worst);
+    fprintf('    k    t[s]   step[ms]  solve[ms]  guide[ms]  obs[ms]  ref[ms]  int[ms]  ok\n');
+    for kk = 1:n_worst
+        k = worst_idx(kk);
+        fprintf('  %4d  %6.1f   %7.2f    %7.2f    %7.2f   %6.2f  %7.2f  %7.2f   %d\n', ...
+            k, t(k), 1e3*step_time_log(k), 1e3*solve_time_log(k), 1e3*guide_time_log(k), ...
+            1e3*obs_time_log(k), 1e3*ref_time_log(k), 1e3*integr_time_log(k), solve_ok(k));
+    end
+end
+
+if enable_rt_terminal_plots
+    fprintf('\n  TERMINAL TIMING PLOTS (ASCII)\n');
+    printTimingHistogram('Total step time', step_time_log, dt);
+    printTimingHistogram('NMPC solve time', solve_time_log, dt);
+    printTimingHistogram('RT ratio (step/dt)', rt_ratio_log, 1.0);
+end
 
 %% ===== Plots ============================================================
 figure(1); clf;
@@ -357,9 +447,7 @@ animateSimResult(traj_anim, waypoints, t_sim, harbor_anim, cfg_anim);
 fprintf('\nDone. Check figures.\n');
 
 
-%% ════════════════════════════════════════════════════════════════════════
 %  LOCAL FUNCTIONS
-%% ════════════════════════════════════════════════════════════════════════
 
 function [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, wp, wp_speed, wp_idx, R_accept)
 % Simple waypoint steering for 8-state model
@@ -409,7 +497,7 @@ function [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, wp, wp_speed, wp_idx, 
 
     dp = target - pos;
     chi_d = atan2(dp(2), dp(1));
-    U_d = wp_speed(min(wp_idx + 1, n_wps));
+    U_d = wp_speed(min(wp_idx + 1, length(wp_speed)));
 
     d_final = norm(pos - wp(end,:)');
     if d_final < 200
@@ -637,5 +725,54 @@ function obs_local = selectMapObstaclesFromSamples(sample_pts, pos_xy, chi_d, ma
     for k = 1:size(cand,1)
         obs_local(k).position = cand(k, :)';
         obs_local(k).radius = radius_m;
+    end
+end
+
+function p = safePercentile(x, prc)
+% Percentile with compatibility fallback
+    if isempty(x)
+        p = NaN;
+        return;
+    end
+    x = x(isfinite(x));
+    if isempty(x)
+        p = NaN;
+        return;
+    end
+    try
+        p = prctile(x, prc);
+    catch
+        xs = sort(x(:));
+        idx = max(1, min(numel(xs), round(prc/100 * numel(xs))));
+        p = xs(idx);
+    end
+end
+
+function printTimingHistogram(label, vec, ref_value)
+% Print a compact ASCII histogram against a real-time reference
+    if isempty(vec)
+        fprintf('    %s: no data\n', label);
+        return;
+    end
+
+    vals = vec(isfinite(vec));
+    if isempty(vals)
+        fprintf('    %s: no finite data\n', label);
+        return;
+    end
+
+    edges = [0, 0.25, 0.5, 0.75, 1.0, 1.25, inf] * ref_value;
+    counts = histcounts(vals, edges);
+    tags = {'0-25%', '25-50%', '50-75%', '75-100%', '100-125%', '>125%'};
+    max_count = max(counts);
+
+    fprintf('    %s (ref=%.3f)\n', label, ref_value);
+    for ii = 1:numel(counts)
+        n_hash = 0;
+        if max_count > 0
+            n_hash = round(32 * counts(ii) / max_count);
+        end
+        bar = repmat('#', 1, n_hash);
+        fprintf('      %-8s | %-32s %4d\n', tags{ii}, bar, counts(ii));
     end
 end
