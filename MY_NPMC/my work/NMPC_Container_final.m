@@ -33,7 +33,7 @@ classdef NMPC_Container_final < handle
 
         % Obstacle settings
         max_obs = 5
-        r_safety = 30
+        r_safety = 35
 
         % Solver internals
         solver

@@ -26,12 +26,13 @@ fprintf('═══════════════════════�
 %  USER CONFIGURATION — EDIT THIS SECTION
 
 % ---- WAYPOINTS (rows = [x, y] in meters, NED frame) ----
-waypoints = [-3250, -1600;
+waypoints = [-3300, -1550;
              -2800, -1600;
              -2400, -1900;
-             -2100, -2100
-             -1700, -1820
-             -1370, -1660];
+            %  -2100, -2100
+            %  -1700, -1820
+            %  -1370, -1660
+            ];
 
 % waypoints = [-2350, -2050;
 %              -2150, -1950;
@@ -47,33 +48,71 @@ static_obstacles = [];
 % static_obstacles(1).radius   = 30;
 
 % ---- SIMULATION PARAMETERS ----
-T_final     = 600;      % Total simulation time [s]
+T_final     = 800;      % Total simulation time [s]
 R_accept    = 50;       % Waypoint acceptance radius [m]
+R_accept_final = 15;    % Final waypoint acceptance radius [m]
 n1_cruise   = 100;      % Aft thruster cruise speed [rpm]
 n2_cruise   = 0;        % Forward thruster (off during cruise)
 
 % ---- MAP OBSTACLE SAMPLING ----
 enable_map_obstacles = true;   % Set false to disable red-zone awareness
-max_map_obstacles    = 6;      % Max map sample points as obstacles (keep low!)
-map_lookahead_m      = 350;    % Forward lookahead distance [m]
-map_half_width_m     = 200;    % Corridor half-width [m]
-map_sample_radius_m  = 13;     % Virtual obstacle radius for map points
+max_map_obstacles    = 10;     % Max map sample points as obstacles
+map_lookahead_m      = 500;    % Base forward lookahead distance [m]
+map_half_width_m     = 260;    % Base corridor half-width [m]
+map_sample_radius_m  = 12;     % Virtual obstacle radius for map points
+
+% Balanced guidance/avoidance coupling (global, not map-specific)
+map_lookahead_time_s = 75;     % Forward preview time [s]
+map_lookahead_min_m  = 420;    % Clamp lower bound for lookahead [m]
+map_lookahead_max_m  = 900;    % Clamp upper bound for lookahead [m]
+map_half_width_min_m = 220;    % Clamp lower bound for corridor width [m]
+map_half_width_max_m = 420;    % Clamp upper bound for corridor width [m]
+
+% ---- DYNAMIC OBSTACLES (forward motion, no turning) ----
+enable_dynamic_obstacles = true;      % Master switch for moving obstacles
+dynamic_obs_speed_mps    = 10;       % Constant speed [m/s]
+dynamic_obs_radius_m     = 25;        % Circular obstacle radius [m]
+dynamic_obs_boundary_policy = 'deactivate'; % deactivate | clip | wrap
+dynamic_obs_boundary_margin = 120;    % Margin around map bounds [m]
+enable_dynamic_replay_check = true;   % Determinism self-check
+
+% Manual dynamic obstacle definition (required when enabled):
+% - Positions are rows [x y] in meters.
+% - Headings are in degrees (0=+x/North, 90=+y/East).
+% - Speeds are in m/s (scalar or one per obstacle).
+dynamic_obs_positions_xy = [-2600 -1600];  % Example: [-3000 -1700; -2920 -1740]
+dynamic_obs_headings_deg = [270];           % Example: [90; 110]
+dynamic_obs_speeds_mps   = [5];             % [] uses dynamic_obs_speed_mps for all
+
+% Dynamic obstacle motion trigger mode:
+% - 'immediate': obstacles move from t=0
+% - 'proximity': obstacles stay stationary until ship is close
+dynamic_obs_start_mode = 'proximity';       % immediate | proximity
+dynamic_obs_trigger_distance_m = 260;       % scalar or one per obstacle
 
 % ---- NMPC TUNING ----
 nmpc_N  = 40;           % Prediction horizon steps
 nmpc_dt = 1.0;          % Sample time [s]
-r_safety = 20;          % Safety margin around obstacles [m]
+r_safety = 24;          % Safety margin around obstacles [m]
 
 % Q weights: [u, v, r, x, y, psi, n1, n2]
 %   - Higher position weights (x,y) → better obstacle avoidance
 %   - Higher heading weight (psi) → tighter path tracking
-Q_weights = diag([2.0, 0.1, 0.5, 6.0, 6.0, 4.0, 0.001, 0.001]);
+Q_weights = diag([2.0, 0.1, 0.6, 7.0, 7.0, 4.5, 0.001, 0.001]);
 
 % R weights: [alpha1, alpha2, n1_c, n2_c]
 R_weights = diag([0.1, 0.1, 0.01, 0.01]);
 
 % R_rate weights for smooth control transitions
-R_rate_weights = diag([0.12, 0.12, 0.006, 0.006]);
+R_rate_weights = diag([0.08, 0.08, 0.006, 0.006]);
+
+% Obstacle-aware reference shaping (inertia/lookahead balance)
+avoid_ref_cfg = struct();
+avoid_ref_cfg.base_margin_m   = 60;    % baseline lateral keep-out in reference shaping
+avoid_ref_cfg.speed_gain_s    = 2.0;   % extra margin = speed_gain * U_d
+avoid_ref_cfg.obs_radius_gain = 0.40;  % how much obstacle radius increases lateral deflection
+avoid_ref_cfg.deflect_sigma   = 0.20;  % smaller -> sharper local avoidance bend
+avoid_ref_cfg.r_ref_max       = 0.14;  % max |r_ref| sent to NMPC [rad/s]
 
 % ---- PID FALLBACK GAINS (used when NMPC fails) ----
 pid_Kp = 0.8;
@@ -82,6 +121,19 @@ pid_Kd = 5.0;
 
 % ---- REAL-TIME DIAGNOSTICS ----
 enable_rt_terminal_plots = true;
+
+% ---- OPTIONAL ENV OVERRIDES (for batch verification) ----
+env_dyn = getenv('NMPC_ENABLE_DYNAMIC_OBS');
+if ~isempty(env_dyn)
+    enable_dynamic_obstacles = strcmpi(strtrim(env_dyn), '1') || strcmpi(strtrim(env_dyn), 'true');
+end
+env_tfinal = getenv('NMPC_TFINAL');
+if ~isempty(env_tfinal)
+    tf_num = str2double(env_tfinal);
+    if isfinite(tf_num) && tf_num > 0
+        T_final = tf_num;
+    end
+end
 
 %  INITIALIZATION (DO NOT EDIT BELOW UNLESS DEBUGGING)
 
@@ -120,12 +172,38 @@ if enable_map_obstacles && ~isempty(map)
     fprintf('  Map sample points: %d\n', size(map_sample_pts, 1));
 end
 
+% Dynamic obstacle initialization (manual-only from user config)
+map_bounds = estimateMapBounds(map, waypoints, dynamic_obs_boundary_margin);
+dynamic_obstacles = struct('position', {}, 'radius', {}, 'speed', {}, 'heading', {}, 'active', {}, 'enabled', {}, 'id', {});
+if enable_dynamic_obstacles
+    dynamic_obstacles = buildDynamicObstaclesFromConfig( ...
+        dynamic_obs_positions_xy, dynamic_obs_headings_deg, dynamic_obs_speeds_mps, ...
+        dynamic_obs_radius_m, dynamic_obs_speed_mps);
+    dynamic_obstacles = configureDynamicStartMode( ...
+        dynamic_obstacles, dynamic_obs_start_mode, dynamic_obs_trigger_distance_m);
+    fprintf('  Dynamic obstacles enabled: %d\n', length(dynamic_obstacles));
+    if enable_dynamic_replay_check
+        replay_ok = runDynamicReplayCheck(dynamic_obstacles, 40, nmpc_dt, map_bounds, dynamic_obs_boundary_policy);
+        if replay_ok
+            fprintf('  Dynamic replay determinism check: PASS\n');
+        else
+            warning('Dynamic replay determinism check failed.');
+        end
+    end
+else
+    fprintf('  Dynamic obstacles disabled\n');
+end
+
 %% ===== NMPC configuration ===============================================
 n_static_obs = length(static_obstacles);
+n_dynamic_obs = 0;
+if enable_dynamic_obstacles
+    n_dynamic_obs = length(dynamic_obstacles);
+end
 if enable_map_obstacles && ~isempty(map_sample_pts)
-    max_obs_slots = n_static_obs + max_map_obstacles;
+    max_obs_slots = n_static_obs + max_map_obstacles + n_dynamic_obs;
 else
-    max_obs_slots = n_static_obs;
+    max_obs_slots = n_static_obs + n_dynamic_obs;
 end
 
 nmpc_cfg = struct();
@@ -182,8 +260,18 @@ integr_time_log   = nan(1, length(t));
 rt_ratio_log      = nan(1, length(t));
 n_obs_log         = nan(1, length(t));
 cost_log          = nan(1, length(t));
+obs_pack_drift_log = nan(1, length(t));
+collision_log     = false(1, length(t));
 traj(:,1) = x;
 steps = 0;
+
+n_dyn = length(dynamic_obstacles);
+dyn_obs_hist = nan(n_dyn, 2, length(t)+1);
+if n_dyn > 0
+    for jj = 1:n_dyn
+        dyn_obs_hist(jj, :, 1) = dynamic_obstacles(jj).position(1:2)';
+    end
+end
 
 % PID state
 psi_err_int = 0;
@@ -208,22 +296,46 @@ for i = 1:length(t)
     xte = computeXTE(x, waypoints, wp_idx);
     guide_time_log(i) = toc(t_seg);
 
+    % ---- 1.5) Activate/propagate moving obstacles -----------------------
+    if enable_dynamic_obstacles && ~isempty(dynamic_obstacles)
+        if strcmpi(strtrim(dynamic_obs_start_mode), 'proximity')
+            dynamic_obstacles = activateDynamicObstaclesByProximity(dynamic_obstacles, x(4:5));
+        end
+        if i > 1
+            dynamic_obstacles = propagateDynamicObstacles( ...
+                dynamic_obstacles, dt, map_bounds, dynamic_obs_boundary_policy);
+        end
+    end
+    if ~isempty(dynamic_obstacles)
+        for jj = 1:length(dynamic_obstacles)
+            dyn_obs_hist(jj, :, i) = dynamic_obstacles(jj).position(1:2)';
+        end
+    end
+
     % ---- 2) Gather obstacles (static + map samples) ---------------------
     t_seg = tic;
     obs_local = static_obstacles;
     
     if enable_map_obstacles && ~isempty(map_sample_pts)
+        U_now = max(1.0, sqrt(x(1)^2 + x(2)^2));
+        lookahead_now = min(map_lookahead_max_m, max(map_lookahead_min_m, U_now * map_lookahead_time_s));
+        half_width_now = min(map_half_width_max_m, max(map_half_width_min_m, 0.45 * lookahead_now));
         obs_map = selectMapObstaclesFromSamples( ...
             map_sample_pts, x(4:5), chi_d, max_map_obstacles, ...
-            map_lookahead_m, map_half_width_m, map_sample_radius_m);
+            lookahead_now, half_width_now, map_sample_radius_m);
         obs_local = [obs_local, obs_map];
+    end
+    if enable_dynamic_obstacles && ~isempty(dynamic_obstacles)
+        obs_dyn = dynamicToCircleObstacles(dynamic_obstacles);
+        obs_local = [obs_local, obs_dyn];
+        obs_pack_drift_log(i) = computeDynamicPackagingDrift(dynamic_obstacles, obs_local);
     end
     obs_time_log(i) = toc(t_seg);
 
     % ---- 3) Build reference trajectory ----------------------------------
     t_seg = tic;
     x_ref = buildObstacleAwareRef8(x, chi_d, U_d, nmpc.N, dt, ...
-                                   n1_cruise, n2_cruise, obs_local);
+                                   n1_cruise, n2_cruise, obs_local, avoid_ref_cfg);
     ref_time_log(i) = toc(t_seg);
 
     % ---- 4) Solve NMPC (MODIFIED - now passes u_prev) -------------------
@@ -273,8 +385,21 @@ for i = 1:length(t)
     integr_time_log(i) = toc(t_seg);
     step_time_log(i) = toc(t_step);
     rt_ratio_log(i) = step_time_log(i) / max(dt, 1e-9);
-    
-    % ... collision checks ...
+
+    % ---- 7) Collision checks (map + circle obstacles) ------------------
+    [hit_obs, ~, ~] = detectCircleObstacleHit(x(4:5), obs_local, 0.0);
+    [hit_map, ~, ~] = NavUtils.isInsideAnyMapZone(x(4:5), map);
+    if hit_obs || hit_map
+        collision_log(i) = true;
+        fprintf('  [COLLISION] t=%.1f s hit_obs=%d hit_map=%d\n', t(i), hit_obs, hit_map);
+        steps = i;
+        traj(:, i+1)  = x;
+        ctrl(:, i)    = u_opt;
+        solve_ok(i)   = info.success;
+        xte_log(i)    = xte;
+        u_prev = u_opt;
+        break;
+    end
 
     % ---- 8) Logging -----------------------------------------------------
     steps = i;
@@ -289,8 +414,8 @@ for i = 1:length(t)
     % ---- 9) Progress print ----------------------------------------------
     if i == 1 || mod(i, 20) == 0 || ~info.success || rt_ratio_log(i) > 1.0
         d_nearest_obs = inf;
-        for j = 1:length(static_obstacles)
-            d_nearest_obs = min(d_nearest_obs, norm(x(4:5) - static_obstacles(j).position));
+        for j = 1:length(obs_local)
+            d_nearest_obs = min(d_nearest_obs, norm(x(4:5) - obs_local(j).position));
         end
         fprintf(['  [t=%5.1f] pos=(%7.1f,%6.1f) psi=%+6.1fdeg wp=%d xte=%+.1fm ', ...
                  'obs_d=%.0fm ok=%d comp=%.1fms solve=%.1fms RT=%.2f obs=%d fb=%d\n'], ...
@@ -300,7 +425,7 @@ for i = 1:length(t)
     end
 
     % ---- 10) Check if done ----------------------------------------------
-    if norm(x(4:5) - waypoints(end,:)') < R_accept
+    if norm(x(4:5) - waypoints(end,:)') < R_accept_final
         fprintf('\n  ✓ FINAL WAYPOINT REACHED at t=%.1f s!\n', t(i));
         break;
     end
@@ -325,6 +450,8 @@ integr_time_log = integr_time_log(1:steps);
 rt_ratio_log    = rt_ratio_log(1:steps);
 n_obs_log       = n_obs_log(1:steps);
 cost_log        = cost_log(1:steps);
+obs_pack_drift_log = obs_pack_drift_log(1:steps);
+collision_log   = collision_log(1:steps);
 
 n_ok = sum(solve_ok);  n_tot = length(solve_ok);
 fprintf('\n══════════════════════════════════════════════════════════════\n');
@@ -334,6 +461,10 @@ fprintf('  NMPC solves: %d/%d (%.1f%%)\n', n_ok, n_tot, 100*n_ok/max(n_tot,1));
 fprintf('  PID fallback: %d times\n', sum(fallback));
 fprintf('  Mean |XTE|: %.1f m, Max |XTE|: %.1f m\n', mean(abs(xte_log)), max(abs(xte_log)));
 fprintf('  Final position: (%.1f, %.1f)\n', traj(4,end), traj(5,end));
+if any(isfinite(obs_pack_drift_log))
+    fprintf('  Dynamic packaging drift [m]: max=%.3f\n', max(obs_pack_drift_log(isfinite(obs_pack_drift_log))));
+end
+fprintf('  Collisions detected: %d\n', sum(collision_log));
 
 valid_step = isfinite(step_time_log);
 valid_solve = isfinite(solve_time_log);
@@ -385,6 +516,25 @@ for j = 1:length(static_obstacles)
     fill(static_obstacles(j).position(2) + static_obstacles(j).radius*cos(theta_circ), ...
          static_obstacles(j).position(1) + static_obstacles(j).radius*sin(theta_circ), ...
          'r', 'FaceAlpha', 0.3, 'EdgeColor', 'r', 'LineWidth', 2);
+end
+if ~isempty(dynamic_obstacles)
+    dyn_cols = lines(max(1, size(dyn_obs_hist,1)));
+    for j = 1:size(dyn_obs_hist,1)
+        hx = squeeze(dyn_obs_hist(j,2,1:steps+1));
+        hy = squeeze(dyn_obs_hist(j,1,1:steps+1));
+        valid = isfinite(hx) & isfinite(hy);
+        if nnz(valid) >= 2
+            plot(hx(valid), hy(valid), '--', 'Color', dyn_cols(j,:), 'LineWidth', 1.2, ...
+                'HandleVisibility', 'off');
+        end
+        if any(valid)
+            last_idx = find(valid, 1, 'last');
+            fill(hx(last_idx) + dynamic_obs_radius_m*cos(theta_circ), ...
+                 hy(last_idx) + dynamic_obs_radius_m*sin(theta_circ), ...
+                 dyn_cols(j,:), 'FaceAlpha', 0.12, 'EdgeColor', dyn_cols(j,:), ...
+                 'LineWidth', 1.3, 'HandleVisibility', 'off');
+        end
+    end
 end
 plot(traj(5,1), traj(4,1), 'go', 'MarkerSize', 10, 'MarkerFaceColor', 'g');
 plot(traj(5,end), traj(4,end), 'bs', 'MarkerSize', 10, 'MarkerFaceColor', 'b');
@@ -439,6 +589,10 @@ cfg_anim.pauseTime   = 0.03;
 for j = 1:length(static_obstacles)
     cfg_anim.circObs(j).position = static_obstacles(j).position;
     cfg_anim.circObs(j).radius   = static_obstacles(j).radius;
+end
+if ~isempty(dynamic_obstacles)
+    cfg_anim.dynamicObsHistory = dyn_obs_hist(:, :, 1:steps+1);
+    cfg_anim.dynamicObsRadius = dynamic_obs_radius_m;
 end
 
 traj_anim = traj(1:6, :);
@@ -548,9 +702,13 @@ function x_ref = buildSimpleRef8(x0, chi_d, U_d, N, dt, n1_ref, n2_ref)
     end
 end     
 
-function x_ref = buildObstacleAwareRef8(x0, chi_d, U_d, N, dt, n1_ref, n2_ref, obstacles)
+function x_ref = buildObstacleAwareRef8(x0, chi_d, U_d, N, dt, n1_ref, n2_ref, obstacles, avoid_cfg)
 % Reference trajectory with obstacle deflection
-    safety_margin = 60;
+    if nargin < 9 || isempty(avoid_cfg)
+        avoid_cfg = struct('base_margin_m', 80, 'speed_gain_s', 0.0, ...
+            'obs_radius_gain', 0.5, 'deflect_sigma', 0.22, 'r_ref_max', 0.10);
+    end
+    safety_margin = avoid_cfg.base_margin_m + avoid_cfg.speed_gain_s * max(0, U_d);
     x_ref = buildSimpleRef8(x0, chi_d, U_d, N, dt, n1_ref, n2_ref);
 
     if nargin < 8 || isempty(obstacles)
@@ -572,7 +730,7 @@ function x_ref = buildObstacleAwareRef8(x0, chi_d, U_d, N, dt, n1_ref, n2_ref, o
         if along < 0 || along > horizon_dist + obs_r
             continue;
         end
-        if abs(lateral) >= safety_margin
+        if abs(lateral) >= (safety_margin + obs_r)
             continue;
         end
 
@@ -582,13 +740,13 @@ function x_ref = buildObstacleAwareRef8(x0, chi_d, U_d, N, dt, n1_ref, n2_ref, o
             side_sign = +1;
         end
 
-        deflect = side_sign * (safety_margin - lateral * side_sign);
+        deflect = side_sign * (safety_margin + avoid_cfg.obs_radius_gain * obs_r - lateral * side_sign);
 
         for k = 1:(N+1)
             s = (k-1) / N;
             s_peak = along / horizon_dist;
             s_peak = max(0.05, min(0.95, s_peak));
-            w = exp(-((s - s_peak)^2) / (0.22^2));
+            w = exp(-((s - s_peak)^2) / (avoid_cfg.deflect_sigma^2));
 
             x_ref(4, k) = x_ref(4, k) + w * deflect * perp(1);
             x_ref(5, k) = x_ref(5, k) + w * deflect * perp(2);
@@ -599,7 +757,7 @@ function x_ref = buildObstacleAwareRef8(x0, chi_d, U_d, N, dt, n1_ref, n2_ref, o
             dy_ref = x_ref(5, N+1) - x_ref(5, 1);
             chi_deflected = atan2(dy_ref, dx_ref);
             psi_err2 = atan2(sin(chi_deflected - x0(6)), cos(chi_deflected - x0(6)));
-            r_d2 = max(-0.10, min(0.10, 0.35 * psi_err2));
+            r_d2 = max(-avoid_cfg.r_ref_max, min(avoid_cfg.r_ref_max, 0.35 * psi_err2));
             for k = 2:(N+1)
                 x_ref(3, k) = r_d2;
                 x_ref(6, k) = chi_deflected;
@@ -726,6 +884,296 @@ function obs_local = selectMapObstaclesFromSamples(sample_pts, pos_xy, chi_d, ma
         obs_local(k).position = cand(k, :)';
         obs_local(k).radius = radius_m;
     end
+end
+
+function dynamic_obstacles = buildDynamicObstaclesFromConfig(pos_xy, heading_deg, speeds_mps, radius_default, speed_default)
+% Build moving obstacles strictly from user configuration.
+    if nargin < 4 || isempty(radius_default), radius_default = 20; end
+    if nargin < 5 || isempty(speed_default), speed_default = 3.0; end
+
+    if isempty(pos_xy)
+        error(['Dynamic obstacles are enabled but dynamic_obs_positions_xy is empty. ', ...
+               'Provide rows [x y] in the USER CONFIGURATION section.']);
+    end
+    if size(pos_xy,2) ~= 2
+        error('dynamic_obs_positions_xy must be an N-by-2 matrix with rows [x y].');
+    end
+
+    n_obs = size(pos_xy,1);
+    if isempty(heading_deg)
+        error(['Dynamic obstacles are enabled but dynamic_obs_headings_deg is empty. ', ...
+               'Provide one heading per obstacle (or one scalar to replicate).']);
+    end
+
+    heading_deg = heading_deg(:);
+    if numel(heading_deg) == 1 && n_obs > 1
+        heading_deg = repmat(heading_deg, n_obs, 1);
+    end
+    if numel(heading_deg) ~= n_obs
+        error('dynamic_obs_headings_deg must have length 1 or match number of obstacle rows.');
+    end
+
+    if isempty(speeds_mps)
+        speed_vec = speed_default * ones(n_obs,1);
+    else
+        speed_vec = speeds_mps(:);
+        if numel(speed_vec) == 1 && n_obs > 1
+            speed_vec = repmat(speed_vec, n_obs, 1);
+        end
+        if numel(speed_vec) ~= n_obs
+            error('dynamic_obs_speeds_mps must have length 1 or match number of obstacle rows.');
+        end
+    end
+
+    dynamic_obstacles = repmat(struct('position', [0;0], 'radius', radius_default, ...
+        'speed', speed_default, 'heading', 0, 'active', true, 'enabled', true, ...
+        'moving', true, 'trigger_distance', inf, 'id', 1), 1, n_obs);
+
+    for k = 1:n_obs
+        dynamic_obstacles(k).position = pos_xy(k,:).';
+        dynamic_obstacles(k).radius = radius_default;
+        dynamic_obstacles(k).speed = speed_vec(k);
+        dynamic_obstacles(k).heading = deg2rad(heading_deg(k));
+        dynamic_obstacles(k).active = true;
+        dynamic_obstacles(k).enabled = true;
+        dynamic_obstacles(k).moving = true;
+        dynamic_obstacles(k).trigger_distance = inf;
+        dynamic_obstacles(k).id = k;
+    end
+end
+
+function dynamic_obstacles = configureDynamicStartMode(dynamic_obstacles, start_mode, trigger_distance_m)
+% Configure whether obstacles move immediately or on proximity trigger.
+    if isempty(dynamic_obstacles)
+        return;
+    end
+    if nargin < 2 || isempty(start_mode)
+        start_mode = 'immediate';
+    end
+
+    n_obs = length(dynamic_obstacles);
+    trig = trigger_distance_m;
+    if nargin < 3 || isempty(trig)
+        trig = inf;
+    end
+    trig = trig(:);
+    if numel(trig) == 1 && n_obs > 1
+        trig = repmat(trig, n_obs, 1);
+    end
+    if numel(trig) ~= n_obs
+        error('dynamic_obs_trigger_distance_m must have length 1 or match number of obstacle rows.');
+    end
+
+    is_proximity = strcmpi(strtrim(start_mode), 'proximity');
+    for k = 1:n_obs
+        dynamic_obstacles(k).trigger_distance = trig(k);
+        dynamic_obstacles(k).moving = ~is_proximity;
+    end
+end
+
+function dynamic_obstacles = activateDynamicObstaclesByProximity(dynamic_obstacles, ship_pos)
+% Start obstacle motion when ship is within trigger distance.
+    if isempty(dynamic_obstacles)
+        return;
+    end
+    for k = 1:length(dynamic_obstacles)
+        if ~isfield(dynamic_obstacles(k), 'enabled') || ~dynamic_obstacles(k).enabled
+            continue;
+        end
+        if ~isfield(dynamic_obstacles(k), 'active') || ~dynamic_obstacles(k).active
+            continue;
+        end
+        if isfield(dynamic_obstacles(k), 'moving') && dynamic_obstacles(k).moving
+            continue;
+        end
+
+        d = norm(ship_pos(:) - dynamic_obstacles(k).position(1:2));
+        trig = inf;
+        if isfield(dynamic_obstacles(k), 'trigger_distance') && ~isempty(dynamic_obstacles(k).trigger_distance)
+            trig = dynamic_obstacles(k).trigger_distance;
+        end
+        if d <= trig
+            dynamic_obstacles(k).moving = true;
+        end
+    end
+end
+
+function dynamic_obstacles = propagateDynamicObstacles(dynamic_obstacles, dt, bounds, boundary_policy)
+% Forward Euler propagation with deterministic boundary handling
+    if isempty(dynamic_obstacles)
+        return;
+    end
+    if nargin < 4 || isempty(boundary_policy)
+        boundary_policy = 'deactivate';
+    end
+
+    for k = 1:length(dynamic_obstacles)
+        if ~isfield(dynamic_obstacles(k), 'enabled') || ~dynamic_obstacles(k).enabled
+            continue;
+        end
+        if ~isfield(dynamic_obstacles(k), 'active') || ~dynamic_obstacles(k).active
+            continue;
+        end
+        if isfield(dynamic_obstacles(k), 'moving') && ~dynamic_obstacles(k).moving
+            continue;
+        end
+
+        speed_k = dynamic_obstacles(k).speed;
+        hdg_k = dynamic_obstacles(k).heading;
+        dx = dt * speed_k * cos(hdg_k);
+        dy = dt * speed_k * sin(hdg_k);
+        dynamic_obstacles(k).position = dynamic_obstacles(k).position + [dx; dy];
+
+        if isPositionOutsideBounds(dynamic_obstacles(k).position, bounds)
+            switch lower(strtrim(boundary_policy))
+                case 'clip'
+                    dynamic_obstacles(k).position(1) = min(max(dynamic_obstacles(k).position(1), bounds.xmin), bounds.xmax);
+                    dynamic_obstacles(k).position(2) = min(max(dynamic_obstacles(k).position(2), bounds.ymin), bounds.ymax);
+                case 'wrap'
+                    dynamic_obstacles(k).position(1) = wrapLinear(dynamic_obstacles(k).position(1), bounds.xmin, bounds.xmax);
+                    dynamic_obstacles(k).position(2) = wrapLinear(dynamic_obstacles(k).position(2), bounds.ymin, bounds.ymax);
+                otherwise
+                    dynamic_obstacles(k).active = false;
+            end
+        end
+    end
+end
+
+function obs_dyn = dynamicToCircleObstacles(dynamic_obstacles)
+% Convert active dynamic obstacle states to NMPC-compatible circle obstacles
+    obs_dyn = struct('position', {}, 'radius', {});
+    if isempty(dynamic_obstacles)
+        return;
+    end
+
+    out_idx = 0;
+    for k = 1:length(dynamic_obstacles)
+        is_enabled = isfield(dynamic_obstacles(k), 'enabled') && dynamic_obstacles(k).enabled;
+        is_active = isfield(dynamic_obstacles(k), 'active') && dynamic_obstacles(k).active;
+        if ~(is_enabled && is_active)
+            continue;
+        end
+        out_idx = out_idx + 1;
+        obs_dyn(out_idx).position = dynamic_obstacles(k).position(1:2);
+        obs_dyn(out_idx).radius = dynamic_obstacles(k).radius;
+    end
+end
+
+function [hit, hit_idx, min_sep] = detectCircleObstacleHit(pos_xy, obstacles, safety_buffer)
+% Circle collision check with configurable safety buffer
+    hit = false;
+    hit_idx = 0;
+    min_sep = inf;
+    if nargin < 3 || isempty(safety_buffer)
+        safety_buffer = 0;
+    end
+    if isempty(obstacles)
+        return;
+    end
+
+    for k = 1:length(obstacles)
+        d = norm(pos_xy(:) - obstacles(k).position(1:2));
+        sep = d - (obstacles(k).radius + safety_buffer);
+        min_sep = min(min_sep, sep);
+        if sep <= 0
+            hit = true;
+            hit_idx = k;
+            return;
+        end
+    end
+end
+
+function drift = computeDynamicPackagingDrift(dynamic_obstacles, obs_local)
+% Verifies dynamic obstacles are passed to solver in same position/radius schema
+    obs_dyn = dynamicToCircleObstacles(dynamic_obstacles);
+    if isempty(obs_dyn)
+        drift = 0;
+        return;
+    end
+    if length(obs_local) < length(obs_dyn)
+        drift = inf;
+        return;
+    end
+
+    tail_idx = (length(obs_local) - length(obs_dyn) + 1):length(obs_local);
+    e = zeros(1, length(obs_dyn));
+    for k = 1:length(obs_dyn)
+        e(k) = norm(obs_local(tail_idx(k)).position(1:2) - obs_dyn(k).position(1:2));
+    end
+    drift = max(e);
+end
+
+function bounds = estimateMapBounds(map, waypoints, margin)
+% Build a finite bounding box used by dynamic obstacle lifecycle policy
+    if nargin < 3 || isempty(margin)
+        margin = 100;
+    end
+
+    xs = waypoints(:,1);
+    ys = waypoints(:,2);
+    if ~isempty(map)
+        if isfield(map, 'polygons') && ~isempty(map.polygons)
+            for k = 1:length(map.polygons)
+                xs = [xs; map.polygons(k).X(:)]; %#ok<AGROW>
+                ys = [ys; map.polygons(k).Y(:)]; %#ok<AGROW>
+            end
+        end
+        if isfield(map, 'mapPoly') && ~isempty(map.mapPoly)
+            for k = 1:length(map.mapPoly)
+                xs = [xs; map.mapPoly(k).X(:)]; %#ok<AGROW>
+                ys = [ys; map.mapPoly(k).Y(:)]; %#ok<AGROW>
+            end
+        end
+    end
+
+    xs = xs(isfinite(xs));
+    ys = ys(isfinite(ys));
+    if isempty(xs) || isempty(ys)
+        xs = [0; 1000];
+        ys = [0; 1000];
+    end
+    bounds.xmin = min(xs) - margin;
+    bounds.xmax = max(xs) + margin;
+    bounds.ymin = min(ys) - margin;
+    bounds.ymax = max(ys) + margin;
+end
+
+function tf = isPositionOutsideBounds(pos_xy, bounds)
+    tf = pos_xy(1) < bounds.xmin || pos_xy(1) > bounds.xmax || ...
+         pos_xy(2) < bounds.ymin || pos_xy(2) > bounds.ymax;
+end
+
+function y = wrapLinear(x, xmin, xmax)
+    rng = xmax - xmin;
+    if rng <= 0
+        y = x;
+        return;
+    end
+    y = xmin + mod(x - xmin, rng);
+end
+
+function ok = runDynamicReplayCheck(dynamic_obstacles, n_steps, dt, bounds, policy)
+% Deterministic replay check for dynamic obstacle propagation
+    if nargin < 2 || isempty(n_steps)
+        n_steps = 20;
+    end
+    a = dynamic_obstacles;
+    b = dynamic_obstacles;
+    for i = 1:n_steps
+        a = propagateDynamicObstacles(a, dt, bounds, policy);
+        b = propagateDynamicObstacles(b, dt, bounds, policy);
+    end
+    da = dynamicToCircleObstacles(a);
+    db = dynamicToCircleObstacles(b);
+    if length(da) ~= length(db)
+        ok = false;
+        return;
+    end
+    err = 0;
+    for k = 1:length(da)
+        err = max(err, norm(da(k).position - db(k).position));
+    end
+    ok = err <= 1e-12;
 end
 
 function p = safePercentile(x, prc)

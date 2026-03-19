@@ -52,6 +52,8 @@ pauseTime  = cfgGet(cfg, 'pauseTime',  0.05);
 imgFile    = cfgGet(cfg, 'shipImgFile', 'vessel_top.png');
 showLegend = cfgGet(cfg, 'showLegend', false);
 showCollisionCircles = cfgGet(cfg, 'showCollisionCircles', true);
+dynamicObsHistory = cfgGet(cfg, 'dynamicObsHistory', []);
+dynamicObsRadius = cfgGet(cfg, 'dynamicObsRadius', 20);
 
 %  1. Load image once  (only when file path changes)
 useImage = true;  % set false if loading fails
@@ -158,6 +160,20 @@ if showCollisionCircles && isfield(cfg, 'circObs') && ~isempty(cfg.circObs)
         plot(ax, ox + r*cos(th), oy + r*sin(th), ...
              'Color', [1.0 0.35 0.35], 'LineWidth', 1.1, ...
              'HandleVisibility', 'off');
+    end
+end
+
+hDynObs = gobjects(0);
+if ~isempty(dynamicObsHistory)
+    th_dyn = linspace(0, 2*pi, 40);
+    nDyn = size(dynamicObsHistory, 1);
+    dynCols = lines(max(1, nDyn));
+    hDynObs = gobjects(nDyn, 1);
+    for k = 1:nDyn
+        xk = dynamicObsHistory(k,2,1);
+        yk = dynamicObsHistory(k,1,1);
+        hDynObs(k) = plot(ax, xk + dynamicObsRadius*cos(th_dyn), yk + dynamicObsRadius*sin(th_dyn), ...
+            '--', 'Color', dynCols(k,:), 'LineWidth', 1.2, 'HandleVisibility', 'off');
     end
 end
 
@@ -270,6 +286,21 @@ for k = 1:length(idx)
     % Update time stamp
     if i <= length(t_vec)
         set(hTime, 'String', sprintf('t = %.0f s', t_vec(i)));
+    end
+
+    % Update dynamic obstacles (if provided)
+    if ~isempty(hDynObs)
+        th_dyn = linspace(0, 2*pi, 40);
+        for d = 1:length(hDynObs)
+            xk = dynamicObsHistory(d,2,min(i, size(dynamicObsHistory,3)));
+            yk = dynamicObsHistory(d,1,min(i, size(dynamicObsHistory,3)));
+            if isfinite(xk) && isfinite(yk)
+                set(hDynObs(d), 'XData', xk + dynamicObsRadius*cos(th_dyn), ...
+                    'YData', yk + dynamicObsRadius*sin(th_dyn), 'Visible', 'on');
+            else
+                set(hDynObs(d), 'Visible', 'off');
+            end
+        end
     end
 
     drawnow;          % flush every frame so the animation is actually visible
