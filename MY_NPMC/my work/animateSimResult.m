@@ -19,6 +19,11 @@ function animateSimResult(traj, waypoints, t_vec, harbor, cfg)
 %     .shipSize     Ship width as fraction of range  (default 0.08)
 %     .maxFrames    Max frames rendered (auto-skip)  (default 150)
 %     .pauseTime    Pause between frames [s]         (default 0.05)
+%     .recordVideo  Save MP4 recording               (default false)
+%     .recordGif    Save GIF recording               (default false)
+%     .recordFps    Recording frame rate             (default 15)
+%     .videoFile    Output MP4 path                  (default 'nmpc_run.mp4')
+%     .gifFile      Output GIF path                  (default 'nmpc_run.gif')
 %     .extraPaths   Extra trajectories to overlay:
 %                   cell array of {x_array, y_array, linestyle, legendName}
 %                   e.g. {ts_x, ts_y, 'm--', 'Target ship'}
@@ -52,6 +57,11 @@ pauseTime  = cfgGet(cfg, 'pauseTime',  0.05);
 imgFile    = cfgGet(cfg, 'shipImgFile', 'vessel_top.png');
 showLegend = cfgGet(cfg, 'showLegend', false);
 showCollisionCircles = cfgGet(cfg, 'showCollisionCircles', true);
+recordVideo = cfgGet(cfg, 'recordVideo', false);
+recordGif = cfgGet(cfg, 'recordGif', false);
+recordFps = cfgGet(cfg, 'recordFps', 15);
+videoFile = cfgGet(cfg, 'videoFile', 'nmpc_run.mp4');
+gifFile = cfgGet(cfg, 'gifFile', 'nmpc_run.gif');
 
 %  1. Load image once  (only when file path changes)
 useImage = true;  % set false if loading fails
@@ -242,6 +252,33 @@ end
 
 drawnow;
 
+% 3.5 Optional recorder setup
+writerObj = [];
+gifInitialized = false;
+if recordVideo
+    [videoDir, ~, ~] = fileparts(videoFile);
+    if ~isempty(videoDir) && ~exist(videoDir, 'dir')
+        mkdir(videoDir);
+    end
+    try
+        writerObj = VideoWriter(videoFile, 'MPEG-4');
+        writerObj.FrameRate = max(1, recordFps);
+        open(writerObj);
+        fprintf('  [animateSimResult] Recording MP4: "%s"\n', videoFile);
+    catch ME
+        warning('animateSimResult:VideoWriterFailed', '%s', ME.message);
+        recordVideo = false;
+        writerObj = [];
+    end
+end
+if recordGif
+    [gifDir, ~, ~] = fileparts(gifFile);
+    if ~isempty(gifDir) && ~exist(gifDir, 'dir')
+        mkdir(gifDir);
+    end
+    fprintf('  [animateSimResult] Recording GIF: "%s"\n', gifFile);
+end
+
 %  4. Animate — step through downsampled frames, update ship icon position and live trail
 trailX = yPath(1);
 trailY = xPath(1);
@@ -272,6 +309,25 @@ for k = 1:length(idx)
         set(hTime, 'String', sprintf('t = %.0f s', t_vec(i)));
     end
 
+    % Optional frame recording
+    if recordVideo || recordGif
+        frm = getframe(hFig);
+        if recordVideo && ~isempty(writerObj)
+            writeVideo(writerObj, frm);
+        end
+        if recordGif
+            [imind, cm] = rgb2ind(frame2im(frm), 256);
+            if ~gifInitialized
+                imwrite(imind, cm, gifFile, 'gif', 'LoopCount', inf, ...
+                    'DelayTime', max(0.01, 1/max(1, recordFps)));
+                gifInitialized = true;
+            else
+                imwrite(imind, cm, gifFile, 'gif', 'WriteMode', 'append', ...
+                    'DelayTime', max(0.01, 1/max(1, recordFps)));
+            end
+        end
+    end
+
     drawnow;          % flush every frame so the animation is actually visible
     pause(pauseTime); % pacing: default 0.05 s → ~20 fps
 end
@@ -281,6 +337,31 @@ plot(ax, yPath(end), xPath(end), 'ro', ...
     'MarkerSize', 6, 'MarkerFaceColor', [1 0.3 0.3], ...
     'DisplayName', 'End', 'LineWidth', 1.0);
 drawnow;
+
+% Write final frame and close recorders
+if recordVideo || recordGif
+    frm = getframe(hFig);
+    if recordVideo && ~isempty(writerObj)
+        writeVideo(writerObj, frm);
+    end
+    if recordGif
+        [imind, cm] = rgb2ind(frame2im(frm), 256);
+        if ~gifInitialized
+            imwrite(imind, cm, gifFile, 'gif', 'LoopCount', inf, ...
+                'DelayTime', max(0.01, 1/max(1, recordFps)));
+        else
+            imwrite(imind, cm, gifFile, 'gif', 'WriteMode', 'append', ...
+                'DelayTime', max(0.01, 1/max(1, recordFps)));
+        end
+    end
+end
+if recordVideo && ~isempty(writerObj)
+    close(writerObj);
+    fprintf('  [animateSimResult] MP4 saved: "%s"\n', videoFile);
+end
+if recordGif
+    fprintf('  [animateSimResult] GIF saved: "%s"\n', gifFile);
+end
 
 end % ---- end of animateSimResult ----------------------------------------
 

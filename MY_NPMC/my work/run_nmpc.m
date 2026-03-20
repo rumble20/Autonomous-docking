@@ -26,19 +26,13 @@ fprintf('═══════════════════════�
 %  USER CONFIGURATION — EDIT THIS SECTION
 
 % ---- WAYPOINTS (rows = [x, y] in meters, NED frame) ----
-waypoints = [-3250, -1600;
-             -2800, -1600;
-             -2400, -1900;
-             -2100, -2100
-             -1700, -1820
-             -1370, -1660];
-
-% waypoints = [-2350, -2050;
-%              -2150, -1950;
-%              -1850, -1950];
+waypoints = [-2500, -750;
+             -2150, -800;
+             -1880, -520;
+             ];
 
 % ---- WAYPOINT SPEEDS (m/s) — one per segment + final ----
-waypoint_speeds = [7; 7; 7; 5];
+waypoint_speeds = [7; 7; 5];
 
 % ---- STATIC OBSTACLES (set to empty [] for none) ----
 % Each obstacle: struct with 'position' [x; y] and 'radius' [m]
@@ -54,13 +48,23 @@ n2_cruise   = 0;        % Forward thruster (off during cruise)
 
 % ---- MAP OBSTACLE SAMPLING ----
 enable_map_obstacles = true;   % Set false to disable red-zone awareness
-max_map_obstacles    = 6;      % Max map sample points as obstacles (keep low!)
-map_lookahead_m      = 350;    % Forward lookahead distance [m]
-map_half_width_m     = 200;    % Corridor half-width [m]
-map_sample_radius_m  = 13;     % Virtual obstacle radius for map points
+max_map_obstacles    = 24;     % Max active map sample points as obstacles
+map_lookahead_m      = 420;    % Forward lookahead distance [m]
+map_half_width_m     = 260;    % Corridor half-width [m]
+map_sample_radius_m  = 16;     % Virtual obstacle radius for map points
+map_edge_spacing_m   = 60;     % Sampling distance along polygon edges [m]
+map_include_interior_samples = true;  % Also sample polygon interiors
+map_interior_spacing_m = 90;   % Interior grid spacing [m]
+
+% ---- OPTIONAL RECORDING ----
+record_animation_video = true;     % Save MP4 after each completed run
+record_animation_gif   = false;    % Save GIF after each completed run
+recording_fps          = 15;       % Recording frame rate
+animation_output_dir   = fullfile('C:\Users\SERILEG\OneDrive - ABB\Autonomous-docking\MY_NPMC\my work\plots in development process', 'recordings');
+animation_file_prefix  = 'nmpc_run';
 
 % ---- NMPC TUNING ----
-nmpc_N  = 40;           % Prediction horizon steps
+nmpc_N  = 60;           % Prediction horizon steps
 nmpc_dt = 1.0;          % Sample time [s]
 r_safety = 20;          % Safety margin around obstacles [m]
 
@@ -116,7 +120,8 @@ end
 % Pre-sample map polygon edges for fast local queries
 map_sample_pts = [];
 if enable_map_obstacles && ~isempty(map)
-    map_sample_pts = buildMapSamplePoints(map, 100);
+    map_sample_pts = buildMapSamplePoints(map, map_edge_spacing_m, ...
+        map_include_interior_samples, map_interior_spacing_m);
     fprintf('  Map sample points: %d\n', size(map_sample_pts, 1));
 end
 
@@ -184,6 +189,10 @@ n_obs_log         = nan(1, length(t));
 cost_log          = nan(1, length(t));
 traj(:,1) = x;
 steps = 0;
+map_collision = false;
+map_collision_type = '';
+map_collision_idx = 0;
+map_collision_t = NaN;
 
 % PID state
 psi_err_int = 0;
@@ -274,7 +283,16 @@ for i = 1:length(t)
     step_time_log(i) = toc(t_step);
     rt_ratio_log(i) = step_time_log(i) / max(dt, 1e-9);
     
-    % ... collision checks ...
+    % ---- 7) Map collision check (hard safety guard) --------------------
+    if enable_map_obstacles && ~isempty(map)
+        [in_zone, zone_type, zone_idx] = NavUtils.isInsideAnyMapZone(x(4:5), map);
+        if in_zone
+            map_collision = true;
+            map_collision_type = zone_type;
+            map_collision_idx = zone_idx;
+            map_collision_t = t(i);
+        end
+    end
 
     % ---- 8) Logging -----------------------------------------------------
     steps = i;
@@ -300,6 +318,12 @@ for i = 1:length(t)
     end
 
     % ---- 10) Check if done ----------------------------------------------
+    if map_collision
+        fprintf('\n  ✗ MAP COLLISION at t=%.1f s in zone %s #%d\n', ...
+            map_collision_t, map_collision_type, map_collision_idx);
+        break;
+    end
+
     if norm(x(4:5) - waypoints(end,:)') < R_accept
         fprintf('\n  ✓ FINAL WAYPOINT REACHED at t=%.1f s!\n', t(i));
         break;
@@ -434,6 +458,17 @@ cfg_anim.shipImgFile = shipImgPath;
 cfg_anim.shipSize    = 0.08;
 cfg_anim.maxFrames   = 200;
 cfg_anim.pauseTime   = 0.03;
+
+if record_animation_video || record_animation_gif
+    run_stamp = datestr(now, 'yyyy-mm-dd_HHMMSS');
+    cfg_anim.recordVideo = record_animation_video;
+    cfg_anim.recordGif   = record_animation_gif;
+    cfg_anim.recordFps   = recording_fps;
+    cfg_anim.videoFile   = fullfile(animation_output_dir, ...
+        sprintf('%s_%s.mp4', animation_file_prefix, run_stamp));
+    cfg_anim.gifFile     = fullfile(animation_output_dir, ...
+        sprintf('%s_%s.gif', animation_file_prefix, run_stamp));
+end
 
 % Add static obstacles to animation
 for j = 1:length(static_obstacles)
@@ -650,45 +685,84 @@ function plotMapBackground(map)
     end
 end
 
-function pts = buildMapSamplePoints(map, spacing_m)
-% Sample map polygon edges for obstacle queries
+function pts = buildMapSamplePoints(map, spacing_m, include_interior, interior_spacing_m)
+% Sample map polygon edges (and optional interiors) for obstacle queries
     pts = zeros(0,2);
     if nargin < 2 || isempty(spacing_m)
-        spacing_m = 100;
+        spacing_m = 60;
     end
-    if isempty(map) || ~isfield(map, 'polygons') || isempty(map.polygons)
+    if nargin < 3 || isempty(include_interior)
+        include_interior = true;
+    end
+    if nargin < 4 || isempty(interior_spacing_m)
+        interior_spacing_m = max(80, 1.5 * spacing_m);
+    end
+    if isempty(map)
         return;
     end
 
-    for kk = 1:length(map.polygons)
-        px = map.polygons(kk).X(:);
-        py = map.polygons(kk).Y(:);
+    poly_sets = {};
+    if isfield(map, 'polygons') && ~isempty(map.polygons)
+        poly_sets{end+1} = map.polygons; %#ok<AGROW>
+    end
+    if isfield(map, 'mapPoly') && ~isempty(map.mapPoly)
+        poly_sets{end+1} = map.mapPoly; %#ok<AGROW>
+    end
+    if isempty(poly_sets)
+        return;
+    end
 
-        finite = isfinite(px) & isfinite(py);
-        px = px(finite);
-        py = py(finite);
-        if numel(px) < 3
-            continue;
-        end
+    for ss = 1:numel(poly_sets)
+        polys = poly_sets{ss};
+        for kk = 1:length(polys)
+            px = polys(kk).X(:);
+            py = polys(kk).Y(:);
 
-        if px(1) ~= px(end) || py(1) ~= py(end)
-            px(end+1) = px(1); %#ok<AGROW>
-            py(end+1) = py(1); %#ok<AGROW>
-        end
-
-        for ii = 1:(numel(px)-1)
-            p1 = [px(ii), py(ii)];
-            p2 = [px(ii+1), py(ii+1)];
-            seg = p2 - p1;
-            seg_len = norm(seg);
-            if seg_len < 1e-6
+            finite = isfinite(px) & isfinite(py);
+            px = px(finite);
+            py = py(finite);
+            if numel(px) < 3
                 continue;
             end
-            n_samp = max(1, ceil(seg_len / spacing_m));
-            a = (0:n_samp)' / n_samp;
-            seg_pts = p1 + a .* seg;
-            pts = [pts; seg_pts]; %#ok<AGROW>
+
+            if px(1) ~= px(end) || py(1) ~= py(end)
+                px(end+1) = px(1); %#ok<AGROW>
+                py(end+1) = py(1); %#ok<AGROW>
+            end
+
+            for ii = 1:(numel(px)-1)
+                p1 = [px(ii), py(ii)];
+                p2 = [px(ii+1), py(ii+1)];
+                seg = p2 - p1;
+                seg_len = norm(seg);
+                if seg_len < 1e-6
+                    continue;
+                end
+                n_samp = max(1, ceil(seg_len / spacing_m));
+                a = (0:n_samp)' / n_samp;
+                seg_pts = p1 + a .* seg;
+                pts = [pts; seg_pts]; %#ok<AGROW>
+            end
+
+            if include_interior
+                xmin = min(px); xmax = max(px);
+                ymin = min(py); ymax = max(py);
+                xv = xmin:interior_spacing_m:xmax;
+                yv = ymin:interior_spacing_m:ymax;
+                if ~isempty(xv) && ~isempty(yv)
+                    [XX, YY] = meshgrid(xv, yv);
+                    in = inpolygon(XX(:), YY(:), px, py);
+                    if any(in)
+                        pts = [pts; [XX(in), YY(in)]]; %#ok<AGROW>
+                    end
+                end
+            end
         end
+    end
+
+    if ~isempty(pts)
+        % Remove near-duplicates created by edge/interior overlap.
+        pts = unique(round(pts, 1), 'rows');
     end
 end
 
@@ -719,8 +793,26 @@ function obs_local = selectMapObstaclesFromSamples(sample_pts, pos_xy, chi_d, ma
     cand = sample_pts(keep, :);
     dc = vecnorm((cand - pos_xy(:)'), 2, 2);
     [~, ord] = sort(dc, 'ascend');
-    take = ord(1:min(max_keep, numel(ord)));
-    cand = cand(take, :);
+    cand_ord = cand(ord, :);
+
+    % Keep nearest points but enforce minimum spacing so selected
+    % obstacles represent different map regions instead of one cluster.
+    min_sep = max(2*radius_m, 25);
+    cand = zeros(0,2);
+    for ii = 1:size(cand_ord,1)
+        p = cand_ord(ii, :);
+        if isempty(cand)
+            cand = p; %#ok<AGROW>
+        else
+            dmin = min(vecnorm(cand - p, 2, 2));
+            if dmin >= min_sep
+                cand = [cand; p]; %#ok<AGROW>
+            end
+        end
+        if size(cand,1) >= max_keep
+            break;
+        end
+    end
 
     for k = 1:size(cand,1)
         obs_local(k).position = cand(k, :)';
