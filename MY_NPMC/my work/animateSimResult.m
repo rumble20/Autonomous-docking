@@ -19,6 +19,11 @@ function animateSimResult(traj, waypoints, t_vec, harbor, cfg)
 %     .shipSize     Ship width as fraction of range  (default 0.08)
 %     .maxFrames    Max frames rendered (auto-skip)  (default 150)
 %     .pauseTime    Pause between frames [s]         (default 0.05)
+%     .recordVideo  Save MP4 file                    (default false)
+%     .recordGif    Save GIF file                    (default false)
+%     .recordFps    Recording frame rate             (default 15)
+%     .videoFile    Output MP4 path                  (default 'nmpc_run.mp4')
+%     .gifFile      Output GIF path                  (default 'nmpc_run.gif')
 %     .extraPaths   Extra trajectories to overlay:
 %                   cell array of {x_array, y_array, linestyle, legendName}
 %                   e.g. {ts_x, ts_y, 'm--', 'Target ship'}
@@ -54,6 +59,11 @@ showLegend = cfgGet(cfg, 'showLegend', false);
 showCollisionCircles = cfgGet(cfg, 'showCollisionCircles', true);
 dynamicObsHistory = cfgGet(cfg, 'dynamicObsHistory', []);
 dynamicObsRadius = cfgGet(cfg, 'dynamicObsRadius', 20);
+recordVideo = cfgGet(cfg, 'recordVideo', false);
+recordGif = cfgGet(cfg, 'recordGif', false);
+recordFps = cfgGet(cfg, 'recordFps', 15);
+videoFile = cfgGet(cfg, 'videoFile', 'nmpc_run.mp4');
+gifFile = cfgGet(cfg, 'gifFile', 'nmpc_run.gif');
 
 %  1. Load image once  (only when file path changes)
 useImage = true;  % set false if loading fails
@@ -179,7 +189,7 @@ end
 
 % --- Ghost trajectory of the executed path (full run, low opacity) -------
 plot(ax, yPath, xPath, '-', ...
-     'Color', [0.35 0.55 1.00 0.40], 'LineWidth', 1.2, ...
+    'Color', [0.35 0.55 1.00], 'LineWidth', 1.2, ...
     'DisplayName', 'Executed path (ghost)');
 
 % --- Extra paths (e.g. target ship trajectory) ---------------------------
@@ -258,6 +268,55 @@ end
 
 drawnow;
 
+% 3.5. Optional recording setup (MP4/GIF)
+writerObj = [];
+gifInitialized = false;
+videoFileSaved = videoFile;
+if recordVideo
+    [vdir, ~, ~] = fileparts(videoFile);
+    if ~isempty(vdir) && ~exist(vdir, 'dir')
+        mkdir(vdir);
+    end
+    profiles = {'MPEG-4', 'Motion JPEG AVI'};
+    open_ok = false;
+    lastErr = '';
+    for p = 1:numel(profiles)
+        profileName = profiles{p};
+        tryFile = videoFile;
+        if ~strcmpi(profileName, 'MPEG-4')
+            [vp, vn, ~] = fileparts(videoFile);
+            tryFile = fullfile(vp, [vn '.avi']);
+        end
+        try
+            writerObj = VideoWriter(tryFile, profileName);
+            writerObj.FrameRate = max(1, recordFps);
+            open(writerObj);
+            videoFileSaved = tryFile;
+            open_ok = true;
+            if strcmpi(profileName, 'MPEG-4')
+                fprintf('  [animateSimResult] Recording video: "%s"\n', videoFileSaved);
+            else
+                fprintf('  [animateSimResult] MPEG-4 unavailable, recording with %s: "%s"\n', profileName, videoFileSaved);
+            end
+            break;
+        catch ME
+            lastErr = ME.message;
+            writerObj = [];
+        end
+    end
+    if ~open_ok
+        warning('animateSimResult:VideoOpenFailed', 'Could not open video writer: %s', lastErr);
+        recordVideo = false;
+    end
+end
+if recordGif
+    [gdir, ~, ~] = fileparts(gifFile);
+    if ~isempty(gdir) && ~exist(gdir, 'dir')
+        mkdir(gdir);
+    end
+    fprintf('  [animateSimResult] Recording GIF: "%s"\n', gifFile);
+end
+
 %  4. Animate — step through downsampled frames, update ship icon position and live trail
 trailX = yPath(1);
 trailY = xPath(1);
@@ -304,6 +363,32 @@ for k = 1:length(idx)
     end
 
     drawnow;          % flush every frame so the animation is actually visible
+
+    % Write animation frame to outputs (if enabled)
+    if recordVideo || recordGif
+        try
+            frame = getframe(hFig);
+            if recordVideo && ~isempty(writerObj)
+                writeVideo(writerObj, frame);
+            end
+            if recordGif
+                [imRgb, mapGif] = rgb2ind(frame2im(frame), 256);
+                if ~gifInitialized
+                    imwrite(imRgb, mapGif, gifFile, 'gif', 'LoopCount', inf, ...
+                        'DelayTime', max(0.01, 1/max(1, recordFps)));
+                    gifInitialized = true;
+                else
+                    imwrite(imRgb, mapGif, gifFile, 'gif', 'WriteMode', 'append', ...
+                        'DelayTime', max(0.01, 1/max(1, recordFps)));
+                end
+            end
+        catch ME
+            warning('animateSimResult:FrameWriteFailed', 'Frame capture/write failed: %s', ME.message);
+            recordVideo = false;
+            recordGif = false;
+        end
+    end
+
     pause(pauseTime); % pacing: default 0.05 s → ~20 fps
 end
 
@@ -312,6 +397,41 @@ plot(ax, yPath(end), xPath(end), 'ro', ...
     'MarkerSize', 6, 'MarkerFaceColor', [1 0.3 0.3], ...
     'DisplayName', 'End', 'LineWidth', 1.0);
 drawnow;
+
+% Final frame write + cleanup
+if recordVideo || recordGif
+    try
+        frame = getframe(hFig);
+        if recordVideo && ~isempty(writerObj)
+            writeVideo(writerObj, frame);
+        end
+        if recordGif
+            [imRgb, mapGif] = rgb2ind(frame2im(frame), 256);
+            if ~gifInitialized
+                imwrite(imRgb, mapGif, gifFile, 'gif', 'LoopCount', inf, ...
+                    'DelayTime', max(0.01, 1/max(1, recordFps)));
+            else
+                imwrite(imRgb, mapGif, gifFile, 'gif', 'WriteMode', 'append', ...
+                    'DelayTime', max(0.01, 1/max(1, recordFps)));
+            end
+        end
+    catch ME
+        warning('animateSimResult:FinalFrameWriteFailed', 'Final frame capture/write failed: %s', ME.message);
+    end
+end
+if recordVideo && ~isempty(writerObj)
+    try
+        close(writerObj);
+    catch ME
+        warning('animateSimResult:VideoCloseFailed', 'Could not close video writer cleanly: %s', ME.message);
+    end
+end
+if recordVideo
+    fprintf('  [animateSimResult] Video saved: "%s"\n', videoFileSaved);
+end
+if recordGif
+    fprintf('  [animateSimResult] GIF saved: "%s"\n', gifFile);
+end
 
 end % ---- end of animateSimResult ----------------------------------------
 

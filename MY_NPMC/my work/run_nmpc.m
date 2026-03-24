@@ -28,18 +28,10 @@ fprintf('═══════════════════════�
 % ---- WAYPOINTS (rows = [x, y] in meters, NED frame) ----
 waypoints = [-3300, -1550;
              -2800, -1600;
-             -2400, -1900;
-            %  -2100, -2100
-            %  -1700, -1820
-            %  -1370, -1660
-            ];
-
-% waypoints = [-2350, -2050;
-%              -2150, -1950;
-%              -1850, -1950];
+             -2400, -1900;];
 
 % ---- WAYPOINT SPEEDS (m/s) — one per segment + final ----
-waypoint_speeds = [7; 7; 7; 5];
+waypoint_speeds = [7; 7; 5];
 
 % ---- STATIC OBSTACLES (set to empty [] for none) ----
 % Each obstacle: struct with 'position' [x; y] and 'radius' [m]
@@ -48,18 +40,34 @@ static_obstacles = [];
 % static_obstacles(1).radius   = 30;
 
 % ---- SIMULATION PARAMETERS ----
-T_final     = 800;      % Total simulation time [s]
-R_accept    = 50;       % Waypoint acceptance radius [m]
+T_final     = 600;      % Total simulation time [s]
+R_accept    = 85;       % Intermediate waypoint acceptance radius [m] (moderately permissive)
 R_accept_final = 15;    % Final waypoint acceptance radius [m]
+R_accept_final_soft = 32;      % Soft terminal capture radius [m] (used with low-speed hold)
+final_capture_speed_mps = 1.5; % Max speed for soft terminal capture [m/s]
+final_capture_hold_s = 6;      % Time inside soft capture gate before declaring success [s]
 n1_cruise   = 100;      % Aft thruster cruise speed [rpm]
 n2_cruise   = 0;        % Forward thruster (off during cruise)
 
+% ---- ANIMATION RECORDING ----
+enable_animation_recording = true;
+record_fps = 30;
+record_output_dir = 'C:\Users\SERILEG\OneDrive - ABB\Autonomous-docking\MY_NPMC\my work\plots in development process\recordings';
+
+% ---- TERMINAL CONSTRAINT RELAXATION ----
+% These only apply near the final waypoint to avoid local minima/circling.
+enable_terminal_map_relax = true;
+terminal_relax_dist_m = 260;
+terminal_map_exclusion_m = 120;
+terminal_min_avoid_scale = 0.55;
+terminal_disable_map_samples = true;  % disable virtual map sample obstacles near final approach
+
 % ---- MAP OBSTACLE SAMPLING ----
 enable_map_obstacles = true;   % Set false to disable red-zone awareness
-max_map_obstacles    = 10;     % Max map sample points as obstacles
-map_lookahead_m      = 500;    % Base forward lookahead distance [m]
-map_half_width_m     = 260;    % Base corridor half-width [m]
-map_sample_radius_m  = 12;     % Virtual obstacle radius for map points
+max_map_obstacles    = 8;     % Max map sample points as obstacles
+map_lookahead_m      = 400;    % Base forward lookahead distance [m]
+map_half_width_m     = 200;    % Base corridor half-width [m]
+map_sample_radius_m  = 13;     % Virtual obstacle radius for map points
 
 % Balanced guidance/avoidance coupling (global, not map-specific)
 map_lookahead_time_s = 75;     % Forward preview time [s]
@@ -93,12 +101,12 @@ dynamic_obs_trigger_distance_m = 260;       % scalar or one per obstacle
 % ---- NMPC TUNING ----
 nmpc_N  = 40;           % Prediction horizon steps
 nmpc_dt = 1.0;          % Sample time [s]
-r_safety = 24;          % Safety margin around obstacles [m]
+r_safety = 34;          % Safety margin around obstacles [m]
 
 % Q weights: [u, v, r, x, y, psi, n1, n2]
 %   - Higher position weights (x,y) → better obstacle avoidance
 %   - Higher heading weight (psi) → tighter path tracking
-Q_weights = diag([2.0, 0.1, 0.6, 7.0, 7.0, 4.5, 0.001, 0.001]);
+Q_weights = diag([2.0, 0.1, 0.6, 5.0, 5.0, 3.2, 0.001, 0.001]);
 
 % R weights: [alpha1, alpha2, n1_c, n2_c]
 R_weights = diag([0.1, 0.1, 0.01, 0.01]);
@@ -108,10 +116,10 @@ R_rate_weights = diag([0.08, 0.08, 0.006, 0.006]);
 
 % Obstacle-aware reference shaping (inertia/lookahead balance)
 avoid_ref_cfg = struct();
-avoid_ref_cfg.base_margin_m   = 60;    % baseline lateral keep-out in reference shaping
-avoid_ref_cfg.speed_gain_s    = 2.0;   % extra margin = speed_gain * U_d
-avoid_ref_cfg.obs_radius_gain = 0.40;  % how much obstacle radius increases lateral deflection
-avoid_ref_cfg.deflect_sigma   = 0.20;  % smaller -> sharper local avoidance bend
+avoid_ref_cfg.base_margin_m   = 75;    % baseline lateral keep-out in reference shaping
+avoid_ref_cfg.speed_gain_s    = 2.2;   % extra margin = speed_gain * U_d
+avoid_ref_cfg.obs_radius_gain = 0.45;  % how much obstacle radius increases lateral deflection
+avoid_ref_cfg.deflect_sigma   = 0.19;  % smaller -> sharper local avoidance bend
 avoid_ref_cfg.r_ref_max       = 0.14;  % max |r_ref| sent to NMPC [rad/s]
 
 % ---- PID FALLBACK GAINS (used when NMPC fails) ----
@@ -163,6 +171,14 @@ harbor_anim = [];
 if ~isempty(map)
     harbor_anim = HarborAnimHelper(map);
     fprintf('  Harbor map loaded: %d polygons\n', length(map.polygons));
+
+    [in_final_zone, final_zone_type, final_zone_idx] = NavUtils.isInsideAnyMapZone(waypoints(end,:)', map);
+    if in_final_zone
+        warning('Final waypoint is inside map zone (%s #%d). This can block terminal convergence.', ...
+            final_zone_type, final_zone_idx);
+    else
+        fprintf('  Final waypoint is outside mapped forbidden zones\n');
+    end
 end
 
 % Pre-sample map polygon edges for fast local queries
@@ -170,6 +186,15 @@ map_sample_pts = [];
 if enable_map_obstacles && ~isempty(map)
     map_sample_pts = buildMapSamplePoints(map, 100);
     fprintf('  Map sample points: %d\n', size(map_sample_pts, 1));
+
+    d_final_map = min(sqrt(sum((map_sample_pts - waypoints(end,:)).^2, 2)));
+    nominal_keepout = r_safety + map_sample_radius_m + avoid_ref_cfg.base_margin_m;
+    fprintf('  Final waypoint -> nearest map sample: %.1f m (nominal keepout %.1f m)\n', ...
+        d_final_map, nominal_keepout);
+    if d_final_map < nominal_keepout
+        warning(['Final waypoint is close to virtual map keep-out. ', ...
+            'Terminal relaxation may be required to avoid circling.']);
+    end
 end
 
 % Dynamic obstacle initialization (manual-only from user config)
@@ -243,6 +268,9 @@ start_zone_idx = 0;
 dt = nmpc_cfg.dt;
 t  = 0:dt:T_final;
 wp_idx = 1;
+final_capture_count = 0;
+final_capture_steps_needed = max(1, ceil(final_capture_hold_s / dt));
+terminal_mode_announced = false;
 
 % Preallocate logging
 traj     = zeros(8, length(t)+1);
@@ -294,6 +322,7 @@ for i = 1:length(t)
     t_seg = tic;
     [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, waypoints, waypoint_speeds, wp_idx, R_accept);
     xte = computeXTE(x, waypoints, wp_idx);
+    d_final_now = norm(x(4:5) - waypoints(end,:)');
     guide_time_log(i) = toc(t_seg);
 
     % ---- 1.5) Activate/propagate moving obstacles -----------------------
@@ -320,9 +349,44 @@ for i = 1:length(t)
         U_now = max(1.0, sqrt(x(1)^2 + x(2)^2));
         lookahead_now = min(map_lookahead_max_m, max(map_lookahead_min_m, U_now * map_lookahead_time_s));
         half_width_now = min(map_half_width_max_m, max(map_half_width_min_m, 0.45 * lookahead_now));
+
+        on_final_leg = wp_idx >= max(1, size(waypoints,1)-1);
+        terminal_mode_active = enable_terminal_map_relax && on_final_leg && (d_final_now < terminal_relax_dist_m);
+        if terminal_mode_active && ~terminal_mode_announced
+            fprintf('  [terminal-mode] final-leg map-sample relaxation active (d_final=%.1f m)\n', d_final_now);
+            terminal_mode_announced = true;
+        end
+
+        % Near the terminal waypoint, reduce virtual-map corridor aggressiveness.
+        if terminal_mode_active
+            relax_ratio = max(0.25, d_final_now / max(terminal_relax_dist_m, 1));
+            lookahead_now = max(120, relax_ratio * lookahead_now);
+            half_width_now = max(80, relax_ratio * half_width_now);
+        end
+
         obs_map = selectMapObstaclesFromSamples( ...
             map_sample_pts, x(4:5), chi_d, max_map_obstacles, ...
             lookahead_now, half_width_now, map_sample_radius_m);
+
+        % Deterministic terminal fix:
+        % remove virtual map sample obstacles on final approach to avoid
+        % artificial local minima around a valid final waypoint.
+        if terminal_mode_active && terminal_disable_map_samples
+            obs_map = struct('position', {}, 'radius', {});
+        end
+
+        % Avoid building an artificial obstacle wall around the terminal point.
+        if terminal_mode_active && ~isempty(obs_map)
+            keep_obs = true(1, length(obs_map));
+            p_goal = waypoints(end,:)';
+            for jj = 1:length(obs_map)
+                if norm(obs_map(jj).position(1:2) - p_goal) < terminal_map_exclusion_m
+                    keep_obs(jj) = false;
+                end
+            end
+            obs_map = obs_map(keep_obs);
+        end
+
         obs_local = [obs_local, obs_map];
     end
     if enable_dynamic_obstacles && ~isempty(dynamic_obstacles)
@@ -334,8 +398,14 @@ for i = 1:length(t)
 
     % ---- 3) Build reference trajectory ----------------------------------
     t_seg = tic;
+    avoid_ref_step = avoid_ref_cfg;
+    if enable_terminal_map_relax && wp_idx >= max(1, size(waypoints,1)-1) && d_final_now < terminal_relax_dist_m
+        avoid_scale = max(terminal_min_avoid_scale, d_final_now / max(terminal_relax_dist_m, 1));
+        avoid_ref_step.base_margin_m = avoid_ref_cfg.base_margin_m * avoid_scale;
+        avoid_ref_step.speed_gain_s = avoid_ref_cfg.speed_gain_s * avoid_scale;
+    end
     x_ref = buildObstacleAwareRef8(x, chi_d, U_d, nmpc.N, dt, ...
-                                   n1_cruise, n2_cruise, obs_local, avoid_ref_cfg);
+                                   n1_cruise, n2_cruise, obs_local, avoid_ref_step);
     ref_time_log(i) = toc(t_seg);
 
     % ---- 4) Solve NMPC (MODIFIED - now passes u_prev) -------------------
@@ -425,8 +495,24 @@ for i = 1:length(t)
     end
 
     % ---- 10) Check if done ----------------------------------------------
-    if norm(x(4:5) - waypoints(end,:)') < R_accept_final
-        fprintf('\n  ✓ FINAL WAYPOINT REACHED at t=%.1f s!\n', t(i));
+    d_final_now = norm(x(4:5) - waypoints(end,:)');
+    U_now_ship = hypot(x(1), x(2));
+    hard_final_hit = (d_final_now < R_accept_final);
+    soft_final_hit = (d_final_now < R_accept_final_soft) && (U_now_ship <= final_capture_speed_mps);
+
+    if hard_final_hit || soft_final_hit
+        final_capture_count = final_capture_count + 1;
+    else
+        final_capture_count = 0;
+    end
+
+    if hard_final_hit || final_capture_count >= final_capture_steps_needed
+        if hard_final_hit
+            fprintf('\n  ✓ FINAL WAYPOINT REACHED (hard gate %.1f m) at t=%.1f s!\n', R_accept_final, t(i));
+        else
+            fprintf('\n  ✓ FINAL WAYPOINT CAPTURED (soft gate %.1f m, U<=%.1f m/s for %.1f s) at t=%.1f s!\n', ...
+                R_accept_final_soft, final_capture_speed_mps, final_capture_hold_s, t(i));
+        end
         break;
     end
 end
@@ -585,6 +671,16 @@ cfg_anim.shipSize    = 0.08;
 cfg_anim.maxFrames   = 200;
 cfg_anim.pauseTime   = 0.03;
 
+% Recording options (passed to animateSimResult)
+cfg_anim.recordVideo = enable_animation_recording;
+cfg_anim.recordFps   = record_fps;
+timestamp = datestr(now, 'yyyymmdd_HHMMSS');
+record_dir = record_output_dir;
+if cfg_anim.recordVideo && ~exist(record_dir, 'dir')
+    mkdir(record_dir);
+end
+cfg_anim.videoFile = fullfile(record_dir, sprintf('nmpc_run_%s.mp4', timestamp));
+
 % Add static obstacles to animation
 for j = 1:length(static_obstacles)
     cfg_anim.circObs(j).position = static_obstacles(j).position;
@@ -596,7 +692,34 @@ if ~isempty(dynamic_obstacles)
 end
 
 traj_anim = traj(1:6, :);
-animateSimResult(traj_anim, waypoints, t_sim, harbor_anim, cfg_anim);
+fprintf('\n  Launching animation...\n');
+if cfg_anim.recordVideo
+    fprintf('  Recording video to: %s\n', cfg_anim.videoFile);
+else
+    fprintf('  Recording disabled by configuration.\n');
+end
+try
+    animateSimResult(traj_anim, waypoints, t_sim, harbor_anim, cfg_anim);
+catch ME
+    warning('run_nmpc:AnimationRecordFailed', '%s', ME.message);
+    warning('run_nmpc:AnimationRetryNoRecord', 'Retrying animation without recording.');
+    cfg_anim.recordVideo = false;
+    animateSimResult(traj_anim, waypoints, t_sim, harbor_anim, cfg_anim);
+end
+
+if enable_animation_recording
+    if isfile(cfg_anim.videoFile)
+        fprintf('  Video saved: %s\n', cfg_anim.videoFile);
+    else
+        [vp, vn, ~] = fileparts(cfg_anim.videoFile);
+        avi_fallback = fullfile(vp, [vn '.avi']);
+        if isfile(avi_fallback)
+            fprintf('  Video saved (AVI fallback): %s\n', avi_fallback);
+        else
+            fprintf('  WARNING: expected video file not found: %s\n', cfg_anim.videoFile);
+        end
+    end
+end
 
 fprintf('\nDone. Check figures.\n');
 
@@ -607,6 +730,7 @@ function [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, wp, wp_speed, wp_idx, 
 % Simple waypoint steering for 8-state model
     n_wps = size(wp, 1);
     pos   = [x(4); x(5)];
+    d_final = norm(pos - wp(end,:)');
     wp_idx = min(max(1, wp_idx), max(1, n_wps - 1));
 
     while wp_idx < n_wps - 1
@@ -623,10 +747,16 @@ function [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, wp, wp_speed, wp_idx, 
 
         proj = dot(pos - p_from, seg) / seg_l2;
         d_to_waypoint = norm(pos - p_to);
+        p_next = wp(min(wp_idx + 2, n_wps), :)';
+        d_to_next_waypoint = norm(pos - p_next);
         xte_seg = abs(((pos(1)-p_from(1))*seg(2) - (pos(2)-p_from(2))*seg(1)) / max(seg_len, 1e-6));
-        near_segment = xte_seg <= max(2*R_accept, 60);
+        near_segment = xte_seg <= max(3*R_accept, 120);
 
-        if d_to_waypoint <= R_accept || (proj >= 1.0 && near_segment)
+        % Intermediate checkpoints are intentionally skippable when
+        % obstacle/dynamic constraints push the vessel off the nominal line.
+        skip_due_to_progress = (proj >= 0.95) && near_segment;
+        skip_due_to_better_next = (proj >= 0.75) && near_segment && (d_to_next_waypoint < d_to_waypoint);
+        if d_to_waypoint <= R_accept || skip_due_to_progress || skip_due_to_better_next || (proj >= 1.0 && near_segment)
             wp_idx = wp_idx + 1;
         else
             break;
@@ -644,7 +774,9 @@ function [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, wp, wp_speed, wp_idx, 
         s_proj = dot(pos - p1, seg) / seg_len;
         s_proj = max(0, min(seg_len, s_proj));
         U_now = max(1.0, sqrt(x(1)^2 + x(2)^2));
-        lookahead = max(60, 8 * U_now);
+        lookahead_nominal = max(60, 8 * U_now);
+        lookahead_terminal = 30 + 0.55 * d_final;
+        lookahead = max(20, min(lookahead_nominal, lookahead_terminal));
         s_target = min(seg_len, s_proj + lookahead);
         target = p1 + (s_target / seg_len) * seg;
     end
@@ -653,10 +785,13 @@ function [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, wp, wp_speed, wp_idx, 
     chi_d = atan2(dp(2), dp(1));
     U_d = wp_speed(min(wp_idx + 1, length(wp_speed)));
 
-    d_final = norm(pos - wp(end,:)');
-    if d_final < 200
-        U_d = max(2, U_d * d_final / 200);
+    if d_final < 220
+        U_d = min(U_d, 1.2 + 0.03 * d_final);
     end
+    if d_final < 70
+        U_d = min(U_d, 1.0);
+    end
+    U_d = max(0.8, U_d);
 end
 
 function xte = computeXTE(x, wp, wp_idx)
