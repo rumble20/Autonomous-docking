@@ -104,6 +104,12 @@ nmpc_N  = 40;           % Prediction horizon steps
 nmpc_dt = 1.0;          % Sample time [s]
 r_safety = 14;          % Safety margin around obstacles [m]
 
+% Hard guidance-heading corridor (forces bow to stay near checkpoint direction)
+guidance_heading_hard_cfg = struct();
+guidance_heading_hard_cfg.enable = true;
+guidance_heading_hard_cfg.max_err_deg = 30;  % Tighter corridor to reduce lateral sway
+guidance_heading_hard_cfg.use_nominal_waypoint_heading = true;
+
 % Q weights: [u, v, r, x, y, psi, n1, n2]
 %   - Higher position weights (x,y) → better obstacle avoidance
 %   - Higher heading weight (psi) → tighter path tracking
@@ -144,7 +150,7 @@ berth_guidance_cfg.approach_switch_dist_m = 650;
 berth_guidance_cfg.approach_offset_m = 240;
 berth_guidance_cfg.heading_blend_dist_m = 180;
 berth_guidance_cfg.direction_change_hysteresis = 0.15;
-berth_guidance_cfg.requested_terminal_heading_deg = 225;  % Set numeric value to force terminal heading
+berth_guidance_cfg.requested_terminal_heading_deg = NaN;  % If NaN, terminal heading is along final approach path; otherwise use this fixed heading.
 
 % ---- PID FALLBACK GAINS (used when NMPC fails) ----
 pid_Kp = 0.8;
@@ -265,6 +271,8 @@ nmpc_cfg.max_obs = max(1, max_obs_slots);  % At least 1 slot
 nmpc_cfg.r_safety = r_safety;
 nmpc_cfg.enable_diagnostics = false;
 nmpc_cfg.enforce_output_limits = enforce_command_limits;
+nmpc_cfg.enable_heading_hard_constraint = guidance_heading_hard_cfg.enable;
+nmpc_cfg.heading_hard_max_err_deg = guidance_heading_hard_cfg.max_err_deg;
 
 fprintf('\n--- Building NMPC solver (%d obstacle slots) ---\n', nmpc_cfg.max_obs);
 nmpc = NMPC_Container_final(nmpc_cfg);
@@ -342,6 +350,7 @@ for i = 1:length(t)
     % ---- 1) Waypoint guidance -------------------------------------------
     t_seg = tic;
     [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, waypoints, waypoint_speeds, wp_idx, R_accept);
+    chi_wp_nominal = chi_d;
     xte = computeXTE(x, waypoints, wp_idx);
     d_final_now = norm(x(4:5) - waypoints(end,:)');
     guide_time_log(i) = toc(t_seg);
@@ -437,11 +446,16 @@ for i = 1:length(t)
     end
     x_ref = buildObstacleAwareRef8(x, chi_d, U_d, nmpc.N, dt, ...
                                    n1_cruise, n2_cruise, obs_local, avoid_ref_step, berth_cmd);
+    if guidance_heading_hard_cfg.use_nominal_waypoint_heading
+        psi_hard_ref = buildHeadingGuideProfile(chi_wp_nominal, nmpc.N);
+    else
+        psi_hard_ref = buildHeadingGuideProfile(chi_d, nmpc.N);
+    end
     ref_time_log(i) = toc(t_seg);
 
     % ---- 4) Solve NMPC (MODIFIED - now passes u_prev) -------------------
     t_seg = tic;
-    [u_opt, ~, info] = nmpc.solve(x, x_ref, obs_local, u_prev);
+    [u_opt, ~, info] = nmpc.solve(x, x_ref, obs_local, u_prev, psi_hard_ref);
     solve_call_log(i) = toc(t_seg);
     if isfield(info, 'solve_time')
         solve_time_log(i) = info.solve_time;
@@ -890,6 +904,11 @@ function xte = computeXTE(x, wp, wp_idx)
         return;
     end
     xte = ((pos(1)-p1(1))*seg(2) - (pos(2)-p1(2))*seg(1)) / seg_len;
+end
+
+function psi_ref = buildHeadingGuideProfile(chi_cmd, N)
+% Constant heading guide profile for hard heading corridor constraints.
+    psi_ref = repmat(chi_cmd, N+1, 1);
 end
 
 function x_ref = buildSimpleRef8(x0, chi_d, U_d, N, dt, n1_ref, n2_ref)

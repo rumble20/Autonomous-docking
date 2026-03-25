@@ -58,6 +58,8 @@ classdef NMPC_Container_final < handle
         prev_u
 
         enable_diagnostics = false
+        enable_heading_hard_constraint = false
+        heading_hard_max_err_rad = deg2rad(50)
     end
 
     methods
@@ -77,6 +79,9 @@ classdef NMPC_Container_final < handle
             obj.enable_diagnostics = logical(getOr(cfg, 'enable_diagnostics', false));
             obj.enforce_output_limits = logical(getOr(cfg, 'enforce_output_limits', true));
             obj.max_limit_event_log = getOr(cfg, 'max_limit_event_log', obj.max_limit_event_log);
+            obj.enable_heading_hard_constraint = logical(getOr(cfg, 'enable_heading_hard_constraint', false));
+            heading_err_deg = getOr(cfg, 'heading_hard_max_err_deg', rad2deg(obj.heading_hard_max_err_rad));
+            obj.heading_hard_max_err_rad = deg2rad(max(1.0, min(179.0, heading_err_deg)));
 
             fprintf('NMPC_Container_final: N=%d, dt=%.2f, obs_slots=%d\n', ...
                 obj.N, obj.dt, obj.max_obs);
@@ -84,6 +89,10 @@ classdef NMPC_Container_final < handle
             fprintf('  4 controls: [alpha1 alpha2 n1_c n2_c]\n');
             fprintf('  fixed azimuth range: [%.2f, %.2f] rad\n', ...
                 -obj.alpha_hard_max, obj.alpha_hard_max);
+            if obj.enable_heading_hard_constraint
+                fprintf('  heading hard corridor: |psi-psi_{guide}| <= %.1f deg\n', ...
+                    rad2deg(obj.heading_hard_max_err_rad));
+            end
         end
 
         function buildSolver(obj)
@@ -106,9 +115,10 @@ classdef NMPC_Container_final < handle
             P_obs_pos  = SX.sym('P_obs_pos', 2, n_obs);
             P_obs_rad  = SX.sym('P_obs_rad', n_obs, 1);
             P_u_prev   = SX.sym('P_u_prev', nu, 1);  % NEW: Previous applied control
+            P_psi_guide = SX.sym('P_psi_guide', N_h+1, 1);
 
             P_all = vertcat(P_x0, P_xref(:), P_uref(:), P_n_obs_real, ...
-                            P_obs_pos(:), P_obs_rad, P_u_prev);
+                            P_obs_pos(:), P_obs_rad, P_u_prev, P_psi_guide);
             obj.np_total = size(P_all, 1);
 
             %  COST FUNCTION
@@ -211,6 +221,16 @@ classdef NMPC_Container_final < handle
                 g = vertcat(g, -d_n2 - obj.Dn_max * obj.dt);
             end
 
+            % --- Guidance heading hard corridor ---
+            n_heading_ineq = 0;
+            if obj.enable_heading_hard_constraint
+                cmax = cos(obj.heading_hard_max_err_rad);
+                for k = 2:(N_h+1)
+                    g = vertcat(g, cos(X(6,k) - P_psi_guide(k)) - cmax);
+                    n_heading_ineq = n_heading_ineq + 1;
+                end
+            end
+
             %  VARIABLE BOUNDS
             OPT = vertcat(X(:), U(:));
             n_vars = size(OPT, 1);
@@ -245,7 +265,7 @@ classdef NMPC_Container_final < handle
             n_eq        = nx + nx*N_h;
             n_obs_ineq  = n_obs * (N_h+1);
             n_rate_ineq = 8 + 8*(N_h-1);  % alpha + shaft-rate constraints
-            n_constraints = n_eq + n_obs_ineq + n_rate_ineq;
+            n_constraints = n_eq + n_obs_ineq + n_rate_ineq + n_heading_ineq;
 
             lbg = zeros(n_constraints, 1);
             ubg = zeros(n_constraints, 1);
@@ -262,9 +282,17 @@ classdef NMPC_Container_final < handle
 
             % Rate: g <= 0
             rate_start = obs_end + 1;
-            rate_end   = n_constraints;
+            rate_end   = obs_end + n_rate_ineq;
             lbg(rate_start:rate_end) = -inf;
             ubg(rate_start:rate_end) = 0;
+
+            % Heading corridor: g >= 0
+            if n_heading_ineq > 0
+                head_start = rate_end + 1;
+                head_end = n_constraints;
+                lbg(head_start:head_end) = 0;
+                ubg(head_start:head_end) = inf;
+            end
 
             %  BUILD SOLVER
             nlp = struct('f', J, 'x', OPT, 'g', g, 'p', P_all);
@@ -294,10 +322,13 @@ classdef NMPC_Container_final < handle
             fprintf('    - Equalities: %d (initial + dynamics)\n', n_eq);
             fprintf('    - Obstacle:   %d (slots × horizon)\n', n_obs_ineq);
             fprintf('    - Rate:       %d (first-step + consecutive)\n', n_rate_ineq);
+            if n_heading_ineq > 0
+                fprintf('    - Heading:    %d (hard corridor)\n', n_heading_ineq);
+            end
         end
 
 
-        function [u_opt, X_pred, info] = solve(obj, x0, x_ref, obstacles, u_prev)
+        function [u_opt, X_pred, info] = solve(obj, x0, x_ref, obstacles, u_prev, psi_guide_ref)
             % solve  Solve NMPC problem
             %
             %   [u_opt, X_pred, info] = solve(obj, x0, x_ref, obstacles, u_prev)
@@ -306,7 +337,8 @@ classdef NMPC_Container_final < handle
             %       x0        - Current state (8x1)
             %       x_ref     - Reference trajectory (8 x N+1)
             %       obstacles - Array of obstacles (optional)
-            %       u_prev    - Previous applied control (4x1) - NEW!
+            %       u_prev        - Previous applied control (4x1)
+            %       psi_guide_ref - Guidance heading profile (N+1 x 1, rad)
             %
             %   Outputs:
             %       u_opt  - Optimal control for current step (4x1)
@@ -333,6 +365,15 @@ classdef NMPC_Container_final < handle
                 end
             end
 
+            if nargin < 6 || isempty(psi_guide_ref)
+                psi_guide_ref = x_ref(6, :)';
+            else
+                psi_guide_ref = psi_guide_ref(:);
+                if numel(psi_guide_ref) ~= (N_h+1)
+                    psi_guide_ref = repmat(psi_guide_ref(1), N_h+1, 1);
+                end
+            end
+
             % Obstacle setup
             obs_pos = 1e8 * ones(2, n_obs);
             obs_rad = zeros(n_obs, 1);
@@ -352,7 +393,7 @@ classdef NMPC_Container_final < handle
             u_ref(4,:) = x0(8);
 
             % Build parameter vector (now includes u_prev)
-            p_val = [x0(:); x_ref(:); u_ref(:); n_real; obs_pos(:); obs_rad(:); u_prev(:)];
+            p_val = [x0(:); x_ref(:); u_ref(:); n_real; obs_pos(:); obs_rad(:); u_prev(:); psi_guide_ref(:)];
 
             % Initial guess (warm start)
             if ~isempty(obj.prev_sol)

@@ -232,3 +232,9 @@ Even if with the current limits it still works, the high volatile changing yaw n
 ## Modelled dimension of the ship
 
 the container model has been modified in the way described but still keeps all the original hydrodynamic parameters; for the sake of busier scenario simulations and simulations in tighter harbour environments the dimensions of the ship has been significantly scaled into a smaller size
+
+## To explain the reason behind the lateral motion in certain simulations
+
+The vessel model is fully dynamic with sway and inertia, so crab-like motion is physically possible.
+Even if it has now been implemented a hard heading corridor, with low sway penalty and strong obstacle/terminal effects, lateral components can remain even while progress continues.
+
