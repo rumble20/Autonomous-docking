@@ -89,14 +89,14 @@ enable_dynamic_replay_check = true;   % Determinism self-check
 % - Headings are in degrees (0=+x/North, 90=+y/East).
 % - Speeds are in m/s (scalar or one per obstacle).
 dynamic_obs_positions_xy = [-2600 -1600];  % Example: [-3000 -1700; -2920 -1740]
-dynamic_obs_headings_deg = [270];           % Example: [90; 110]
+dynamic_obs_headings_deg = [230];           % Example: [90; 110]
 dynamic_obs_speeds_mps   = [5];             % [] uses dynamic_obs_speed_mps for all
 
 % Dynamic obstacle motion trigger mode:
 % - 'immediate': obstacles move from t=0
 % - 'proximity': obstacles stay stationary until ship is close
 dynamic_obs_start_mode = 'proximity';       % immediate | proximity
-dynamic_obs_trigger_distance_m = 260;       % scalar or one per obstacle
+dynamic_obs_trigger_distance_m = 250;       % scalar or one per obstacle
 
 % ---- NMPC TUNING ----
 nmpc_N  = 40;           % Prediction horizon steps
