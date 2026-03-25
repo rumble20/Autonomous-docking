@@ -1,0 +1,104 @@
+1) Surge speed limit
+
+- u_min = 0.1 m/s
+
+- u_max = 12 m/s (approximately 0.2 to 23 knots operational range)
+
+
+
+2) Sway speed limit
+
+- v_min = -3 m/s
+
+- v_max = +3 m/s (realistic lateral drift bounds)
+
+
+
+3) Yaw rate limit
+
+- r_min = -0.15 rad/s
+
+- r_max = +0.15 rad/s (approximately ±8.6 deg/s, realistic for large vessel)
+
+
+
+4) Shaft speed limits (both azipods)
+
+- n_min = -80 rpm
+
+- n_max = 160 rpm
+
+
+
+5) Azimuth angle limits (both azipods)
+
+- alpha_min = -pi rad
+
+- alpha_max = +pi rad (full rotation capability)
+
+
+
+6) Commanded shaft limits (both commands n1_c and n2_c)
+
+- same as shaft state limits: [-80, 160] rpm
+
+
+
+Moving (state-dependent) actuation limits that are very important:
+
+
+
+1) Azimuth steering rate limit
+
+- alpha_dot is limited to ±0.21 rad/s (approximately 12 deg/s)
+
+- This is a mechanical constraint on how fast the azipod can rotate.
+
+- In the NMPC, this is enforced as: |alpha(k+1) - alpha(k)| <= alpha_rate_max * dt
+
+
+
+2) First-step azimuth rate constraint
+
+- The first control step must also respect the rate limit relative to the previous applied control.
+
+- Enforced as: |alpha(1) - alpha_prev| <= alpha_rate_max * dt
+
+- Without this, the NMPC may command azimuth angles that are physically unreachable in one timestep.
+
+- Missing this constraint causes trajectory mismatch and oscillatory behavior (spiral instability).
+
+
+
+3) Shaft first-order dynamics
+
+- n_dot = (n_command - n_actual) / Tm
+
+- This means shaft speed cannot jump instantly.
+
+
+
+4) Shaft acceleration hard limit
+
+- n_dot is clipped to [-10, +10] rpm/s
+
+- So even if command changes a lot, actual shaft speed changes gradually.
+
+
+
+5) Time constant Tm depends on current shaft speed
+
+- Tm = 5.65 / (|n|/60) when |n| > 18 rpm, otherwise Tm = 18.83
+
+- Tm is bounded to [1, 20] seconds for numerical stability.
+
+- This gives slower response at low shaft speeds and faster response at high speeds.
+
+
+
+6) Heading kinematics
+
+- psi_dot = r
+
+- So heading change rate is directly limited by yaw-rate feasibility.
+

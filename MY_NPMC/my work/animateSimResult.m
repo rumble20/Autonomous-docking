@@ -19,8 +19,8 @@ function animateSimResult(traj, waypoints, t_vec, harbor, cfg)
 %     .shipSize     Ship width as fraction of range  (default 0.08)
 %     .maxFrames    Max frames rendered (auto-skip)  (default 150)
 %     .pauseTime    Pause between frames [s]         (default 0.05)
-%     .recordVideo  Save MP4 recording               (default false)
-%     .recordGif    Save GIF recording               (default false)
+%     .recordVideo  Save MP4 file                    (default false)
+%     .recordGif    Save GIF file                    (default false)
 %     .recordFps    Recording frame rate             (default 15)
 %     .videoFile    Output MP4 path                  (default 'nmpc_run.mp4')
 %     .gifFile      Output GIF path                  (default 'nmpc_run.gif')
@@ -57,6 +57,8 @@ pauseTime  = cfgGet(cfg, 'pauseTime',  0.05);
 imgFile    = cfgGet(cfg, 'shipImgFile', 'vessel_top.png');
 showLegend = cfgGet(cfg, 'showLegend', false);
 showCollisionCircles = cfgGet(cfg, 'showCollisionCircles', true);
+dynamicObsHistory = cfgGet(cfg, 'dynamicObsHistory', []);
+dynamicObsRadius = cfgGet(cfg, 'dynamicObsRadius', 20);
 recordVideo = cfgGet(cfg, 'recordVideo', false);
 recordGif = cfgGet(cfg, 'recordGif', false);
 recordFps = cfgGet(cfg, 'recordFps', 15);
@@ -171,9 +173,23 @@ if showCollisionCircles && isfield(cfg, 'circObs') && ~isempty(cfg.circObs)
     end
 end
 
+hDynObs = gobjects(0);
+if ~isempty(dynamicObsHistory)
+    th_dyn = linspace(0, 2*pi, 40);
+    nDyn = size(dynamicObsHistory, 1);
+    dynCols = lines(max(1, nDyn));
+    hDynObs = gobjects(nDyn, 1);
+    for k = 1:nDyn
+        xk = dynamicObsHistory(k,2,1);
+        yk = dynamicObsHistory(k,1,1);
+        hDynObs(k) = plot(ax, xk + dynamicObsRadius*cos(th_dyn), yk + dynamicObsRadius*sin(th_dyn), ...
+            '--', 'Color', dynCols(k,:), 'LineWidth', 1.2, 'HandleVisibility', 'off');
+    end
+end
+
 % --- Ghost trajectory of the executed path (full run, low opacity) -------
 plot(ax, yPath, xPath, '-', ...
-     'Color', [0.35 0.55 1.00 0.40], 'LineWidth', 1.2, ...
+    'Color', [0.35 0.55 1.00], 'LineWidth', 1.2, ...
     'DisplayName', 'Executed path (ghost)');
 
 % --- Extra paths (e.g. target ship trajectory) ---------------------------
@@ -252,29 +268,51 @@ end
 
 drawnow;
 
-% 3.5 Optional recorder setup
+% 3.5. Optional recording setup (MP4/GIF)
 writerObj = [];
 gifInitialized = false;
+videoFileSaved = videoFile;
 if recordVideo
-    [videoDir, ~, ~] = fileparts(videoFile);
-    if ~isempty(videoDir) && ~exist(videoDir, 'dir')
-        mkdir(videoDir);
+    [vdir, ~, ~] = fileparts(videoFile);
+    if ~isempty(vdir) && ~exist(vdir, 'dir')
+        mkdir(vdir);
     end
-    try
-        writerObj = VideoWriter(videoFile, 'MPEG-4');
-        writerObj.FrameRate = max(1, recordFps);
-        open(writerObj);
-        fprintf('  [animateSimResult] Recording MP4: "%s"\n', videoFile);
-    catch ME
-        warning('animateSimResult:VideoWriterFailed', '%s', ME.message);
+    profiles = {'MPEG-4', 'Motion JPEG AVI'};
+    open_ok = false;
+    lastErr = '';
+    for p = 1:numel(profiles)
+        profileName = profiles{p};
+        tryFile = videoFile;
+        if ~strcmpi(profileName, 'MPEG-4')
+            [vp, vn, ~] = fileparts(videoFile);
+            tryFile = fullfile(vp, [vn '.avi']);
+        end
+        try
+            writerObj = VideoWriter(tryFile, profileName);
+            writerObj.FrameRate = max(1, recordFps);
+            open(writerObj);
+            videoFileSaved = tryFile;
+            open_ok = true;
+            if strcmpi(profileName, 'MPEG-4')
+                fprintf('  [animateSimResult] Recording video: "%s"\n', videoFileSaved);
+            else
+                fprintf('  [animateSimResult] MPEG-4 unavailable, recording with %s: "%s"\n', profileName, videoFileSaved);
+            end
+            break;
+        catch ME
+            lastErr = ME.message;
+            writerObj = [];
+        end
+    end
+    if ~open_ok
+        warning('animateSimResult:VideoOpenFailed', 'Could not open video writer: %s', lastErr);
         recordVideo = false;
-        writerObj = [];
     end
 end
 if recordGif
-    [gifDir, ~, ~] = fileparts(gifFile);
-    if ~isempty(gifDir) && ~exist(gifDir, 'dir')
-        mkdir(gifDir);
+    [gdir, ~, ~] = fileparts(gifFile);
+    if ~isempty(gdir) && ~exist(gdir, 'dir')
+        mkdir(gdir);
     end
     fprintf('  [animateSimResult] Recording GIF: "%s"\n', gifFile);
 end
@@ -309,26 +347,48 @@ for k = 1:length(idx)
         set(hTime, 'String', sprintf('t = %.0f s', t_vec(i)));
     end
 
-    % Optional frame recording
-    if recordVideo || recordGif
-        frm = getframe(hFig);
-        if recordVideo && ~isempty(writerObj)
-            writeVideo(writerObj, frm);
-        end
-        if recordGif
-            [imind, cm] = rgb2ind(frame2im(frm), 256);
-            if ~gifInitialized
-                imwrite(imind, cm, gifFile, 'gif', 'LoopCount', inf, ...
-                    'DelayTime', max(0.01, 1/max(1, recordFps)));
-                gifInitialized = true;
+    % Update dynamic obstacles (if provided)
+    if ~isempty(hDynObs)
+        th_dyn = linspace(0, 2*pi, 40);
+        for d = 1:length(hDynObs)
+            xk = dynamicObsHistory(d,2,min(i, size(dynamicObsHistory,3)));
+            yk = dynamicObsHistory(d,1,min(i, size(dynamicObsHistory,3)));
+            if isfinite(xk) && isfinite(yk)
+                set(hDynObs(d), 'XData', xk + dynamicObsRadius*cos(th_dyn), ...
+                    'YData', yk + dynamicObsRadius*sin(th_dyn), 'Visible', 'on');
             else
-                imwrite(imind, cm, gifFile, 'gif', 'WriteMode', 'append', ...
-                    'DelayTime', max(0.01, 1/max(1, recordFps)));
+                set(hDynObs(d), 'Visible', 'off');
             end
         end
     end
 
     drawnow;          % flush every frame so the animation is actually visible
+
+    % Write animation frame to outputs (if enabled)
+    if recordVideo || recordGif
+        try
+            frame = getframe(hFig);
+            if recordVideo && ~isempty(writerObj)
+                writeVideo(writerObj, frame);
+            end
+            if recordGif
+                [imRgb, mapGif] = rgb2ind(frame2im(frame), 256);
+                if ~gifInitialized
+                    imwrite(imRgb, mapGif, gifFile, 'gif', 'LoopCount', inf, ...
+                        'DelayTime', max(0.01, 1/max(1, recordFps)));
+                    gifInitialized = true;
+                else
+                    imwrite(imRgb, mapGif, gifFile, 'gif', 'WriteMode', 'append', ...
+                        'DelayTime', max(0.01, 1/max(1, recordFps)));
+                end
+            end
+        catch ME
+            warning('animateSimResult:FrameWriteFailed', 'Frame capture/write failed: %s', ME.message);
+            recordVideo = false;
+            recordGif = false;
+        end
+    end
+
     pause(pauseTime); % pacing: default 0.05 s → ~20 fps
 end
 
@@ -338,26 +398,36 @@ plot(ax, yPath(end), xPath(end), 'ro', ...
     'DisplayName', 'End', 'LineWidth', 1.0);
 drawnow;
 
-% Write final frame and close recorders
+% Final frame write + cleanup
 if recordVideo || recordGif
-    frm = getframe(hFig);
-    if recordVideo && ~isempty(writerObj)
-        writeVideo(writerObj, frm);
-    end
-    if recordGif
-        [imind, cm] = rgb2ind(frame2im(frm), 256);
-        if ~gifInitialized
-            imwrite(imind, cm, gifFile, 'gif', 'LoopCount', inf, ...
-                'DelayTime', max(0.01, 1/max(1, recordFps)));
-        else
-            imwrite(imind, cm, gifFile, 'gif', 'WriteMode', 'append', ...
-                'DelayTime', max(0.01, 1/max(1, recordFps)));
+    try
+        frame = getframe(hFig);
+        if recordVideo && ~isempty(writerObj)
+            writeVideo(writerObj, frame);
         end
+        if recordGif
+            [imRgb, mapGif] = rgb2ind(frame2im(frame), 256);
+            if ~gifInitialized
+                imwrite(imRgb, mapGif, gifFile, 'gif', 'LoopCount', inf, ...
+                    'DelayTime', max(0.01, 1/max(1, recordFps)));
+            else
+                imwrite(imRgb, mapGif, gifFile, 'gif', 'WriteMode', 'append', ...
+                    'DelayTime', max(0.01, 1/max(1, recordFps)));
+            end
+        end
+    catch ME
+        warning('animateSimResult:FinalFrameWriteFailed', 'Final frame capture/write failed: %s', ME.message);
     end
 end
 if recordVideo && ~isempty(writerObj)
-    close(writerObj);
-    fprintf('  [animateSimResult] MP4 saved: "%s"\n', videoFile);
+    try
+        close(writerObj);
+    catch ME
+        warning('animateSimResult:VideoCloseFailed', 'Could not close video writer cleanly: %s', ME.message);
+    end
+end
+if recordVideo
+    fprintf('  [animateSimResult] Video saved: "%s"\n', videoFileSaved);
 end
 if recordGif
     fprintf('  [animateSimResult] GIF saved: "%s"\n', gifFile);
