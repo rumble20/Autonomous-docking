@@ -28,10 +28,11 @@ fprintf('═══════════════════════�
 % ---- WAYPOINTS (rows = [x, y] in meters, NED frame) ----
 waypoints = [-3300, -1550;
              -2800, -1600;
-             -2400, -1900;];
+             -2400, -1900;
+             -2050, -2150;];
 
 % ---- WAYPOINT SPEEDS (m/s) — one per segment + final ----
-waypoint_speeds = [7; 7; 5];
+waypoint_speeds = [4.5; 4.5; 4.0; 3.0];
 
 % ---- STATIC OBSTACLES (set to empty [] for none) ----
 % Each obstacle: struct with 'position' [x; y] and 'radius' [m]
@@ -46,7 +47,7 @@ R_accept_final = 15;    % Final waypoint acceptance radius [m]
 R_accept_final_soft = 32;      % Soft terminal capture radius [m] (used with low-speed hold)
 final_capture_speed_mps = 1.5; % Max speed for soft terminal capture [m/s]
 final_capture_hold_s = 6;      % Time inside soft capture gate before declaring success [s]
-n1_cruise   = 100;      % Aft thruster cruise speed [rpm]
+n1_cruise   = 70;       % Aft thruster cruise speed [rpm]
 n2_cruise   = 0;        % Forward thruster (off during cruise)
 
 % ---- ANIMATION RECORDING ----
@@ -67,7 +68,7 @@ enable_map_obstacles = true;   % Set false to disable red-zone awareness
 max_map_obstacles    = 8;     % Max map sample points as obstacles
 map_lookahead_m      = 400;    % Base forward lookahead distance [m]
 map_half_width_m     = 200;    % Base corridor half-width [m]
-map_sample_radius_m  = 13;     % Virtual obstacle radius for map points
+map_sample_radius_m  = 4;      % Virtual obstacle radius for map points
 
 % Balanced guidance/avoidance coupling (global, not map-specific)
 map_lookahead_time_s = 75;     % Forward preview time [s]
@@ -101,7 +102,7 @@ dynamic_obs_trigger_distance_m = 250;       % scalar or one per obstacle
 % ---- NMPC TUNING ----
 nmpc_N  = 40;           % Prediction horizon steps
 nmpc_dt = 1.0;          % Sample time [s]
-r_safety = 34;          % Safety margin around obstacles [m]
+r_safety = 14;          % Safety margin around obstacles [m]
 
 % Q weights: [u, v, r, x, y, psi, n1, n2]
 %   - Higher position weights (x,y) → better obstacle avoidance
@@ -116,11 +117,34 @@ R_rate_weights = diag([0.08, 0.08, 0.006, 0.006]);
 
 % Obstacle-aware reference shaping (inertia/lookahead balance)
 avoid_ref_cfg = struct();
-avoid_ref_cfg.base_margin_m   = 75;    % baseline lateral keep-out in reference shaping
-avoid_ref_cfg.speed_gain_s    = 2.2;   % extra margin = speed_gain * U_d
-avoid_ref_cfg.obs_radius_gain = 0.45;  % how much obstacle radius increases lateral deflection
+avoid_ref_cfg.base_margin_m   = 22;    % baseline lateral keep-out in reference shaping
+avoid_ref_cfg.speed_gain_s    = 0.7;   % extra margin = speed_gain * U_d
+avoid_ref_cfg.obs_radius_gain = 0.25;  % how much obstacle radius increases lateral deflection
 avoid_ref_cfg.deflect_sigma   = 0.19;  % smaller -> sharper local avoidance bend
 avoid_ref_cfg.r_ref_max       = 0.14;  % max |r_ref| sent to NMPC [rad/s]
+
+% ---- CONTROLLER SAFETY SETTINGS ----
+enforce_command_limits = true;
+
+% ---- SHIP HITBOX (rectangle) ----
+enable_rectangular_hitbox = true;
+ship_geometry_scale = 0.50;  % Geometry-only scaling: keeps hydrodynamic model untouched.
+hitbox_cfg = struct();
+hitbox_cfg.length_m = 175 * ship_geometry_scale;
+hitbox_cfg.beam_m = 25.4 * ship_geometry_scale;
+hitbox_cfg.safety_margin_m = 2;
+hitbox_cfg.sample_points = 9;  % footprint samples for map collision checks
+hitbox_cfg.enable = enable_rectangular_hitbox;
+hitbox_cfg.use_point_fallback = ~enable_rectangular_hitbox;
+
+% ---- BERTHING DIRECTION / TERMINAL HEADING GUIDANCE ----
+berth_guidance_cfg = struct();
+berth_guidance_cfg.enable = true;
+berth_guidance_cfg.approach_switch_dist_m = 650;
+berth_guidance_cfg.approach_offset_m = 240;
+berth_guidance_cfg.heading_blend_dist_m = 180;
+berth_guidance_cfg.direction_change_hysteresis = 0.15;
+berth_guidance_cfg.requested_terminal_heading_deg = 225;  % Set numeric value to force terminal heading
 
 % ---- PID FALLBACK GAINS (used when NMPC fails) ----
 pid_Kp = 0.8;
@@ -240,29 +264,24 @@ nmpc_cfg.R_rate = R_rate_weights;
 nmpc_cfg.max_obs = max(1, max_obs_slots);  % At least 1 slot
 nmpc_cfg.r_safety = r_safety;
 nmpc_cfg.enable_diagnostics = false;
+nmpc_cfg.enforce_output_limits = enforce_command_limits;
 
 fprintf('\n--- Building NMPC solver (%d obstacle slots) ---\n', nmpc_cfg.max_obs);
 nmpc = NMPC_Container_final(nmpc_cfg);
 nmpc.buildSolver();
+
+fprintf('  Hydrodynamic model hull: L=%.1f m (container.m / NMPC model)\n', nmpc.L);
+fprintf('  Collision/animation footprint: L=%.1f m, B=%.1f m, margin=%.1f m\n', ...
+    hitbox_cfg.length_m, hitbox_cfg.beam_m, hitbox_cfg.safety_margin_m);
+
+[ship_hitbox_half_diag, ~] = getShipHitboxGeometry(hitbox_cfg);
+avoid_ref_cfg.extra_clearance_m = ship_hitbox_half_diag;
 
 %% ===== Initial state ====================================================
 x0_heading = atan2(waypoints(2,2) - waypoints(1,2), ...
                    waypoints(2,1) - waypoints(1,1));
 % State: [u, v, r, x, y, psi, n1, n2]
 x = [7; 0; 0; waypoints(1,1); waypoints(1,2); x0_heading; n1_cruise; n2_cruise];
-
-% Check if starting inside a map zone (grace period)
-in_start_zone = false;
-start_zone_type = '';
-start_zone_idx = 0;
-% if ~isempty(map)
-%     [in_start_zone, start_zone_type, start_zone_idx] = ...
-%         NavUtils.isInsideAnyMapZone(x(4:5), map);
-%     if in_start_zone
-%         fprintf('  [WARN] Start inside map zone (%s #%d) — grace enabled.\n', ...
-%             start_zone_type, start_zone_idx);
-%     end
-% end
 
 %% ===== Simulation setup =================================================
 dt = nmpc_cfg.dt;
@@ -305,8 +324,10 @@ end
 psi_err_int = 0;
 psi_err_prev = 0;
 
-% Previous control for NMPC rate limiting (NEW!)
+% Previous control for NMPC rate limiting 
 u_prev = [0; 0; n1_cruise; n2_cruise];
+berth_state = struct('selected_dir', [NaN; NaN], 'terminal_heading', NaN, 'mode', 'nominal');
+limit_events_total = 0;
 
 fprintf('\n  Waypoints: ');
 for i = 1:size(waypoints, 1)
@@ -344,6 +365,7 @@ for i = 1:length(t)
     % ---- 2) Gather obstacles (static + map samples) ---------------------
     t_seg = tic;
     obs_local = static_obstacles;
+    obs_source_tags = repmat({'static'}, 1, length(static_obstacles));
     
     if enable_map_obstacles && ~isempty(map_sample_pts)
         U_now = max(1.0, sqrt(x(1)^2 + x(2)^2));
@@ -388,12 +410,21 @@ for i = 1:length(t)
         end
 
         obs_local = [obs_local, obs_map];
+        if ~isempty(obs_map)
+            obs_source_tags = [obs_source_tags, repmat({'map-sample'}, 1, length(obs_map))];
+        end
     end
     if enable_dynamic_obstacles && ~isempty(dynamic_obstacles)
         obs_dyn = dynamicToCircleObstacles(dynamic_obstacles);
         obs_local = [obs_local, obs_dyn];
+        if ~isempty(obs_dyn)
+            obs_source_tags = [obs_source_tags, repmat({'dynamic'}, 1, length(obs_dyn))];
+        end
         obs_pack_drift_log(i) = computeDynamicPackagingDrift(dynamic_obstacles, obs_local);
     end
+
+    [chi_d, berth_cmd, berth_state] = selectBerthApproachGuidance( ...
+        x, waypoints, wp_idx, chi_d, obs_local, berth_guidance_cfg, berth_state);
     obs_time_log(i) = toc(t_seg);
 
     % ---- 3) Build reference trajectory ----------------------------------
@@ -405,7 +436,7 @@ for i = 1:length(t)
         avoid_ref_step.speed_gain_s = avoid_ref_cfg.speed_gain_s * avoid_scale;
     end
     x_ref = buildObstacleAwareRef8(x, chi_d, U_d, nmpc.N, dt, ...
-                                   n1_cruise, n2_cruise, obs_local, avoid_ref_step);
+                                   n1_cruise, n2_cruise, obs_local, avoid_ref_step, berth_cmd);
     ref_time_log(i) = toc(t_seg);
 
     % ---- 4) Solve NMPC (MODIFIED - now passes u_prev) -------------------
@@ -424,6 +455,9 @@ for i = 1:length(t)
     end
     if isfield(info, 'cost')
         cost_log(i) = info.cost;
+    end
+    if isfield(info, 'limit_events') && ~isempty(info.limit_events)
+        limit_events_total = limit_events_total + numel(info.limit_events);
     end
 
     % ---- 5) PID fallback if NMPC fails ----------------------------------
@@ -457,11 +491,44 @@ for i = 1:length(t)
     rt_ratio_log(i) = step_time_log(i) / max(dt, 1e-9);
 
     % ---- 7) Collision checks (map + circle obstacles) ------------------
-    [hit_obs, ~, ~] = detectCircleObstacleHit(x(4:5), obs_local, 0.0);
-    [hit_map, ~, ~] = NavUtils.isInsideAnyMapZone(x(4:5), map);
+    % Hard-collision stop uses only physical obstacles here.
+    % Virtual map-sample obstacles remain in NMPC optimization, but they should
+    % not trigger simulation termination; true map contact is handled by hit_map.
+    obs_hard = obs_local;
+    if ~isempty(obs_hard) && ~isempty(obs_source_tags)
+        keep_hard = true(1, length(obs_hard));
+        n_tag = min(length(obs_source_tags), length(obs_hard));
+        for kk = 1:n_tag
+            if strcmpi(obs_source_tags{kk}, 'map-sample')
+                keep_hard(kk) = false;
+            end
+        end
+        obs_hard = obs_hard(keep_hard);
+    end
+
+    if hitbox_cfg.enable
+        footprint = buildShipFootprint(x(4:5), x(6), hitbox_cfg);
+        [hit_obs, hit_obs_idx, min_sep_obs] = detectFootprintObstacleHit(footprint, obs_hard);
+        [hit_map, hit_map_type, hit_map_idx] = detectFootprintMapHit(footprint, map, hitbox_cfg.sample_points);
+    else
+        [hit_obs, hit_obs_idx, min_sep_obs] = detectCircleObstacleHit(x(4:5), obs_hard, 0.0);
+        [hit_map, hit_map_type, hit_map_idx] = NavUtils.isInsideAnyMapZone(x(4:5), map);
+    end
     if hit_obs || hit_map
         collision_log(i) = true;
         fprintf('  [COLLISION] t=%.1f s hit_obs=%d hit_map=%d\n', t(i), hit_obs, hit_map);
+        if hit_obs && hit_obs_idx >= 1 && hit_obs_idx <= length(obs_hard)
+            src = 'hard-obstacle';
+            c_hit = obs_hard(hit_obs_idx).position(1:2);
+            d_center = norm(x(4:5) - c_hit);
+            fprintf('    [COLLISION-DETAIL] source=%s idx=%d center_dist=%.2f m radius=%.2f m sep=%.2f m\n', ...
+                src, hit_obs_idx, d_center, obs_hard(hit_obs_idx).radius, min_sep_obs);
+        elseif isfinite(min_sep_obs)
+            fprintf('    [COLLISION-DETAIL] obstacle sep=%.2f m\n', min_sep_obs);
+        end
+        if hit_map
+            fprintf('    [COLLISION-DETAIL] map_zone=%s idx=%d\n', hit_map_type, hit_map_idx);
+        end
         steps = i;
         traj(:, i+1)  = x;
         ctrl(:, i)    = u_opt;
@@ -478,7 +545,7 @@ for i = 1:length(t)
     solve_ok(i)   = info.success;
     xte_log(i)    = xte;
     
-    % Update previous control for next iteration (NEW!)
+    % Update previous control for next iteration
     u_prev = u_opt;
 
     % ---- 9) Progress print ----------------------------------------------
@@ -551,6 +618,7 @@ if any(isfinite(obs_pack_drift_log))
     fprintf('  Dynamic packaging drift [m]: max=%.3f\n', max(obs_pack_drift_log(isfinite(obs_pack_drift_log))));
 end
 fprintf('  Collisions detected: %d\n', sum(collision_log));
+fprintf('  Limit events (post-solve bounded): %d\n', limit_events_total);
 
 valid_step = isfinite(step_time_log);
 valid_solve = isfinite(solve_time_log);
@@ -680,6 +748,17 @@ if cfg_anim.recordVideo && ~exist(record_dir, 'dir')
     mkdir(record_dir);
 end
 cfg_anim.videoFile = fullfile(record_dir, sprintf('nmpc_run_%s.mp4', timestamp));
+
+% Visualize ship hitbox in animation as a light-blue rectangle.
+cfg_anim.hitbox = struct();
+cfg_anim.hitbox.enable = hitbox_cfg.enable;
+cfg_anim.hitbox.length_m = hitbox_cfg.length_m;
+cfg_anim.hitbox.beam_m = hitbox_cfg.beam_m;
+cfg_anim.hitbox.safety_margin_m = hitbox_cfg.safety_margin_m;
+cfg_anim.hitbox.edge_color = [0.45 0.82 1.00];
+cfg_anim.hitbox.face_color = [0.45 0.82 1.00];
+cfg_anim.hitbox.face_alpha = 0.10;
+cfg_anim.hitbox.line_width = 1.4;
 
 % Add static obstacles to animation
 for j = 1:length(static_obstacles)
@@ -837,11 +916,17 @@ function x_ref = buildSimpleRef8(x0, chi_d, U_d, N, dt, n1_ref, n2_ref)
     end
 end     
 
-function x_ref = buildObstacleAwareRef8(x0, chi_d, U_d, N, dt, n1_ref, n2_ref, obstacles, avoid_cfg)
+function x_ref = buildObstacleAwareRef8(x0, chi_d, U_d, N, dt, n1_ref, n2_ref, obstacles, avoid_cfg, berth_cmd)
 % Reference trajectory with obstacle deflection
     if nargin < 9 || isempty(avoid_cfg)
         avoid_cfg = struct('base_margin_m', 80, 'speed_gain_s', 0.0, ...
             'obs_radius_gain', 0.5, 'deflect_sigma', 0.22, 'r_ref_max', 0.10);
+    end
+    if nargin < 10 || isempty(berth_cmd)
+        berth_cmd = struct('active', false, 'terminal_heading', NaN, 'distance_to_goal', inf, 'heading_blend_dist', 180);
+    end
+    if ~isfield(avoid_cfg, 'extra_clearance_m')
+        avoid_cfg.extra_clearance_m = 0;
     end
     safety_margin = avoid_cfg.base_margin_m + avoid_cfg.speed_gain_s * max(0, U_d);
     x_ref = buildSimpleRef8(x0, chi_d, U_d, N, dt, n1_ref, n2_ref);
@@ -862,10 +947,10 @@ function x_ref = buildObstacleAwareRef8(x0, chi_d, U_d, N, dt, n1_ref, n2_ref, o
         lateral = dot(d_vec, perp);
 
         horizon_dist = U_d * N * dt;
-        if along < 0 || along > horizon_dist + obs_r
+        if along < 0 || along > horizon_dist + obs_r + avoid_cfg.extra_clearance_m
             continue;
         end
-        if abs(lateral) >= (safety_margin + obs_r)
+        if abs(lateral) >= (safety_margin + obs_r + avoid_cfg.extra_clearance_m)
             continue;
         end
 
@@ -875,7 +960,7 @@ function x_ref = buildObstacleAwareRef8(x0, chi_d, U_d, N, dt, n1_ref, n2_ref, o
             side_sign = +1;
         end
 
-        deflect = side_sign * (safety_margin + avoid_cfg.obs_radius_gain * obs_r - lateral * side_sign);
+        deflect = side_sign * (safety_margin + avoid_cfg.extra_clearance_m + avoid_cfg.obs_radius_gain * obs_r - lateral * side_sign);
 
         for k = 1:(N+1)
             s = (k-1) / N;
@@ -897,6 +982,106 @@ function x_ref = buildObstacleAwareRef8(x0, chi_d, U_d, N, dt, n1_ref, n2_ref, o
                 x_ref(3, k) = r_d2;
                 x_ref(6, k) = chi_deflected;
             end
+        end
+    end
+
+    if berth_cmd.active && isfinite(berth_cmd.terminal_heading)
+        for k = 2:(N+1)
+            s = (k-1) / max(N,1);
+            blend_gate = max(0, min(1, 1 - berth_cmd.distance_to_goal / max(berth_cmd.heading_blend_dist, 1)));
+            w = min(1, blend_gate + s^2 * (1 - blend_gate));
+            x_ref(6, k) = blendAngles(x_ref(6, k), berth_cmd.terminal_heading, w);
+            psi_err = atan2(sin(x_ref(6, k) - x0(6)), cos(x_ref(6, k) - x0(6)));
+            x_ref(3, k) = max(-avoid_cfg.r_ref_max, min(avoid_cfg.r_ref_max, 0.35 * psi_err));
+        end
+    end
+end
+
+function [chi_cmd, berth_cmd, state] = selectBerthApproachGuidance(x, waypoints, ~, chi_nom, obstacles, cfg, state)
+% Chooses an obstacle-aware approach direction and terminal heading near berth.
+    chi_cmd = chi_nom;
+    berth_cmd = struct('active', false, 'terminal_heading', NaN, 'distance_to_goal', inf, 'heading_blend_dist', 180);
+
+    if nargin < 7 || isempty(state)
+        state = struct('selected_dir', [NaN; NaN], 'terminal_heading', NaN, 'mode', 'nominal');
+    end
+    if nargin < 6 || isempty(cfg) || ~isfield(cfg, 'enable') || ~cfg.enable
+        return;
+    end
+
+    p_ship = x(4:5);
+    p_goal = waypoints(end, :)';
+    d_goal = norm(p_goal - p_ship);
+    berth_cmd.distance_to_goal = d_goal;
+    berth_cmd.heading_blend_dist = cfg.heading_blend_dist_m;
+
+    if d_goal > cfg.approach_switch_dist_m
+        state.mode = 'nominal';
+        return;
+    end
+
+    if isfield(cfg, 'requested_terminal_heading_deg') && isfinite(cfg.requested_terminal_heading_deg)
+        psi_term = deg2rad(cfg.requested_terminal_heading_deg);
+    else
+        if size(waypoints,1) >= 2
+            seg = waypoints(end,:) - waypoints(end-1,:);
+            psi_term = atan2(seg(2), seg(1));
+        else
+            psi_term = x(6);
+        end
+    end
+
+    headings = [psi_term, wrapToPi(psi_term + pi)];
+    best_cost = inf;
+    best_dir = [cos(psi_term); sin(psi_term)];
+    for c = 1:2
+        dir_c = [cos(headings(c)); sin(headings(c))];
+        p_app = p_goal - cfg.approach_offset_m * dir_c;
+        chi_c = atan2(p_app(2) - p_ship(2), p_app(1) - p_ship(1));
+        dchi = atan2(sin(chi_c - x(6)), cos(chi_c - x(6)));
+        hchi = atan2(sin(chi_c - chi_nom), cos(chi_c - chi_nom));
+        obs_pen = corridorObstaclePenalty(p_ship, p_app, obstacles);
+        cost = 0.9*abs(dchi) + 0.5*abs(hchi) + obs_pen;
+
+        if all(isfinite(state.selected_dir))
+            same_sign = sign(dot(state.selected_dir, dir_c));
+            if same_sign < 0
+                cost = cost + cfg.direction_change_hysteresis;
+            end
+        end
+
+        if cost < best_cost
+            best_cost = cost;
+            chi_cmd = chi_c;
+            best_dir = dir_c;
+        end
+    end
+
+    if d_goal < cfg.heading_blend_dist_m
+        chi_cmd = blendAngles(chi_cmd, psi_term, 1 - d_goal / max(cfg.heading_blend_dist_m, 1));
+    end
+
+    state.selected_dir = best_dir;
+    state.terminal_heading = psi_term;
+    state.mode = 'berthing';
+    berth_cmd.active = true;
+    berth_cmd.terminal_heading = psi_term;
+end
+
+function p = corridorObstaclePenalty(p0, p1, obstacles)
+% Lightweight obstacle penalty along an approach corridor.
+    p = 0;
+    if isempty(obstacles)
+        return;
+    end
+    for k = 1:length(obstacles)
+        [d, ~] = NavUtils.pointToSegment(obstacles(k).position(1), obstacles(k).position(2), ...
+            p0(1), p0(2), p1(1), p1(2));
+        clear_margin = d - obstacles(k).radius;
+        if clear_margin < 0
+            p = p + 6.0;
+        elseif clear_margin < 80
+            p = p + 0.015 * (80 - clear_margin);
         end
     end
 end
@@ -1216,6 +1401,119 @@ function [hit, hit_idx, min_sep] = detectCircleObstacleHit(pos_xy, obstacles, sa
             return;
         end
     end
+end
+
+function footprint = buildShipFootprint(pos_xy, psi, cfg)
+% Rectangle footprint in world frame (4x2 vertices in [x y]).
+    L = cfg.length_m + 2*cfg.safety_margin_m;
+    B = cfg.beam_m + 2*cfg.safety_margin_m;
+    half = [L/2, B/2];
+    local = [ half(1),  half(2);
+              half(1), -half(2);
+             -half(1), -half(2);
+             -half(1),  half(2)];
+    R = [cos(psi), -sin(psi); sin(psi), cos(psi)];
+    world = (R * local')';
+    world(:,1) = world(:,1) + pos_xy(1);
+    world(:,2) = world(:,2) + pos_xy(2);
+    footprint = world;
+end
+
+function [hit, hit_idx, min_sep] = detectFootprintObstacleHit(footprint, obstacles)
+% Collision between rectangle footprint and circle obstacles.
+    hit = false;
+    hit_idx = 0;
+    min_sep = inf;
+    if isempty(obstacles)
+        return;
+    end
+
+    poly_x = footprint(:,1);
+    poly_y = footprint(:,2);
+    n = size(footprint,1);
+    for k = 1:length(obstacles)
+        c = obstacles(k).position(1:2);
+        r = obstacles(k).radius;
+
+        [in_poly, on_poly] = inpolygon(c(1), c(2), poly_x, poly_y);
+        if in_poly || on_poly
+            hit = true;
+            hit_idx = k;
+            min_sep = -r;
+            return;
+        end
+
+        d_min = inf;
+        for i = 1:n
+            j = mod(i, n) + 1;
+            [d, ~] = NavUtils.pointToSegment(c(1), c(2), footprint(i,1), footprint(i,2), footprint(j,1), footprint(j,2));
+            d_min = min(d_min, d);
+        end
+
+        sep = d_min - r;
+        min_sep = min(min_sep, sep);
+        if sep <= 0
+            hit = true;
+            hit_idx = k;
+            return;
+        end
+    end
+end
+
+function [hit, zone_type, zone_idx] = detectFootprintMapHit(footprint, map, n_samples)
+% Map collision check for rectangle footprint (vertices + sampled edges).
+    hit = false;
+    zone_type = '';
+    zone_idx = 0;
+    if isempty(map)
+        return;
+    end
+    if nargin < 3 || isempty(n_samples)
+        n_samples = 7;
+    end
+
+    % Vertices first
+    for i = 1:size(footprint,1)
+        [in_zone, zt, zi] = NavUtils.isInsideAnyMapZone(footprint(i,:)', map);
+        if in_zone
+            hit = true;
+            zone_type = zt;
+            zone_idx = zi;
+            return;
+        end
+    end
+
+    % Sample edge points to catch edge intersection with map zones.
+    n = size(footprint,1);
+    for i = 1:n
+        j = mod(i, n) + 1;
+        p1 = footprint(i,:);
+        p2 = footprint(j,:);
+        for s = 1:n_samples
+            a = s / (n_samples + 1);
+            ps = (1-a)*p1 + a*p2;
+            [in_zone, zt, zi] = NavUtils.isInsideAnyMapZone(ps(:), map);
+            if in_zone
+                hit = true;
+                zone_type = zt;
+                zone_idx = zi;
+                return;
+            end
+        end
+    end
+end
+
+function [half_diag, area] = getShipHitboxGeometry(cfg)
+    L = cfg.length_m + 2*cfg.safety_margin_m;
+    B = cfg.beam_m + 2*cfg.safety_margin_m;
+    half_diag = 0.5 * sqrt(L^2 + B^2);
+    area = L * B;
+end
+
+function ang = blendAngles(a0, a1, w)
+    w = max(0, min(1, w));
+    da = atan2(sin(a1 - a0), cos(a1 - a0));
+    ang = a0 + w * da;
 end
 
 function drift = computeDynamicPackagingDrift(dynamic_obstacles, obs_local)

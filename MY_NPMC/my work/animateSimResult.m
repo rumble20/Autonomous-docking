@@ -65,6 +65,17 @@ recordFps = cfgGet(cfg, 'recordFps', 15);
 videoFile = cfgGet(cfg, 'videoFile', 'nmpc_run.mp4');
 gifFile = cfgGet(cfg, 'gifFile', 'nmpc_run.gif');
 
+% Optional ship hitbox overlay (rectangle in world frame)
+hitbox = cfgGet(cfg, 'hitbox', struct());
+hitboxEnable = isfield(hitbox, 'enable') && logical(hitbox.enable);
+hitboxLength = cfgGet(hitbox, 'length_m', 175);
+hitboxBeam = cfgGet(hitbox, 'beam_m', 26);
+hitboxMargin = cfgGet(hitbox, 'safety_margin_m', 8);
+hitboxLineWidth = cfgGet(hitbox, 'line_width', 1.4);
+hitboxEdgeColor = cfgGet(hitbox, 'edge_color', [0.45 0.82 1.00]);
+hitboxFaceColor = cfgGet(hitbox, 'face_color', [0.45 0.82 1.00]);
+hitboxFaceAlpha = cfgGet(hitbox, 'face_alpha', 0.10);
+
 %  1. Load image once  (only when file path changes)
 useImage = true;  % set false if loading fails
 
@@ -187,6 +198,17 @@ if ~isempty(dynamicObsHistory)
     end
 end
 
+hHitbox = gobjects(0);
+if hitboxEnable
+    [hx0, hy0] = shipHitboxRect(yPath(1), xPath(1), psi(1), hitboxLength, hitboxBeam, hitboxMargin);
+    hHitbox = patch(ax, hx0, hy0, hitboxFaceColor, ...
+        'FaceAlpha', hitboxFaceAlpha, ...
+        'EdgeColor', hitboxEdgeColor, ...
+        'LineWidth', hitboxLineWidth, ...
+        'HandleVisibility', 'off');
+    uistack(hHitbox, 'top');
+end
+
 % --- Ghost trajectory of the executed path (full run, low opacity) -------
 plot(ax, yPath, xPath, '-', ...
     'Color', [0.35 0.55 1.00], 'LineWidth', 1.2, ...
@@ -224,21 +246,32 @@ xlim(ax, [yMid - halfSpan, yMid + halfSpan]);
 ylim(ax, [xMid - halfSpan, xMid + halfSpan]);
 
 % Ship display size in axes units
-shipWidthAx  = axRng * shipSize;
-if useImage
-    shipHeightAx = shipWidthAx * (shipHeightPx / shipWidthPx);
+% When hitbox is enabled, force icon size to match the same physical envelope.
+if hitboxEnable
+    shipWidthAx = hitboxBeam + 2 * hitboxMargin;
+    shipHeightAx = hitboxLength + 2 * hitboxMargin;
 else
-    shipHeightAx = shipWidthAx * 2.5;
+    shipWidthAx  = axRng * shipSize;
+    if useImage
+        shipHeightAx = shipWidthAx * (shipHeightPx / shipWidthPx);
+    else
+        shipHeightAx = shipWidthAx * 2.5;
+    end
 end
 
 % --- Initialise ship handle ----------------------------------------------
 cx0 = yPath(1);  cy0 = xPath(1);
 if useImage
-    hShip = image(ax, ...
-        'XData',      [cx0 - shipWidthAx/2,  cx0 + shipWidthAx/2], ...
-        'YData',      [cy0 - shipHeightAx/2, cy0 + shipHeightAx/2], ...
-        'CData',      shipImg, ...
-        'AlphaData',  shipAlpha, ...
+    [xq0, yq0] = shipImageQuad(cx0, cy0, shipWidthAx, shipHeightAx, psi(1));
+    hShip = surface(ax, ...
+        'XData', xq0, ...
+        'YData', yq0, ...
+        'ZData', zeros(2,2), ...
+        'CData', shipImg, ...
+        'FaceColor', 'texturemap', ...
+        'EdgeColor', 'none', ...
+        'AlphaData', shipAlpha, ...
+        'FaceAlpha', 'texturemap', ...
         'HandleVisibility', 'off');
     uistack(hShip, 'top');
 else
@@ -327,14 +360,18 @@ for k = 1:length(idx)
     cx = yPath(i);   % East  → plot x
     cy = xPath(i);   % North → plot y
 
-    % Move ship icon (image orientation is fixed — no rotation needed)
+    % Move ship icon and align its heading with the vessel state.
     if useImage
-        set(hShip, ...
-            'XData', [cx - shipWidthAx/2,  cx + shipWidthAx/2], ...
-            'YData', [cy - shipHeightAx/2, cy + shipHeightAx/2]);
+        [xq, yq] = shipImageQuad(cx, cy, shipWidthAx, shipHeightAx, psi(i));
+        set(hShip, 'XData', xq, 'YData', yq);
     else
         [tx, ty] = shipTriangle(cx, cy, shipWidthAx, psi(i));
         set(hShip, 'XData', tx, 'YData', ty);
+    end
+
+    if hitboxEnable && ~isempty(hHitbox) && isgraphics(hHitbox)
+        [hx, hy] = shipHitboxRect(cx, cy, psi(i), hitboxLength, hitboxBeam, hitboxMargin);
+        set(hHitbox, 'XData', hx, 'YData', hy);
     end
 
     % Update trail
@@ -446,6 +483,46 @@ function [tx, ty] = shipTriangle(cx, cy, w, psi)
     c = cos(psi);  s = sin(psi);
     tx = cx + c.*lx - s.*ly;   % East
     ty = cy + s.*lx + c.*ly;   % North
+end
+
+function [rx, ry] = shipHitboxRect(cx, cy, psi, length_m, beam_m, margin_m)
+    L = length_m + 2*margin_m;
+    B = beam_m + 2*margin_m;
+
+    % Local coordinates: y is forward (North at psi=0), x is lateral (East at psi=0)
+    lx = [ B/2,  B/2, -B/2, -B/2,  B/2];
+    ly = [ L/2, -L/2, -L/2,  L/2,  L/2];
+
+    c = cos(psi);
+    s = sin(psi);
+    rx = cx + c.*lx - s.*ly;   % East
+    ry = cy + s.*lx + c.*ly;   % North
+end
+
+function [xq, yq] = shipImageQuad(cx, cy, width_m, height_m, psi)
+% Rotated 2x2 quad for texture-mapped ship icon, aligned to heading psi.
+    hw = width_m / 2;
+    hh = height_m / 2;
+
+    % Local corners are [x_lateral, y_forward].
+    corners = [ hw,  hh;
+           -hw,  hh;
+            hw, -hh;
+           -hw, -hh];
+
+    c = cos(psi);
+    s = sin(psi);
+    rot = [c, -s; s, c];
+    world = (rot * corners')';
+
+    world(:,1) = world(:,1) + cx;
+    world(:,2) = world(:,2) + cy;
+
+    % Surface expects 2x2 grids; row/col order maps image orientation.
+    xq = [world(1,1), world(2,1);
+        world(3,1), world(4,1)];
+    yq = [world(1,2), world(2,2);
+        world(3,2), world(4,2)];
 end
 
 %  Local helper — cfgGet returns cfg.(name) if present and non-empty, otherwise returns default

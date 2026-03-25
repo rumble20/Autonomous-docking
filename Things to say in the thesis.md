@@ -228,3 +228,7 @@ What this means for high-level guidance:
 ## About the actuation motors mounted
 
 Even if with the current limits it still works, the high volatile changing yaw now actuated by the control of the azipod would be best suited rather by ABB DynaFin, which could prove useful for this case
+
+## Modelled dimension of the ship
+
+the container model has been modified in the way described but still keeps all the original hydrodynamic parameters; for the sake of busier scenario simulations and simulations in tighter harbour environments the dimensions of the ship has been significantly scaled into a smaller size

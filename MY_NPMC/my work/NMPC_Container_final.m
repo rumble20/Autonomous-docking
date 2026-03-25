@@ -28,8 +28,13 @@ classdef NMPC_Container_final < handle
         n_max = 160
         n_min = -80
         alpha_max = pi
+        alpha_hard_max = 8*pi
         Dn_max = 10
         alpha_rate_max = 0.21  % Max azimuth rate [rad/s] = 12 deg/s (ABB spec)
+        enforce_output_limits = true
+        max_limit_event_log = 400
+        limit_event_count = 0
+        limit_events = struct('step', {}, 'channel', {}, 'requested', {}, 'bounded', {}, 'bound', {}, 'timestamp', {})
 
         % Obstacle settings
         max_obs = 5
@@ -70,11 +75,15 @@ classdef NMPC_Container_final < handle
             obj.max_obs = getOr(cfg, 'max_obs', 5);
             obj.r_safety = getOr(cfg, 'r_safety', 30);
             obj.enable_diagnostics = logical(getOr(cfg, 'enable_diagnostics', false));
+            obj.enforce_output_limits = logical(getOr(cfg, 'enforce_output_limits', true));
+            obj.max_limit_event_log = getOr(cfg, 'max_limit_event_log', obj.max_limit_event_log);
 
             fprintf('NMPC_Container_final: N=%d, dt=%.2f, obs_slots=%d\n', ...
                 obj.N, obj.dt, obj.max_obs);
             fprintf('  8-state model: [u v r x y psi n1 n2]\n');
             fprintf('  4 controls: [alpha1 alpha2 n1_c n2_c]\n');
+            fprintf('  fixed azimuth range: [%.2f, %.2f] rad\n', ...
+                -obj.alpha_hard_max, obj.alpha_hard_max);
         end
 
         function buildSolver(obj)
@@ -175,6 +184,14 @@ classdef NMPC_Container_final < handle
             g = vertcat(g, d_alpha2_first - obj.alpha_rate_max * obj.dt);
             g = vertcat(g, -d_alpha2_first - obj.alpha_rate_max * obj.dt);
 
+            d_n1_first = U(3,1) - P_u_prev(3);
+            g = vertcat(g, d_n1_first - obj.Dn_max * obj.dt);
+            g = vertcat(g, -d_n1_first - obj.Dn_max * obj.dt);
+
+            d_n2_first = U(4,1) - P_u_prev(4);
+            g = vertcat(g, d_n2_first - obj.Dn_max * obj.dt);
+            g = vertcat(g, -d_n2_first - obj.Dn_max * obj.dt);
+
             % SUBSEQUENT STEPS: Constrain consecutive controls
             for k = 1:(N_h-1)
                 d_alpha1 = U(1,k+1) - U(1,k);
@@ -184,6 +201,14 @@ classdef NMPC_Container_final < handle
                 d_alpha2 = U(2,k+1) - U(2,k);
                 g = vertcat(g, d_alpha2 - obj.alpha_rate_max * obj.dt);
                 g = vertcat(g, -d_alpha2 - obj.alpha_rate_max * obj.dt);
+
+                d_n1 = U(3,k+1) - U(3,k);
+                g = vertcat(g, d_n1 - obj.Dn_max * obj.dt);
+                g = vertcat(g, -d_n1 - obj.Dn_max * obj.dt);
+
+                d_n2 = U(4,k+1) - U(4,k);
+                g = vertcat(g, d_n2 - obj.Dn_max * obj.dt);
+                g = vertcat(g, -d_n2 - obj.Dn_max * obj.dt);
             end
 
             %  VARIABLE BOUNDS
@@ -210,8 +235,8 @@ classdef NMPC_Container_final < handle
             u_off = nx * (N_h+1);
             for k = 1:N_h
                 base = u_off + (k-1)*nu;
-                lbx(base+1) = -obj.alpha_max;  ubx(base+1) = obj.alpha_max;
-                lbx(base+2) = -obj.alpha_max;  ubx(base+2) = obj.alpha_max;
+                lbx(base+1) = -obj.alpha_hard_max;  ubx(base+1) = obj.alpha_hard_max;
+                lbx(base+2) = -obj.alpha_hard_max;  ubx(base+2) = obj.alpha_hard_max;
                 lbx(base+3) = obj.n_min;       ubx(base+3) = obj.n_max;
                 lbx(base+4) = obj.n_min;       ubx(base+4) = obj.n_max;
             end
@@ -219,7 +244,7 @@ classdef NMPC_Container_final < handle
             %  CONSTRAINT BOUNDS
             n_eq        = nx + nx*N_h;
             n_obs_ineq  = n_obs * (N_h+1);
-            n_rate_ineq = 4 + 4*(N_h-1);  % 4 for first step + 4*(N-1) for rest
+            n_rate_ineq = 8 + 8*(N_h-1);  % alpha + shaft-rate constraints
             n_constraints = n_eq + n_obs_ineq + n_rate_ineq;
 
             lbg = zeros(n_constraints, 1);
@@ -382,7 +407,8 @@ classdef NMPC_Container_final < handle
                 u_s = nx*(N_h+1) + 1;
                 U_sol = reshape(sol_x(u_s:u_s+nu*N_h-1), nu, N_h);
 
-                u_opt = U_sol(:,1);
+                u_req = U_sol(:,1);
+                [u_opt, lim_events] = obj.enforceControlLimits(u_req, u_prev);
                 X_pred = X_sol;
 
                 obj.prev_sol = sol_x;
@@ -391,6 +417,7 @@ classdef NMPC_Container_final < handle
                 info.success = true;
                 info.cost = full(sol.f);
                 info.n_obs_real = n_real;
+                info.limit_events = lim_events;
                 obj.solve_ok = obj.solve_ok + 1;
 
             catch ME
@@ -520,6 +547,117 @@ classdef NMPC_Container_final < handle
             n2_dot = if_else(n2_dot > obj.Dn_max, obj.Dn_max, if_else(n2_dot < -obj.Dn_max, -obj.Dn_max, n2_dot));
 
             xdot = [u_dot; v_dot; r_dot; x_dot; y_dot; psi_dot; n1_dot; n2_dot];
+        end
+
+        function [u_safe, events] = enforceControlLimits(obj, u_req, u_prev)
+            u_safe = u_req(:);
+            events = struct('step', {}, 'channel', {}, 'requested', {}, 'bounded', {}, 'bound', {}, 'timestamp', {});
+
+            if nargin < 3 || isempty(u_prev)
+                u_prev = u_safe;
+            else
+                u_prev = u_prev(:);
+            end
+
+            % Always preserve azipod continuity by picking equivalent angles nearest to previous command.
+            for ch = 1:2
+                u_safe(ch) = obj.unwrapNear(u_safe(ch), u_prev(ch));
+            end
+
+            if ~obj.enforce_output_limits
+                return;
+            end
+
+            ts = now;
+
+            % Hard angle bounds
+            for ch = 1:2
+                req = u_safe(ch);
+                bounded = min(obj.alpha_hard_max, max(-obj.alpha_hard_max, req));
+                if bounded ~= req
+                    evt = obj.makeLimitEvent(ch, req, bounded, obj.alpha_hard_max, ts);
+                    events(end+1) = evt; %#ok<AGROW>
+                    obj.recordLimitEvent(evt);
+                    u_safe(ch) = bounded;
+                end
+            end
+
+            % Angle rate bounds relative to previously applied control
+            max_da = obj.alpha_rate_max * obj.dt;
+            for ch = 1:2
+                req = u_safe(ch);
+                delta = req - u_prev(ch);
+                if delta > max_da
+                    bounded = u_prev(ch) + max_da;
+                    evt = obj.makeLimitEvent(ch, req, bounded, max_da, ts);
+                    events(end+1) = evt; %#ok<AGROW>
+                    obj.recordLimitEvent(evt);
+                    u_safe(ch) = bounded;
+                elseif delta < -max_da
+                    bounded = u_prev(ch) - max_da;
+                    evt = obj.makeLimitEvent(ch, req, bounded, max_da, ts);
+                    events(end+1) = evt; %#ok<AGROW>
+                    obj.recordLimitEvent(evt);
+                    u_safe(ch) = bounded;
+                end
+            end
+
+            % Shaft command bounds
+            for ch = 3:4
+                req = u_safe(ch);
+                bounded = min(obj.n_max, max(obj.n_min, req));
+                if bounded ~= req
+                    evt = obj.makeLimitEvent(ch, req, bounded, max(abs(obj.n_min), abs(obj.n_max)), ts);
+                    events(end+1) = evt; %#ok<AGROW>
+                    obj.recordLimitEvent(evt);
+                    u_safe(ch) = bounded;
+                end
+            end
+
+            % Shaft command rate bounds
+            max_dn = obj.Dn_max * obj.dt;
+            for ch = 3:4
+                req = u_safe(ch);
+                delta = req - u_prev(ch);
+                if delta > max_dn
+                    bounded = u_prev(ch) + max_dn;
+                    evt = obj.makeLimitEvent(ch, req, bounded, max_dn, ts);
+                    events(end+1) = evt; %#ok<AGROW>
+                    obj.recordLimitEvent(evt);
+                    u_safe(ch) = bounded;
+                elseif delta < -max_dn
+                    bounded = u_prev(ch) - max_dn;
+                    evt = obj.makeLimitEvent(ch, req, bounded, max_dn, ts);
+                    events(end+1) = evt; %#ok<AGROW>
+                    obj.recordLimitEvent(evt);
+                    u_safe(ch) = bounded;
+                end
+            end
+        end
+
+        function y = unwrapNear(obj, angle_in, ref_angle)
+            period = 2*pi;
+            k = round((ref_angle - angle_in) / period);
+            y = angle_in + k * period;
+        end
+
+        function evt = makeLimitEvent(obj, ch, req, bounded, bound_mag, ts)
+            channel_names = {'alpha1', 'alpha2', 'n1_c', 'n2_c'};
+            evt = struct();
+            evt.step = obj.solve_ok + obj.solve_fail + 1;
+            evt.channel = channel_names{ch};
+            evt.requested = req;
+            evt.bounded = bounded;
+            evt.bound = bound_mag;
+            evt.timestamp = ts;
+        end
+
+        function recordLimitEvent(obj, evt)
+            obj.limit_event_count = obj.limit_event_count + 1;
+            if numel(obj.limit_events) >= obj.max_limit_event_log
+                obj.limit_events = obj.limit_events(2:end);
+            end
+            obj.limit_events(end+1) = evt;
         end
 
     end
