@@ -26,13 +26,13 @@ fprintf('═══════════════════════�
 %  USER CONFIGURATION — EDIT THIS SECTION
 
 % ---- WAYPOINTS (rows = [x, y] in meters, NED frame) ----
-waypoints = [-3300, -1550;
+waypoints = [-3400, -1550;
              -2800, -1600;
              -2400, -1900;
              -2050, -2150;];
 
 % ---- WAYPOINT SPEEDS (m/s) — one per segment + final ----
-waypoint_speeds = [4.5; 4.5; 4.0; 3.0];
+waypoint_speeds = [4.5; 4.5; 5; 4];
 
 % ---- STATIC OBSTACLES (set to empty [] for none) ----
 % Each obstacle: struct with 'position' [x; y] and 'radius' [m]
@@ -132,6 +132,27 @@ avoid_ref_cfg.r_ref_max       = 0.14;  % max |r_ref| sent to NMPC [rad/s]
 % ---- CONTROLLER SAFETY SETTINGS ----
 enforce_command_limits = true;
 
+% ---- RUNTIME BUDGET / PERFORMANCE SETTINGS ----
+runtime_cfg = struct();
+runtime_cfg.budget_s = 2.50;          % Laptop-relaxed per-step budget target
+runtime_cfg.warn_s = 2.20;            % Warning threshold (laptop profile)
+runtime_cfg.hard_limit_s = 3.20;      % Deterministic hard-overrun fallback threshold
+runtime_cfg.acceptance_target_s = 1.00;
+runtime_cfg.acceptance_slack = 2.50;  % laptop slack multiplier for acceptance checks
+
+runtime_opt_cfg = struct();
+runtime_opt_cfg.enable_warm_start = true;
+runtime_opt_cfg.enable_control_hold = true;
+runtime_opt_cfg.control_hold_base = 1;
+runtime_opt_cfg.control_hold_max = 3;
+runtime_opt_cfg.control_hold_clearance_m = 120;
+runtime_opt_cfg.enable_adaptive_ref_horizon = true;
+runtime_opt_cfg.ref_horizon_min_ratio = 0.40;
+runtime_opt_cfg.ref_horizon_warn_ratio = 0.70;
+runtime_opt_cfg.enable_adaptive_map_slots = true;
+runtime_opt_cfg.map_slots_min = 3;
+runtime_opt_cfg.map_slots_warn = 6;
+
 % ---- SHIP HITBOX (rectangle) ----
 enable_rectangular_hitbox = true;
 ship_geometry_scale = 0.50;  % Geometry-only scaling: keeps hydrodynamic model untouched.
@@ -150,7 +171,7 @@ berth_guidance_cfg.approach_switch_dist_m = 650;
 berth_guidance_cfg.approach_offset_m = 240;
 berth_guidance_cfg.heading_blend_dist_m = 180;
 berth_guidance_cfg.direction_change_hysteresis = 0.15;
-berth_guidance_cfg.requested_terminal_heading_deg = NaN;  % If NaN, terminal heading is along final approach path; otherwise use this fixed heading.
+berth_guidance_cfg.requested_terminal_heading_deg = 320;  % If NaN, terminal heading is along final approach path; otherwise use this fixed heading.
 
 % ---- PID FALLBACK GAINS (used when NMPC fails) ----
 pid_Kp = 0.8;
@@ -170,6 +191,53 @@ if ~isempty(env_tfinal)
     tf_num = str2double(env_tfinal);
     if isfinite(tf_num) && tf_num > 0
         T_final = tf_num;
+    end
+end
+
+env_budget = getenv('NMPC_RUNTIME_BUDGET_S');
+if ~isempty(env_budget)
+    v = str2double(env_budget);
+    if isfinite(v) && v > 0
+        runtime_cfg.budget_s = v;
+    end
+end
+env_warn = getenv('NMPC_RUNTIME_WARN_S');
+if ~isempty(env_warn)
+    v = str2double(env_warn);
+    if isfinite(v) && v > 0
+        runtime_cfg.warn_s = v;
+    end
+end
+env_hard = getenv('NMPC_RUNTIME_HARD_S');
+if ~isempty(env_hard)
+    v = str2double(env_hard);
+    if isfinite(v) && v > 0
+        runtime_cfg.hard_limit_s = v;
+    end
+end
+env_hold = getenv('NMPC_ENABLE_CONTROL_HOLD');
+if ~isempty(env_hold)
+    runtime_opt_cfg.enable_control_hold = strcmpi(strtrim(env_hold), '1') || strcmpi(strtrim(env_hold), 'true');
+end
+env_hold_max = getenv('NMPC_CONTROL_HOLD_MAX');
+if ~isempty(env_hold_max)
+    v = str2double(env_hold_max);
+    if isfinite(v) && v >= 1
+        runtime_opt_cfg.control_hold_max = round(v);
+    end
+end
+env_hold_clearance = getenv('NMPC_CONTROL_HOLD_CLEARANCE_M');
+if ~isempty(env_hold_clearance)
+    v = str2double(env_hold_clearance);
+    if isfinite(v) && v >= 0
+        runtime_opt_cfg.control_hold_clearance_m = v;
+    end
+end
+env_map_slots = getenv('NMPC_MAX_MAP_OBS');
+if ~isempty(env_map_slots)
+    v = str2double(env_map_slots);
+    if isfinite(v) && v >= 1
+        max_map_obstacles = round(v);
     end
 end
 
@@ -271,8 +339,15 @@ nmpc_cfg.max_obs = max(1, max_obs_slots);  % At least 1 slot
 nmpc_cfg.r_safety = r_safety;
 nmpc_cfg.enable_diagnostics = false;
 nmpc_cfg.enforce_output_limits = enforce_command_limits;
+nmpc_cfg.enable_warm_start = runtime_opt_cfg.enable_warm_start;
 nmpc_cfg.enable_heading_hard_constraint = guidance_heading_hard_cfg.enable;
 nmpc_cfg.heading_hard_max_err_deg = guidance_heading_hard_cfg.max_err_deg;
+nmpc_cfg.enable_corner_obstacle_constraints = hitbox_cfg.enable;
+nmpc_cfg.hitbox_length_m = hitbox_cfg.length_m;
+nmpc_cfg.hitbox_beam_m = hitbox_cfg.beam_m;
+nmpc_cfg.hitbox_safety_margin_m = hitbox_cfg.safety_margin_m;
+
+[runtime_cfg, runtime_opt_cfg] = validateRuntimeOptimizationConfig(runtime_cfg, runtime_opt_cfg, nmpc_cfg, max_map_obstacles);
 
 fprintf('\n--- Building NMPC solver (%d obstacle slots) ---\n', nmpc_cfg.max_obs);
 nmpc = NMPC_Container_final(nmpc_cfg);
@@ -317,6 +392,11 @@ n_obs_log         = nan(1, length(t));
 cost_log          = nan(1, length(t));
 obs_pack_drift_log = nan(1, length(t));
 collision_log     = false(1, length(t));
+runtime_event_class = strings(1, length(t));
+runtime_warning_log = false(1, length(t));
+runtime_overrun_log = false(1, length(t));
+runtime_stage_keys = {'guidance', 'obstacle_pack', 'reference_build', 'solve_dispatch', 'plant_integrate', 'step_total'};
+runtime_stage_ms = nan(length(runtime_stage_keys), length(t));
 traj(:,1) = x;
 steps = 0;
 
@@ -334,8 +414,15 @@ psi_err_prev = 0;
 
 % Previous control for NMPC rate limiting 
 u_prev = [0; 0; n1_cruise; n2_cruise];
+u_hold = u_prev;
+hold_countdown = 0;
 berth_state = struct('selected_dir', [NaN; NaN], 'terminal_heading', NaN, 'mode', 'nominal');
 limit_events_total = 0;
+runtime_diag = struct();
+runtime_diag.on_time_count = 0;
+runtime_diag.warning_count = 0;
+runtime_diag.overrun_count = 0;
+runtime_diag.event_log = struct('k', {}, 't', {}, 'class', {}, 'step_s', {}, 'solve_s', {}, 'rt_ratio', {}, 'n_obs', {}, 'fallback', {});
 
 fprintf('\n  Waypoints: ');
 for i = 1:size(waypoints, 1)
@@ -354,6 +441,7 @@ for i = 1:length(t)
     xte = computeXTE(x, waypoints, wp_idx);
     d_final_now = norm(x(4:5) - waypoints(end,:)');
     guide_time_log(i) = toc(t_seg);
+    runtime_stage_ms(1, i) = 1e3 * guide_time_log(i);
 
     % ---- 1.5) Activate/propagate moving obstacles -----------------------
     if enable_dynamic_obstacles && ~isempty(dynamic_obstacles)
@@ -395,8 +483,18 @@ for i = 1:length(t)
             half_width_now = max(80, relax_ratio * half_width_now);
         end
 
+        max_map_slots_now = max_map_obstacles;
+        if runtime_opt_cfg.enable_adaptive_map_slots && i > 1
+            if rt_ratio_log(i-1) > runtime_cfg.warn_s / max(dt, 1e-9)
+                max_map_slots_now = runtime_opt_cfg.map_slots_warn;
+            else
+                max_map_slots_now = max_map_obstacles;
+            end
+        end
+        max_map_slots_now = min(max_map_obstacles, max(runtime_opt_cfg.map_slots_min, max_map_slots_now));
+
         obs_map = selectMapObstaclesFromSamples( ...
-            map_sample_pts, x(4:5), chi_d, max_map_obstacles, ...
+            map_sample_pts, x(4:5), chi_d, max_map_slots_now, ...
             lookahead_now, half_width_now, map_sample_radius_m);
 
         % Deterministic terminal fix:
@@ -435,6 +533,7 @@ for i = 1:length(t)
     [chi_d, berth_cmd, berth_state] = selectBerthApproachGuidance( ...
         x, waypoints, wp_idx, chi_d, obs_local, berth_guidance_cfg, berth_state);
     obs_time_log(i) = toc(t_seg);
+    runtime_stage_ms(2, i) = 1e3 * obs_time_log(i);
 
     % ---- 3) Build reference trajectory ----------------------------------
     t_seg = tic;
@@ -446,17 +545,70 @@ for i = 1:length(t)
     end
     x_ref = buildObstacleAwareRef8(x, chi_d, U_d, nmpc.N, dt, ...
                                    n1_cruise, n2_cruise, obs_local, avoid_ref_step, berth_cmd);
+
+    if runtime_opt_cfg.enable_adaptive_ref_horizon
+        ref_ratio = 1.0;
+        if i > 1 && rt_ratio_log(i-1) > runtime_cfg.warn_s / max(dt, 1e-9)
+            ref_ratio = runtime_opt_cfg.ref_horizon_warn_ratio;
+        end
+        ref_ratio = max(runtime_opt_cfg.ref_horizon_min_ratio, min(1.0, ref_ratio));
+        N_eff = max(2, min(nmpc.N, round(ref_ratio * nmpc.N)));
+        if N_eff < nmpc.N
+            x_ref(:, N_eff+2:end) = repmat(x_ref(:, N_eff+1), 1, nmpc.N - N_eff);
+        end
+    end
+
     if guidance_heading_hard_cfg.use_nominal_waypoint_heading
         psi_hard_ref = buildHeadingGuideProfile(chi_wp_nominal, nmpc.N);
     else
         psi_hard_ref = buildHeadingGuideProfile(chi_d, nmpc.N);
     end
     ref_time_log(i) = toc(t_seg);
+    runtime_stage_ms(3, i) = 1e3 * ref_time_log(i);
 
     % ---- 4) Solve NMPC (MODIFIED - now passes u_prev) -------------------
     t_seg = tic;
-    [u_opt, ~, info] = nmpc.solve(x, x_ref, obs_local, u_prev, psi_hard_ref);
+    do_solve = true;
+    hold_steps_now = runtime_opt_cfg.control_hold_base;
+    min_guard_clearance = inf;
+    if ~isempty(obs_local)
+        for jj = 1:length(obs_local)
+            d_center = norm(x(4:5) - obs_local(jj).position(1:2));
+            guard_clear = d_center - (obs_local(jj).radius + r_safety + ship_hitbox_half_diag);
+            min_guard_clearance = min(min_guard_clearance, guard_clear);
+        end
+    end
+    near_obstacle_guard = min_guard_clearance < runtime_opt_cfg.control_hold_clearance_m;
+    if runtime_opt_cfg.enable_control_hold && i > 1
+        if near_obstacle_guard
+            hold_steps_now = 1;
+        elseif rt_ratio_log(i-1) > runtime_cfg.warn_s / max(dt, 1e-9)
+            hold_steps_now = runtime_opt_cfg.control_hold_max;
+        end
+        hold_steps_now = max(1, min(runtime_opt_cfg.control_hold_max, hold_steps_now));
+    end
+
+    if hold_countdown > 0
+        do_solve = false;
+        hold_countdown = hold_countdown - 1;
+    end
+
+    if do_solve
+        [u_opt, ~, info] = nmpc.solve(x, x_ref, obs_local, u_prev, psi_hard_ref);
+        u_hold = u_opt;
+        hold_countdown = hold_steps_now - 1;
+    else
+        u_opt = u_hold;
+        info = struct();
+        info.success = true;
+        info.solve_time = 0;
+        info.n_obs_real = length(obs_local);
+        info.cost = NaN;
+        info.limit_events = struct('step', {}, 'channel', {}, 'requested', {}, 'bounded', {}, 'bound', {}, 'timestamp', {});
+        info.used_hold = true;
+    end
     solve_call_log(i) = toc(t_seg);
+    runtime_stage_ms(4, i) = 1e3 * solve_call_log(i);
     if isfield(info, 'solve_time')
         solve_time_log(i) = info.solve_time;
     else
@@ -475,6 +627,7 @@ for i = 1:length(t)
     end
 
     % ---- 5) PID fallback if NMPC fails ----------------------------------
+    fallback_reason = "none";
     if ~info.success
         psi_err = wrapToPi(chi_d - x(6));
         psi_err_int = psi_err_int + psi_err * dt;
@@ -488,8 +641,11 @@ for i = 1:length(t)
         n1_cmd = n1_cruise * (U_d / 7.0);
         n1_cmd = max(0, min(160, n1_cmd));
         
-        u_opt = [alpha; 0; n1_cmd; 0];
+        u_pid = [alpha; 0; n1_cmd; 0];
+        [u_opt, lim_events_pid] = nmpc.enforceControlLimits(u_pid, u_prev);
+        limit_events_total = limit_events_total + numel(lim_events_pid);
         fallback(i) = true;
+        fallback_reason = "nmpc-fail";
         
         if sum(fallback(1:i)) <= 3
             fprintf('  ⚠ NMPC fail at t=%.0f s, using PID fallback\n', t(i));
@@ -497,12 +653,45 @@ for i = 1:length(t)
     end
 
     % ---- 6) Simulate plant (RK4) ----------------------------------------
+    elapsed_pre_integr = toc(t_step);
+    if elapsed_pre_integr > runtime_cfg.hard_limit_s
+        u_overrun = buildRuntimeFallbackCommand(u_prev, n1_cruise, n2_cruise);
+        [u_opt, lim_events_rt] = nmpc.enforceControlLimits(u_overrun, u_prev);
+        limit_events_total = limit_events_total + numel(lim_events_rt);
+        fallback(i) = true;
+        fallback_reason = "runtime-hard-limit";
+    end
+
     t_seg = tic;
     x_old = x;
     x = rk4Step8(x, u_opt, dt);
     integr_time_log(i) = toc(t_seg);
+    runtime_stage_ms(5, i) = 1e3 * integr_time_log(i);
     step_time_log(i) = toc(t_step);
+    runtime_stage_ms(6, i) = 1e3 * step_time_log(i);
     rt_ratio_log(i) = step_time_log(i) / max(dt, 1e-9);
+
+    [runtime_class, is_warn, is_overrun] = classifyRuntimeStep(step_time_log(i), runtime_cfg);
+    runtime_event_class(i) = runtime_class;
+    runtime_warning_log(i) = is_warn;
+    runtime_overrun_log(i) = is_overrun;
+    if runtime_class == "on-time"
+        runtime_diag.on_time_count = runtime_diag.on_time_count + 1;
+    elseif runtime_class == "warning"
+        runtime_diag.warning_count = runtime_diag.warning_count + 1;
+    else
+        runtime_diag.overrun_count = runtime_diag.overrun_count + 1;
+    end
+    evt = struct();
+    evt.k = i;
+    evt.t = t(i);
+    evt.class = char(runtime_class);
+    evt.step_s = step_time_log(i);
+    evt.solve_s = solve_time_log(i);
+    evt.rt_ratio = rt_ratio_log(i);
+    evt.n_obs = n_obs_log(i);
+    evt.fallback = char(fallback_reason);
+    runtime_diag.event_log(end+1) = evt;
 
     % ---- 7) Collision checks (map + circle obstacles) ------------------
     % Hard-collision stop uses only physical obstacles here.
@@ -619,6 +808,10 @@ n_obs_log       = n_obs_log(1:steps);
 cost_log        = cost_log(1:steps);
 obs_pack_drift_log = obs_pack_drift_log(1:steps);
 collision_log   = collision_log(1:steps);
+runtime_event_class = runtime_event_class(1:steps);
+runtime_warning_log = runtime_warning_log(1:steps);
+runtime_overrun_log = runtime_overrun_log(1:steps);
+runtime_stage_ms = runtime_stage_ms(:, 1:steps);
 
 n_ok = sum(solve_ok);  n_tot = length(solve_ok);
 fprintf('\n══════════════════════════════════════════════════════════════\n');
@@ -650,6 +843,27 @@ fprintf('  NMPC solve  [ms]: mean=%.2f, p95=%.2f, max=%.2f\n', ...
 fprintf('  RT overruns (step_time > dt): %d/%d (%.2f%%)\n', ...
     n_overrun, steps, 100*n_overrun/max(steps,1));
 fprintf('  Worst RT ratio: %.3f\n', max(rt_ratio_log(valid_step)));
+fprintf('  Runtime budget [s]: target=%.2f warn=%.2f hard=%.2f\n', ...
+    runtime_cfg.budget_s, runtime_cfg.warn_s, runtime_cfg.hard_limit_s);
+fprintf('  Runtime class counts: on-time=%d warning=%d overrun=%d\n', ...
+    runtime_diag.on_time_count, runtime_diag.warning_count, runtime_diag.overrun_count);
+
+stage_mean_ms = mean(runtime_stage_ms(:, valid_step), 2, 'omitnan');
+stage_p95_ms = nan(size(stage_mean_ms));
+for kk = 1:numel(stage_mean_ms)
+    stage_p95_ms(kk) = 1e3 * safePercentile(runtime_stage_ms(kk, valid_step) / 1e3, 95);
+end
+fprintf('  Stage timings [ms] (mean / p95):\n');
+for kk = 1:numel(runtime_stage_keys)
+    fprintf('    %-16s %8.2f / %8.2f\n', runtime_stage_keys{kk}, stage_mean_ms(kk), stage_p95_ms(kk));
+end
+
+acc_threshold_s = runtime_cfg.acceptance_target_s * runtime_cfg.acceptance_slack;
+rt_p95_s = safePercentile(step_time_log(valid_step), 95);
+rt_max_s = max(step_time_log(valid_step));
+rt_accept_ok = (rt_p95_s <= acc_threshold_s) && (runtime_diag.overrun_count == 0);
+fprintf('  Runtime acceptance: p95<=%.2f s and 0 hard overruns -> %s\n', ...
+    acc_threshold_s, ternary(rt_accept_ok, 'PASS', 'FAIL'));
 
 if any(valid_step)
     [~, worst_idx] = sort(step_time_log, 'descend');
@@ -669,6 +883,43 @@ if enable_rt_terminal_plots
     printTimingHistogram('Total step time', step_time_log, dt);
     printTimingHistogram('NMPC solve time', solve_time_log, dt);
     printTimingHistogram('RT ratio (step/dt)', rt_ratio_log, 1.0);
+end
+
+% Optional metrics export for benchmark automation
+metrics_out_path = strtrim(getenv('NMPC_METRICS_OUT'));
+if ~isempty(metrics_out_path)
+    runtime_metrics = struct();
+    runtime_metrics.scenario = strtrim(getenv('NMPC_SCENARIO_NAME'));
+    runtime_metrics.timestamp = datestr(now, 'yyyy-mm-dd HH:MM:SS.FFF');
+    runtime_metrics.dt = dt;
+    runtime_metrics.steps = steps;
+    runtime_metrics.solve_success_rate = n_ok / max(n_tot, 1);
+    runtime_metrics.fallback_count = sum(fallback);
+    runtime_metrics.collisions = sum(collision_log);
+    runtime_metrics.final_distance_m = norm(traj(4:5,end) - waypoints(end,:)');
+    runtime_metrics.final_reached = runtime_metrics.final_distance_m <= max(R_accept_final, R_accept_final_soft);
+    runtime_metrics.step_mean_s = mean(step_time_log(valid_step));
+    runtime_metrics.step_p95_s = rt_p95_s;
+    runtime_metrics.step_max_s = rt_max_s;
+    runtime_metrics.deadline_miss_rate = n_overrun / max(steps, 1);
+    runtime_metrics.runtime_budget_s = runtime_cfg.budget_s;
+    runtime_metrics.runtime_warn_s = runtime_cfg.warn_s;
+    runtime_metrics.runtime_hard_limit_s = runtime_cfg.hard_limit_s;
+    runtime_metrics.runtime_acceptance_threshold_s = acc_threshold_s;
+    runtime_metrics.runtime_accept_ok = rt_accept_ok;
+    runtime_metrics.runtime_class_counts = struct('on_time', runtime_diag.on_time_count, ...
+                                                 'warning', runtime_diag.warning_count, ...
+                                                 'overrun', runtime_diag.overrun_count);
+    runtime_metrics.stage_keys = runtime_stage_keys;
+    runtime_metrics.stage_mean_ms = stage_mean_ms;
+    runtime_metrics.stage_p95_ms = stage_p95_ms;
+
+    [out_dir, ~, ~] = fileparts(metrics_out_path);
+    if ~isempty(out_dir) && ~exist(out_dir, 'dir')
+        mkdir(out_dir);
+    end
+    save(metrics_out_path, 'runtime_metrics');
+    fprintf('  Runtime metrics exported: %s\n', metrics_out_path);
 end
 
 %% ===== Plots ============================================================
@@ -818,6 +1069,62 @@ fprintf('\nDone. Check figures.\n');
 
 
 %  LOCAL FUNCTIONS
+
+function [runtime_cfg, runtime_opt_cfg] = validateRuntimeOptimizationConfig(runtime_cfg, runtime_opt_cfg, nmpc_cfg, max_map_obstacles)
+% Validate and clamp runtime/performance settings to safe deterministic bounds.
+    runtime_cfg.budget_s = max(0.05, runtime_cfg.budget_s);
+    runtime_cfg.warn_s = max(0.01, runtime_cfg.warn_s);
+    runtime_cfg.hard_limit_s = max(runtime_cfg.warn_s + 0.01, runtime_cfg.hard_limit_s);
+    runtime_cfg.acceptance_target_s = max(0.05, runtime_cfg.acceptance_target_s);
+    runtime_cfg.acceptance_slack = min(4.0, max(1.0, runtime_cfg.acceptance_slack));
+
+    runtime_opt_cfg.control_hold_base = max(1, round(runtime_opt_cfg.control_hold_base));
+    runtime_opt_cfg.control_hold_max = max(runtime_opt_cfg.control_hold_base, round(runtime_opt_cfg.control_hold_max));
+    runtime_opt_cfg.control_hold_max = min(5, runtime_opt_cfg.control_hold_max);
+    runtime_opt_cfg.control_hold_clearance_m = max(0, runtime_opt_cfg.control_hold_clearance_m);
+
+    runtime_opt_cfg.ref_horizon_min_ratio = min(1.0, max(0.2, runtime_opt_cfg.ref_horizon_min_ratio));
+    runtime_opt_cfg.ref_horizon_warn_ratio = min(1.0, max(runtime_opt_cfg.ref_horizon_min_ratio, runtime_opt_cfg.ref_horizon_warn_ratio));
+
+    runtime_opt_cfg.map_slots_min = max(1, min(max_map_obstacles, round(runtime_opt_cfg.map_slots_min)));
+    runtime_opt_cfg.map_slots_warn = max(runtime_opt_cfg.map_slots_min, min(max_map_obstacles, round(runtime_opt_cfg.map_slots_warn)));
+
+    if nmpc_cfg.N < 10 && runtime_opt_cfg.enable_adaptive_ref_horizon
+        warning('Adaptive reference horizon enabled with short N=%d; disabling adaptation for stability.', nmpc_cfg.N);
+        runtime_opt_cfg.enable_adaptive_ref_horizon = false;
+    end
+end
+
+function [runtime_class, is_warn, is_overrun] = classifyRuntimeStep(step_s, runtime_cfg)
+    is_overrun = step_s > runtime_cfg.hard_limit_s;
+    is_warn = (~is_overrun) && (step_s > runtime_cfg.warn_s);
+    if is_overrun
+        runtime_class = "overrun";
+    elseif is_warn
+        runtime_class = "warning";
+    else
+        runtime_class = "on-time";
+    end
+end
+
+function u_fb = buildRuntimeFallbackCommand(u_prev, n1_cruise, n2_cruise)
+% Deterministic hard-overrun policy: hold azimuth, decay shaft commands toward cruise.
+    u_fb = u_prev(:);
+    if numel(u_fb) ~= 4
+        u_fb = [0; 0; n1_cruise; n2_cruise];
+        return;
+    end
+    u_fb(3) = 0.85 * u_prev(3) + 0.15 * n1_cruise;
+    u_fb(4) = 0.85 * u_prev(4) + 0.15 * n2_cruise;
+end
+
+function out = ternary(cond, a, b)
+    if cond
+        out = a;
+    else
+        out = b;
+    end
+end
 
 function [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, wp, wp_speed, wp_idx, R_accept)
 % Simple waypoint steering for 8-state model

@@ -238,3 +238,7 @@ the container model has been modified in the way described but still keeps all t
 The vessel model is fully dynamic with sway and inertia, so crab-like motion is physically possible.
 Even if it has now been implemented a hard heading corridor, with low sway penalty and strong obstacle/terminal effects, lateral components can remain even while progress continues.
 
+## Computational time
+
+A realistic reference is that container ships usually run automation on redundant industrial computers (often multiple multicore x86 or ARM units, hardened, always-powered, and thermally stable), not a single consumer laptop process competing with desktop tasks. In practice, a ship setup can deliver more consistent and often higher sustained compute than an average laptop for this workload, but not magic-level speedups on a single nonlinear solve; a rough engineering expectation is maybe around 1.5x to 4x effective improvement depending on architecture and implementation. So you can relax laptop timing gates somewhat for development, but not enough to treat 4 s p95 as acceptable for a 1 s loop. A good compromise is to keep a strict fast loop for control and run heavier obstacle/NMPC updates at a slower supervisory rate, with fallback hold/safety logic in between.
+

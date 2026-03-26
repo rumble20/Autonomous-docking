@@ -237,3 +237,65 @@ Log after each run:
 ---
 
 If needed, extend this guide with a one-page "quick recipes" section (for example: "less wobble", "tighter obstacle pass", "faster solve") and exact parameter deltas for each recipe.
+
+## 8. Runtime Profiles (Debug/Nominal/Aggressive)
+
+Use these as starting points for the runtime controls introduced in the unified NMPC run.
+
+1. Debug profile (maximum observability, lowest optimization pressure)
+- `runtime_budget_s = 2.80`
+- `runtime_warn_s = 2.40`
+- `runtime_hard_limit_s = 3.50`
+- `enable_control_hold = false`
+- `max_map_obstacles = 8`
+- Use when validating behavior, not when targeting strict real-time loops.
+
+2. Nominal profile (recommended default)
+- `runtime_budget_s = 2.50`
+- `runtime_warn_s = 2.20`
+- `runtime_hard_limit_s = 3.20`
+- `enable_control_hold = true`, `control_hold_max = 2`
+- `max_map_obstacles = 6`
+- Laptop-relaxed profile for day-to-day simulation while preserving obstacle behavior.
+
+3. Aggressive profile (runtime-priority)
+- `runtime_budget_s = 1.80`
+- `runtime_warn_s = 1.50`
+- `runtime_hard_limit_s = 2.20`
+- `enable_control_hold = true`, `control_hold_max = 3`
+- `max_map_obstacles = 4` to `5`
+- Use only after confirming no unacceptable trajectory/safety degradation.
+
+## 9. Runtime Benchmark and Acceptance
+
+The benchmark runner at [MY_NPMC/my work/nmpc_runtime_benchmark.m](MY_NPMC/my%20work/nmpc_runtime_benchmark.m) executes a fixed-seed scenario set and reports:
+
+1. p50/p95/max step time
+2. Deadline miss rate
+3. Safety outcomes (collision-free and terminal capture)
+4. Baseline regression status
+
+Acceptance policy for laptop development hardware:
+
+1. Target runtime: 1.0 s per step
+2. Slack multiplier: 2.50
+3. Gate: aggregate p95 <= 2.50 s, max step <= 3.20 s, and all scenarios safe
+
+## 10. Rollback Procedure
+
+If runtime optimizations cause behavior regressions, rollback in this order:
+
+1. Disable control-hold adaptation
+- Set `NMPC_ENABLE_CONTROL_HOLD=0`
+
+2. Restore full map obstacle candidate set
+- Set `NMPC_MAX_MAP_OBS` back to baseline value (typically 8)
+
+3. Relax runtime budget gating
+- Increase `NMPC_RUNTIME_BUDGET_S`, `NMPC_RUNTIME_WARN_S`, `NMPC_RUNTIME_HARD_S` to debug profile values
+
+4. Keep warm-start enabled but disable aggressive runtime profile knobs
+- Prefer stable solve continuity over rapid retuning
+
+5. Re-run benchmark and compare with stored baseline
+- If still unstable, revert to previous known-good commit and re-apply changes one cluster at a time

@@ -54,12 +54,25 @@ classdef NMPC_Container_final < handle
         solve_fail = 0
 
         % Warm-start
+        enable_warm_start = true
         prev_sol
         prev_u
+
+        % Lightweight caches for repeated solve setup
+        cached_u_ref
+        cached_u_ref_key = [NaN; NaN; NaN]
+        cached_obs_pos
+        cached_obs_rad
+        cached_obs_signature = NaN
+        cached_obs_count = -1
 
         enable_diagnostics = false
         enable_heading_hard_constraint = false
         heading_hard_max_err_rad = deg2rad(50)
+        enable_corner_obstacle_constraints = true
+        hitbox_length_m = 87.5
+        hitbox_beam_m = 12.7
+        hitbox_safety_margin_m = 2.0
     end
 
     methods
@@ -78,10 +91,18 @@ classdef NMPC_Container_final < handle
             obj.r_safety = getOr(cfg, 'r_safety', 30);
             obj.enable_diagnostics = logical(getOr(cfg, 'enable_diagnostics', false));
             obj.enforce_output_limits = logical(getOr(cfg, 'enforce_output_limits', true));
+            obj.enable_warm_start = logical(getOr(cfg, 'enable_warm_start', true));
             obj.max_limit_event_log = getOr(cfg, 'max_limit_event_log', obj.max_limit_event_log);
             obj.enable_heading_hard_constraint = logical(getOr(cfg, 'enable_heading_hard_constraint', false));
             heading_err_deg = getOr(cfg, 'heading_hard_max_err_deg', rad2deg(obj.heading_hard_max_err_rad));
             obj.heading_hard_max_err_rad = deg2rad(max(1.0, min(179.0, heading_err_deg)));
+            obj.enable_corner_obstacle_constraints = logical(getOr(cfg, 'enable_corner_obstacle_constraints', true));
+            obj.hitbox_length_m = getOr(cfg, 'hitbox_length_m', obj.hitbox_length_m);
+            obj.hitbox_beam_m = getOr(cfg, 'hitbox_beam_m', obj.hitbox_beam_m);
+            obj.hitbox_safety_margin_m = getOr(cfg, 'hitbox_safety_margin_m', obj.hitbox_safety_margin_m);
+            obj.hitbox_length_m = max(1.0, obj.hitbox_length_m);
+            obj.hitbox_beam_m = max(0.5, obj.hitbox_beam_m);
+            obj.hitbox_safety_margin_m = max(0.0, obj.hitbox_safety_margin_m);
 
             fprintf('NMPC_Container_final: N=%d, dt=%.2f, obs_slots=%d\n', ...
                 obj.N, obj.dt, obj.max_obs);
@@ -89,9 +110,20 @@ classdef NMPC_Container_final < handle
             fprintf('  4 controls: [alpha1 alpha2 n1_c n2_c]\n');
             fprintf('  fixed azimuth range: [%.2f, %.2f] rad\n', ...
                 -obj.alpha_hard_max, obj.alpha_hard_max);
+            if obj.enable_warm_start
+                fprintf('  warm-start: enabled\n');
+            else
+                fprintf('  warm-start: disabled\n');
+            end
             if obj.enable_heading_hard_constraint
                 fprintf('  heading hard corridor: |psi-psi_{guide}| <= %.1f deg\n', ...
                     rad2deg(obj.heading_hard_max_err_rad));
+            end
+            if obj.enable_corner_obstacle_constraints
+                fprintf('  obstacle constraints: four-corner hitbox (L=%.1f, B=%.1f, margin=%.1f m)\n', ...
+                    obj.hitbox_length_m, obj.hitbox_beam_m, obj.hitbox_safety_margin_m);
+            else
+                fprintf('  obstacle constraints: center-point distance\n');
             end
         end
 
@@ -173,13 +205,38 @@ classdef NMPC_Container_final < handle
                 g = vertcat(g, X(:,k+1) - x_next);
             end
 
-            % --- Obstacle avoidance (n_obs * (N_h+1) inequalities) ---
-            for k = 1:(N_h+1)
-                for j = 1:n_obs
-                    dx = X(4,k) - P_obs_pos(1,j);
-                    dy = X(5,k) - P_obs_pos(2,j);
-                    dist = sqrt(dx^2 + dy^2 + 1e-3);
-                    g = vertcat(g, dist - P_obs_rad(j) - obj.r_safety);
+            % --- Obstacle avoidance (center or 4-corner hitbox inequalities) ---
+            L_guard = obj.hitbox_length_m + 2 * obj.hitbox_safety_margin_m;
+            B_guard = obj.hitbox_beam_m + 2 * obj.hitbox_safety_margin_m;
+            halfL = 0.5 * L_guard;
+            halfB = 0.5 * B_guard;
+
+            if obj.enable_corner_obstacle_constraints
+                corner_x = [halfL, halfL, -halfL, -halfL];
+                corner_y = [halfB, -halfB, -halfB, halfB];
+                for k = 1:(N_h+1)
+                    psi_k = X(6,k);
+                    cpsi = cos(psi_k);
+                    spsi = sin(psi_k);
+                    for j = 1:n_obs
+                        for c = 1:4
+                            cx = X(4,k) + cpsi * corner_x(c) - spsi * corner_y(c);
+                            cy = X(5,k) + spsi * corner_x(c) + cpsi * corner_y(c);
+                            dx = cx - P_obs_pos(1,j);
+                            dy = cy - P_obs_pos(2,j);
+                            dist = sqrt(dx^2 + dy^2 + 1e-3);
+                            g = vertcat(g, dist - P_obs_rad(j) - obj.r_safety);
+                        end
+                    end
+                end
+            else
+                for k = 1:(N_h+1)
+                    for j = 1:n_obs
+                        dx = X(4,k) - P_obs_pos(1,j);
+                        dy = X(5,k) - P_obs_pos(2,j);
+                        dist = sqrt(dx^2 + dy^2 + 1e-3);
+                        g = vertcat(g, dist - P_obs_rad(j) - obj.r_safety);
+                    end
                 end
             end
 
@@ -263,7 +320,11 @@ classdef NMPC_Container_final < handle
 
             %  CONSTRAINT BOUNDS
             n_eq        = nx + nx*N_h;
-            n_obs_ineq  = n_obs * (N_h+1);
+            obs_factor = 1;
+            if obj.enable_corner_obstacle_constraints
+                obs_factor = 4;
+            end
+            n_obs_ineq  = obs_factor * n_obs * (N_h+1);
             n_rate_ineq = 8 + 8*(N_h-1);  % alpha + shaft-rate constraints
             n_constraints = n_eq + n_obs_ineq + n_rate_ineq + n_heading_ineq;
 
@@ -320,7 +381,11 @@ classdef NMPC_Container_final < handle
 
             fprintf('  nlpsol built: %d vars, %d constraints\n', n_vars, n_constraints);
             fprintf('    - Equalities: %d (initial + dynamics)\n', n_eq);
-            fprintf('    - Obstacle:   %d (slots × horizon)\n', n_obs_ineq);
+            if obj.enable_corner_obstacle_constraints
+                fprintf('    - Obstacle:   %d (slots × horizon × 4 corners)\n', n_obs_ineq);
+            else
+                fprintf('    - Obstacle:   %d (slots × horizon)\n', n_obs_ineq);
+            end
             fprintf('    - Rate:       %d (first-step + consecutive)\n', n_rate_ineq);
             if n_heading_ineq > 0
                 fprintf('    - Heading:    %d (hard corridor)\n', n_heading_ineq);
@@ -374,29 +439,17 @@ classdef NMPC_Container_final < handle
                 end
             end
 
-            % Obstacle setup
-            obs_pos = 1e8 * ones(2, n_obs);
-            obs_rad = zeros(n_obs, 1);
-            n_real = 0;
+            % Obstacle setup with cache reuse for unchanged sets
+            [obs_pos, obs_rad, n_real] = obj.packObstacles(obstacles, n_obs);
 
-            if nargin >= 4 && ~isempty(obstacles)
-                n_real = min(length(obstacles), n_obs);
-                for j = 1:n_real
-                    obs_pos(:,j) = obstacles(j).position(1:2);
-                    obs_rad(j) = obstacles(j).radius;
-                end
-            end
-
-            % Reference control
-            u_ref = zeros(nu, N_h);
-            u_ref(3,:) = x0(7);
-            u_ref(4,:) = x0(8);
+            % Reference control (cached on current shaft-state and horizon)
+            u_ref = obj.getCachedUref(x0(7), x0(8), nu, N_h);
 
             % Build parameter vector (now includes u_prev)
             p_val = [x0(:); x_ref(:); u_ref(:); n_real; obs_pos(:); obs_rad(:); u_prev(:); psi_guide_ref(:)];
 
             % Initial guess (warm start)
-            if ~isempty(obj.prev_sol)
+            if obj.enable_warm_start && obj.hasValidWarmStart(nx, nu, N_h)
                 X_prev = reshape(obj.prev_sol(1:nx*(N_h+1)), nx, N_h+1);
                 u_s = nx*(N_h+1) + 1;
                 U_prev = reshape(obj.prev_sol(u_s:u_s+nu*N_h-1), nu, N_h);
@@ -699,6 +752,78 @@ classdef NMPC_Container_final < handle
                 obj.limit_events = obj.limit_events(2:end);
             end
             obj.limit_events(end+1) = evt;
+        end
+
+        function tf = hasValidWarmStart(obj, nx, nu, N_h)
+            tf = false;
+            if isempty(obj.prev_sol)
+                return;
+            end
+
+            expected_len = nx * (N_h + 1) + nu * N_h;
+            if numel(obj.prev_sol) ~= expected_len
+                obj.prev_sol = [];
+                return;
+            end
+
+            if any(~isfinite(obj.prev_sol))
+                obj.prev_sol = [];
+                return;
+            end
+
+            tf = true;
+        end
+
+        function u_ref = getCachedUref(obj, n1_ref, n2_ref, nu, N_h)
+            key = [n1_ref; n2_ref; N_h];
+            if ~isempty(obj.cached_u_ref) && all(abs(obj.cached_u_ref_key - key) < 1e-12)
+                u_ref = obj.cached_u_ref;
+                return;
+            end
+
+            u_ref = zeros(nu, N_h);
+            u_ref(3,:) = n1_ref;
+            u_ref(4,:) = n2_ref;
+            obj.cached_u_ref = u_ref;
+            obj.cached_u_ref_key = key;
+        end
+
+        function [obs_pos, obs_rad, n_real] = packObstacles(obj, obstacles, n_obs)
+            obs_pos = 1e8 * ones(2, n_obs);
+            obs_rad = zeros(n_obs, 1);
+            n_real = 0;
+
+            if isempty(obstacles)
+                sig = 0;
+            else
+                n_real = min(length(obstacles), n_obs);
+                sig = n_real;
+                for j = 1:n_real
+                    px = obstacles(j).position(1);
+                    py = obstacles(j).position(2);
+                    rr = obstacles(j).radius;
+                    obs_pos(:,j) = [px; py];
+                    obs_rad(j) = rr;
+                    sig = sig + 1e-3 * j + px + 3 * py + 7 * rr;
+                end
+            end
+
+            can_reuse = (~isempty(obj.cached_obs_pos)) && ...
+                        (~isempty(obj.cached_obs_rad)) && ...
+                        (obj.cached_obs_count == n_real) && ...
+                        isfinite(obj.cached_obs_signature) && ...
+                        abs(obj.cached_obs_signature - sig) < 1e-9;
+
+            if can_reuse
+                obs_pos = obj.cached_obs_pos;
+                obs_rad = obj.cached_obs_rad;
+                return;
+            end
+
+            obj.cached_obs_pos = obs_pos;
+            obj.cached_obs_rad = obs_rad;
+            obj.cached_obs_signature = sig;
+            obj.cached_obs_count = n_real;
         end
 
     end
