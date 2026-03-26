@@ -30,8 +30,10 @@ waypoints = [-3300, -1550;
              -2800, -1600;
              -2400, -1900;];
 
-% ---- WAYPOINT SPEEDS (m/s) — one per segment + final ----
-waypoint_speeds = [7; 7; 5];
+% ---- CRUISE SPEED TARGET (m/s) ----
+% Guidance now uses one global cruise speed and lets the speed governor +
+% NMPC handle local slowdowns near obstacles/final approach.
+cruise_speed_mps = 7;
 
 % ---- STATIC OBSTACLES (set to empty [] for none) ----
 % Each obstacle: struct with 'position' [x; y] and 'radius' [m]
@@ -69,6 +71,10 @@ map_lookahead_m      = 400;    % Base forward lookahead distance [m]
 map_half_width_m     = 200;    % Base corridor half-width [m]
 map_sample_radius_m  = 13;     % Virtual obstacle radius for map points
 
+map_edge_spacing_m = 100; % Spacing for sampling map polygon edges (smaller = more obstacles, more realism, higher computation)
+map_include_interior_samples = false; % Whether to fill large polygon interiors with random samples (increases obstacle count, can improve avoidance in wide zones)
+map_interior_spacing_m = 120; % Spacing for interior map samples; Larger = fewer obstacles, less realism, lower computation.
+
 % Balanced guidance/avoidance coupling (global, not map-specific)
 map_lookahead_time_s = 75;     % Forward preview time [s]
 map_lookahead_min_m  = 420;    % Clamp lower bound for lookahead [m]
@@ -97,6 +103,23 @@ dynamic_obs_speeds_mps   = [5];             % [] uses dynamic_obs_speed_mps for 
 % - 'proximity': obstacles stay stationary until ship is close
 dynamic_obs_start_mode = 'proximity';       % immediate | proximity
 dynamic_obs_trigger_distance_m = 250;       % scalar or one per obstacle
+
+% ---- SPEED GOVERNOR (reference speed capping) ----
+% Combines:
+%   1) Distance-based obstacle speed cap (all obstacle types)
+%   2) TCPA/DCPA risk cap (dynamic obstacles)
+% Final commanded U_d is min(base guidance speed, governor caps).
+speed_governor = struct();
+speed_governor.enabled = true;
+speed_governor.cruise_speed_mps = cruise_speed_mps;
+speed_governor.min_speed_mps = 0.2;            % Keep >= NMPC lower bound (0.1 m/s)
+speed_governor.dist_trigger_m = 220;           % Begin slowing when clearance below this
+speed_governor.dist_stop_m = 45;               % Strong slowdown close to obstacle
+speed_governor.clearance_buffer_m = 20;        % Extra standoff added to obstacle radii
+speed_governor.use_map_samples_for_dist_cap = false; % Avoid map-point-induced crawl; NMPC still sees map obstacles
+speed_governor.tcpa_horizon_s = 45;            % Lookahead for collision-time risk
+speed_governor.dcpa_trigger_m = 90;            % DCPA threshold for slowdown
+speed_governor.tcpa_risk_gain = 1.35;          % >1 to counter strong speed-tracking weight
 
 % ---- NMPC TUNING ----
 nmpc_N  = 60;           % Prediction horizon steps
@@ -321,7 +344,7 @@ for i = 1:length(t)
 
     % ---- 1) Waypoint guidance -------------------------------------------
     t_seg = tic;
-    [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, waypoints, waypoint_speeds, wp_idx, R_accept);
+    [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, waypoints, cruise_speed_mps, wp_idx, R_accept);
     xte = computeXTE(x, waypoints, wp_idx);
     d_final_now = norm(x(4:5) - waypoints(end,:)');
     guide_time_log(i) = toc(t_seg);
@@ -390,10 +413,22 @@ for i = 1:length(t)
 
         obs_local = [obs_local, obs_map];
     end
+    obs_dyn = struct('position', {}, 'radius', {});
     if enable_dynamic_obstacles && ~isempty(dynamic_obstacles)
         obs_dyn = dynamicToCircleObstacles(dynamic_obstacles);
         obs_local = [obs_local, obs_dyn];
         obs_pack_drift_log(i) = computeDynamicPackagingDrift(dynamic_obstacles, obs_local);
+    end
+
+    % Speed governor: cap U_d using local obstacle distance risk and
+    % dynamic-obstacle TCPA/DCPA closure risk.
+    if speed_governor.enabled
+        if speed_governor.use_map_samples_for_dist_cap
+            obs_for_speed = obs_local;
+        else
+            obs_for_speed = [static_obstacles, obs_dyn];
+        end
+        U_d = applySpeedGovernor(U_d, x, obs_for_speed, dynamic_obstacles, speed_governor);
     end
     obs_time_log(i) = toc(t_seg);
 
@@ -727,7 +762,7 @@ fprintf('\nDone. Check figures.\n');
 
 %  LOCAL FUNCTIONS
 
-function [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, wp, wp_speed, wp_idx, R_accept)
+function [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, wp, cruise_speed_mps, wp_idx, R_accept)
 % Simple waypoint steering for 8-state model
     n_wps = size(wp, 1);
     pos   = [x(4); x(5)];
@@ -784,7 +819,7 @@ function [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, wp, wp_speed, wp_idx, 
 
     dp = target - pos;
     chi_d = atan2(dp(2), dp(1));
-    U_d = wp_speed(min(wp_idx + 1, length(wp_speed)));
+    U_d = cruise_speed_mps;
 
     if d_final < 220
         U_d = min(U_d, 1.2 + 0.03 * d_final);
@@ -793,6 +828,96 @@ function [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, wp, wp_speed, wp_idx, 
         U_d = min(U_d, 1.0);
     end
     U_d = max(0.8, U_d);
+end
+
+function U_cmd = applySpeedGovernor(U_base, x, obs_local, dynamic_obstacles, cfg)
+% Blend distance-based and dynamic collision-risk speed caps.
+    if nargin < 5 || isempty(cfg)
+        U_cmd = U_base;
+        return;
+    end
+
+    U_min = max(0.1, getOr(cfg, 'min_speed_mps', 0.2));
+    U_cruise = getOr(cfg, 'cruise_speed_mps', max(U_base, U_min));
+    U_cap = U_cruise;
+
+    % 1) Distance cap against all currently packaged circular obstacles.
+    if nargin >= 3 && ~isempty(obs_local)
+        ship_pos = x(4:5);
+        d_clear_min = inf;
+        extra_clear = getOr(cfg, 'clearance_buffer_m', 0);
+        for kk = 1:length(obs_local)
+            d_cent = norm(ship_pos - obs_local(kk).position(1:2));
+            d_clear = d_cent - (obs_local(kk).radius + extra_clear);
+            d_clear_min = min(d_clear_min, d_clear);
+        end
+
+        d_trig = getOr(cfg, 'dist_trigger_m', 200);
+        d_stop = min(d_trig - 1e-3, getOr(cfg, 'dist_stop_m', 40));
+        if isfinite(d_clear_min) && d_trig > d_stop
+            alpha = (d_clear_min - d_stop) / (d_trig - d_stop);
+            alpha = max(0, min(1, alpha));
+            U_cap_dist = U_min + alpha * (U_cruise - U_min);
+            U_cap = min(U_cap, U_cap_dist);
+        end
+    end
+
+    % 2) TCPA/DCPA cap against dynamic obstacles (if available).
+    if nargin >= 4 && ~isempty(dynamic_obstacles)
+        p_ship = x(4:5);
+        psi = x(6);
+        u_b = x(1);
+        v_b = x(2);
+        v_ship = [u_b * cos(psi) - v_b * sin(psi);
+                  u_b * sin(psi) + v_b * cos(psi)];
+
+        tcpa_h = getOr(cfg, 'tcpa_horizon_s', 40);
+        dcpa_trig = getOr(cfg, 'dcpa_trigger_m', 80);
+        risk_gain = getOr(cfg, 'tcpa_risk_gain', 1.0);
+        risk_peak = 0;
+
+        for kk = 1:length(dynamic_obstacles)
+            if ~isfield(dynamic_obstacles(kk), 'enabled') || ~dynamic_obstacles(kk).enabled
+                continue;
+            end
+            if ~isfield(dynamic_obstacles(kk), 'active') || ~dynamic_obstacles(kk).active
+                continue;
+            end
+
+            p_obs = dynamic_obstacles(kk).position(1:2);
+            spd = dynamic_obstacles(kk).speed;
+            hdg = dynamic_obstacles(kk).heading;
+            v_obs = spd * [cos(hdg); sin(hdg)];
+
+            p_rel = p_obs - p_ship;
+            v_rel = v_obs - v_ship;
+            v_rel_sq = max(1e-6, dot(v_rel, v_rel));
+            tcpa = -dot(p_rel, v_rel) / v_rel_sq;
+            if tcpa <= 0 || tcpa > tcpa_h
+                continue;
+            end
+
+            dcpa_vec = p_rel + tcpa * v_rel;
+            dcpa = norm(dcpa_vec) - dynamic_obstacles(kk).radius;
+            if dcpa >= dcpa_trig
+                continue;
+            end
+
+            w_t = 1 - tcpa / max(tcpa_h, 1e-3);
+            w_d = 1 - dcpa / max(dcpa_trig, 1e-3);
+            risk_k = max(0, min(1, w_t * w_d));
+            risk_peak = max(risk_peak, risk_k);
+        end
+
+        risk_peak = max(0, min(1, risk_gain * risk_peak));
+        if risk_peak > 0
+            U_cap_tcpa = U_cruise - risk_peak * (U_cruise - U_min);
+            U_cap = min(U_cap, U_cap_tcpa);
+        end
+    end
+
+    U_cmd = min(U_base, U_cap);
+    U_cmd = max(U_min, U_cmd);
 end
 
 function xte = computeXTE(x, wp, wp_idx)
@@ -1347,6 +1472,15 @@ function ok = runDynamicReplayCheck(dynamic_obstacles, n_steps, dt, bounds, poli
         err = max(err, norm(da(k).position - db(k).position));
     end
     ok = err <= 1e-12;
+end
+
+function v = getOr(s, field_name, default_value)
+% Safe struct field getter with default fallback.
+    if isstruct(s) && isfield(s, field_name) && ~isempty(s.(field_name))
+        v = s.(field_name);
+    else
+        v = default_value;
+    end
 end
 
 function p = safePercentile(x, prc)
