@@ -266,20 +266,38 @@ else
 end
 
 % --- Initialise ship handle ----------------------------------------------
-cx0 = yPath(1);  cy0 = xPath(1);
+cx0 = yPath(1);  cy0 = xPath(1);  psi0 = psi(1);
+if ~isempty(hullCfg) && isstruct(hullCfg) && isfield(hullCfg, 'half_length_m') && isfield(hullCfg, 'half_beam_m')
+    shipHalfLen = hullCfg.half_length_m;
+    shipHalfBeam = hullCfg.half_beam_m;
+else
+    shipHalfLen = shipHeightAx / 2;
+    shipHalfBeam = shipWidthAx / 2;
+end
+
 if useImage
-    hShip = image(ax, ...
-        'XData',      [cx0 - shipWidthAx/2,  cx0 + shipWidthAx/2], ...
-        'YData',      [cy0 - shipHeightAx/2, cy0 + shipHeightAx/2], ...
-        'CData',      shipImg, ...
-        'AlphaData',  shipAlpha, ...
+    [xq0, yq0] = computeShipImageQuad(cx0, cy0, shipHalfLen, shipHalfBeam, psi0);
+    hShip = surface(ax, ...
+        xq0, yq0, zeros(2), ...
+        'CData', shipImg, ...
+        'FaceColor', 'texturemap', ...
+        'EdgeColor', 'none', ...
+        'AlphaData', shipAlpha, ...
+        'FaceAlpha', 'texturemap', ...
         'HandleVisibility', 'off');
     uistack(hShip, 'top');
 else
-    [tx, ty] = shipTriangle(cx0, cy0, shipWidthAx, 0);
+    [tx, ty] = shipTriangle(cx0, cy0, 2 * shipHalfBeam, psi0);
     hShip = fill(ax, tx, ty, [0.20 0.75 1.00], ...
         'EdgeColor', 'w', 'LineWidth', 1.2, 'HandleVisibility', 'off');
 end
+
+% Small bow-direction arrow (always visible, independent of icon details)
+bowArrowLen = max(6, 0.28 * (2 * shipHalfLen));
+hBow = quiver(ax, cx0, cy0, bowArrowLen*cos(psi0), bowArrowLen*sin(psi0), 0, ...
+    'Color', [1.0 0.2 0.2], 'LineWidth', 1.8, 'MaxHeadSize', 1.4, ...
+    'HandleVisibility', 'off');
+uistack(hBow, 'top');
 
 % --- Live trail line ------------------------------------------------------
 hTrail = plot(ax, yPath(1), xPath(1), '-', ...
@@ -373,15 +391,17 @@ for k = 1:length(idx)
     cx = yPath(i);   % East  → plot x
     cy = xPath(i);   % North → plot y
 
-    % Move ship icon (image orientation is fixed — no rotation needed)
+    % Move ship icon and align orientation to hull heading
     if useImage
-        set(hShip, ...
-            'XData', [cx - shipWidthAx/2,  cx + shipWidthAx/2], ...
-            'YData', [cy - shipHeightAx/2, cy + shipHeightAx/2]);
+        [xq, yq] = computeShipImageQuad(cx, cy, shipHalfLen, shipHalfBeam, psi(i));
+        set(hShip, 'XData', xq, 'YData', yq);
     else
-        [tx, ty] = shipTriangle(cx, cy, shipWidthAx, psi(i));
+        [tx, ty] = shipTriangle(cx, cy, 2 * shipHalfBeam, psi(i));
         set(hShip, 'XData', tx, 'YData', ty);
     end
+
+    set(hBow, 'XData', cx, 'YData', cy, ...
+        'UData', bowArrowLen*cos(psi(i)), 'VData', bowArrowLen*sin(psi(i)));
 
     % Update hull footprint rectangle
     if ~isempty(hHullRect) && isvalid(hHullRect)
@@ -531,5 +551,21 @@ function corners = computeHullCorners(cx, cy, half_len, half_beam, psi)
     
     % Translate to center position
     corners = [cx + world_x; cy + world_y];
+end
+
+function [xq, yq] = computeShipImageQuad(cx, cy, half_len, half_beam, psi)
+% Return a 2x2 textured quad aligned with ship heading and hitbox geometry.
+% Corner order (body frame):
+%   A = bow-port, B = bow-starboard, C = stern-starboard, D = stern-port
+% surface uses [A B; D C] to map image rows bow->stern, cols port->starboard.
+    local_x = [ half_len,  half_len, -half_len, -half_len];
+    local_y = [ half_beam, -half_beam, -half_beam,  half_beam];
+
+    c = cos(psi);   s = sin(psi);
+    world_x = cx + c .* local_x - s .* local_y;
+    world_y = cy + s .* local_x + c .* local_y;
+
+    xq = [world_x(1), world_x(2); world_x(4), world_x(3)];
+    yq = [world_y(1), world_y(2); world_y(4), world_y(3)];
 end
 
