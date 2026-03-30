@@ -28,7 +28,7 @@ fprintf('═══════════════════════�
 % ---- WAYPOINTS (rows = [x, y] in meters, NED frame) ----
 waypoints = [-3300, -1550;
              -2800, -1600;
-             -2400, -1900;];
+             -2300, -2050;];
 
 % ---- CRUISE SPEED TARGET (m/s) ----
 % Guidance now uses one global cruise speed and lets the speed governor +
@@ -50,6 +50,14 @@ final_capture_speed_mps = 1.5; % Max speed for soft terminal capture [m/s]
 final_capture_hold_s = 6;      % Time inside soft capture gate before declaring success [s]
 n1_cruise   = 100;      % Aft thruster cruise speed [rpm]
 n2_cruise   = 0;        % Forward thruster (off during cruise)
+
+% ---- HULL FOOTPRINT MODEL (oriented rectangle) ----
+% Full-ship collision model uses a yawed rectangle centered at [x,y].
+% Real ship: 175m L × 25.4m B (from container.m).
+% Active hitbox is exactly 50% of real dimensions.
+hull_nominal_length_m = 175;
+hull_nominal_beam_m   = 25.4;
+hull_scale            = 0.5;    % Active hitbox = 87.5m x 12.7m
 
 % ---- ANIMATION RECORDING ----
 enable_animation_recording = true;
@@ -244,6 +252,8 @@ else
 end
 
 %% ===== NMPC configuration ===============================================
+hull_cfg = buildHullFootprintConfig(hull_nominal_length_m, hull_nominal_beam_m, hull_scale, r_safety);
+
 n_static_obs = length(static_obstacles);
 n_dynamic_obs = 0;
 if enable_dynamic_obstacles
@@ -263,9 +273,15 @@ nmpc_cfg.R  = R_weights;
 nmpc_cfg.R_rate = R_rate_weights;
 nmpc_cfg.max_obs = max(1, max_obs_slots);  % At least 1 slot
 nmpc_cfg.r_safety = r_safety;
+nmpc_cfg.collision_model = 'oriented-rectangle';
+nmpc_cfg.hull_length_m = hull_cfg.length_m;
+nmpc_cfg.hull_beam_m = hull_cfg.beam_m;
+nmpc_cfg.hull_clearance_m = hull_cfg.nmpc_clearance_m;
 nmpc_cfg.enable_diagnostics = false;
 
 fprintf('\n--- Building NMPC solver (%d obstacle slots) ---\n', nmpc_cfg.max_obs);
+fprintf('  Hull footprint: oriented rectangle %.1f m x %.1f m (clearance %.1f m)\n', ...
+    hull_cfg.length_m, hull_cfg.beam_m, hull_cfg.nmpc_clearance_m);
 nmpc = NMPC_Container_final(nmpc_cfg);
 nmpc.buildSolver();
 
@@ -493,8 +509,8 @@ for i = 1:length(t)
     rt_ratio_log(i) = step_time_log(i) / max(dt, 1e-9);
 
     % ---- 7) Collision checks (map + circle obstacles) ------------------
-    [hit_obs, ~, ~] = detectCircleObstacleHit(x(4:5), obs_local, 0.0);
-    [hit_map, ~, ~] = NavUtils.isInsideAnyMapZone(x(4:5), map);
+    [hit_obs, ~, ~] = detectHullCircleHit(x, obs_local, hull_cfg, 0.0);
+    [hit_map, ~, ~] = detectHullMapHit(x, hull_cfg, map);
     if hit_obs || hit_map
         collision_log(i) = true;
         fprintf('  [COLLISION] t=%.1f s hit_obs=%d hit_map=%d\n', t(i), hit_obs, hit_map);
@@ -727,6 +743,9 @@ if ~isempty(dynamic_obstacles)
     cfg_anim.dynamicObsRadius = dynamic_obs_radius_m;
 end
 
+% Add hull footprint config for visualization
+cfg_anim.hullCfg = hull_cfg;
+
 traj_anim = traj(1:6, :);
 fprintf('\n  Launching animation...\n');
 if cfg_anim.recordVideo
@@ -738,9 +757,7 @@ try
     animateSimResult(traj_anim, waypoints, t_sim, harbor_anim, cfg_anim);
 catch ME
     warning('run_nmpc:AnimationRecordFailed', '%s', ME.message);
-    warning('run_nmpc:AnimationRetryNoRecord', 'Retrying animation without recording.');
-    cfg_anim.recordVideo = false;
-    animateSimResult(traj_anim, waypoints, t_sim, harbor_anim, cfg_anim);
+    warning('run_nmpc:AnimationNoReplay', 'Animation/recording failed; skipping replay to avoid restart-from-beginning behavior.');
 end
 
 if enable_animation_recording
@@ -767,11 +784,16 @@ function [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, wp, cruise_speed_mps, 
     n_wps = size(wp, 1);
     pos   = [x(4); x(5)];
     d_final = norm(pos - wp(end,:)');
-    wp_idx = min(max(1, wp_idx), max(1, n_wps - 1));
+    wp_idx = min(max(1, wp_idx), n_wps);
 
-    while wp_idx < n_wps - 1
+    % Loop allows intermediate waypoints to be evaluated for skipping.
+    % Once wp_idx reaches n_wps-1, we still check it once more for completion, then lock to final.
+    loop_count = 0;
+    max_loops = n_wps;  % Prevent infinite loops
+    while wp_idx < n_wps && loop_count < max_loops
+        loop_count = loop_count + 1;
         p_from = wp(wp_idx, :)';
-        p_to   = wp(wp_idx + 1, :)';
+        p_to   = wp(min(wp_idx + 1, n_wps), :)';
         seg    = p_to - p_from;
         seg_l2 = seg' * seg;
         seg_len = sqrt(seg_l2);
@@ -783,6 +805,14 @@ function [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, wp, cruise_speed_mps, 
 
         proj = dot(pos - p_from, seg) / seg_l2;
         d_to_waypoint = norm(pos - p_to);
+        
+        % For pre-final checkpoint (wp_idx == n_wps-1), also check distance to current waypoint
+        if wp_idx == n_wps - 1
+            d_to_current_wp = norm(pos - p_from);
+        else
+            d_to_current_wp = inf;
+        end
+        
         p_next = wp(min(wp_idx + 2, n_wps), :)';
         d_to_next_waypoint = norm(pos - p_next);
         xte_seg = abs(((pos(1)-p_from(1))*seg(2) - (pos(2)-p_from(2))*seg(1)) / max(seg_len, 1e-6));
@@ -792,12 +822,24 @@ function [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, wp, cruise_speed_mps, 
         % obstacle/dynamic constraints push the vessel off the nominal line.
         skip_due_to_progress = (proj >= 0.95) && near_segment;
         skip_due_to_better_next = (proj >= 0.75) && near_segment && (d_to_next_waypoint < d_to_waypoint);
-        if d_to_waypoint <= R_accept || skip_due_to_progress || skip_due_to_better_next || (proj >= 1.0 && near_segment)
+        
+        % For pre-final waypoint, also allow skipping if we've reached it
+        if wp_idx == n_wps - 1
+            can_skip = (d_to_waypoint <= R_accept || skip_due_to_progress || skip_due_to_better_next || ...
+                        (proj >= 1.0 && near_segment) || d_to_current_wp <= R_accept);
+        else
+            can_skip = (d_to_waypoint <= R_accept || skip_due_to_progress || skip_due_to_better_next || (proj >= 1.0 && near_segment));
+        end
+        
+        if can_skip
             wp_idx = wp_idx + 1;
         else
             break;
         end
     end
+    
+    % Clamp to valid range
+    wp_idx = min(wp_idx, n_wps);
 
     p1 = wp(wp_idx, :)';
     p2 = wp(min(wp_idx + 1, n_wps), :)';
@@ -1357,21 +1399,37 @@ function obs_dyn = dynamicToCircleObstacles(dynamic_obstacles)
     end
 end
 
-function [hit, hit_idx, min_sep] = detectCircleObstacleHit(pos_xy, obstacles, safety_buffer)
-% Circle collision check with configurable safety buffer
+function [hit, hit_idx, min_sep] = detectHullCircleHit(x_state, obstacles, hull_cfg, safety_buffer)
+% Oriented-rectangle hull vs circle obstacles.
     hit = false;
     hit_idx = 0;
     min_sep = inf;
-    if nargin < 3 || isempty(safety_buffer)
+    if nargin < 4 || isempty(safety_buffer)
         safety_buffer = 0;
     end
     if isempty(obstacles)
         return;
     end
 
+    pos = x_state(4:5);
+    psi = x_state(6);
+    c = cos(psi);
+    s = sin(psi);
+    hx = hull_cfg.half_length_m;
+    hy = hull_cfg.half_beam_m;
+
     for k = 1:length(obstacles)
-        d = norm(pos_xy(:) - obstacles(k).position(1:2));
-        sep = d - (obstacles(k).radius + safety_buffer);
+        rel = obstacles(k).position(1:2) - pos;
+
+        % Obstacle center in ship body frame.
+        qx = c * rel(1) + s * rel(2);
+        qy = -s * rel(1) + c * rel(2);
+
+        dx = max(abs(qx) - hx, 0);
+        dy = max(abs(qy) - hy, 0);
+        d_rect = hypot(dx, dy);
+
+        sep = d_rect - (obstacles(k).radius + safety_buffer);
         min_sep = min(min_sep, sep);
         if sep <= 0
             hit = true;
@@ -1379,6 +1437,207 @@ function [hit, hit_idx, min_sep] = detectCircleObstacleHit(pos_xy, obstacles, sa
             return;
         end
     end
+end
+
+function [hit, zone_type, zone_idx] = detectHullMapHit(x_state, hull_cfg, map)
+% Oriented-rectangle hull collision against map polygon zones.
+    hit = false;
+    zone_type = '';
+    zone_idx = 0;
+    if isempty(map)
+        return;
+    end
+
+    hull_poly = buildHullPolygon(x_state(4:5), x_state(6), hull_cfg);
+
+    if isfield(map, 'polygons') && ~isempty(map.polygons)
+        [hit_poly, idx_poly] = hullHitsPolygonSet(hull_poly, map.polygons);
+        if hit_poly
+            hit = true;
+            zone_type = 'polygons';
+            zone_idx = idx_poly;
+            return;
+        end
+    end
+
+    if isfield(map, 'mapPoly') && ~isempty(map.mapPoly)
+        [hit_poly, idx_poly] = hullHitsPolygonSet(hull_poly, map.mapPoly);
+        if hit_poly
+            hit = true;
+            zone_type = 'mapPoly';
+            zone_idx = idx_poly;
+            return;
+        end
+    end
+end
+
+function [hit, idx] = hullHitsPolygonSet(hull_poly, polygon_set)
+% Test hull polygon against all polygons in a map polygon set.
+    hit = false;
+    idx = 0;
+    if isempty(polygon_set)
+        return;
+    end
+
+    for j = 1:length(polygon_set)
+        px = polygon_set(j).X(:);
+        py = polygon_set(j).Y(:);
+        rings = splitPolygonRings(px, py);
+        for rr = 1:length(rings)
+            ring = rings{rr};
+            if size(ring,1) < 3
+                continue;
+            end
+            if polygonsIntersectOrContain(hull_poly, ring)
+                hit = true;
+                idx = j;
+                return;
+            end
+        end
+    end
+end
+
+function hull_poly = buildHullPolygon(pos_xy, psi, hull_cfg)
+% Return 4x2 hull corner coordinates in world frame.
+    hx = hull_cfg.half_length_m;
+    hy = hull_cfg.half_beam_m;
+
+    local = [ hx,  hy;
+              hx, -hy;
+             -hx, -hy;
+             -hx,  hy];
+
+    c = cos(psi);
+    s = sin(psi);
+    R = [c, -s; s, c];
+    hull_poly = (R * local')' + pos_xy(:)';
+end
+
+function rings = splitPolygonRings(px, py)
+% Split NaN-separated polygon arrays into finite rings.
+    rings = {};
+    if isempty(px) || isempty(py)
+        return;
+    end
+
+    finite = isfinite(px) & isfinite(py);
+    keep = finite | (isnan(px) & isnan(py));
+    px = px(keep);
+    py = py(keep);
+    if isempty(px)
+        return;
+    end
+
+    sep = isnan(px) | isnan(py);
+    idx_sep = find(sep);
+    starts = [1; idx_sep + 1];
+    ends = [idx_sep - 1; numel(px)];
+
+    for k = 1:numel(starts)
+        s = starts(k);
+        e = ends(k);
+        if s > e
+            continue;
+        end
+        rx = px(s:e);
+        ry = py(s:e);
+        ring_ok = isfinite(rx) & isfinite(ry);
+        ring = [rx(ring_ok), ry(ring_ok)];
+        if size(ring,1) >= 3
+            rings{end+1} = ring; %#ok<AGROW>
+        end
+    end
+end
+
+function hit = polygonsIntersectOrContain(polyA, polyB)
+% Polygon intersection for simple polygons (with containment fallback).
+    hit = false;
+
+    nA = size(polyA, 1);
+    nB = size(polyB, 1);
+    if nA < 3 || nB < 3
+        return;
+    end
+
+    % Edge-edge intersection test.
+    for ia = 1:nA
+        a1 = polyA(ia, :);
+        a2 = polyA(mod(ia, nA) + 1, :);
+        for ib = 1:nB
+            b1 = polyB(ib, :);
+            b2 = polyB(mod(ib, nB) + 1, :);
+            if segmentsIntersect2D(a1, a2, b1, b2)
+                hit = true;
+                return;
+            end
+        end
+    end
+
+    % Containment checks.
+    [in1, on1] = inpolygon(polyA(1,1), polyA(1,2), polyB(:,1), polyB(:,2));
+    if in1 || on1
+        hit = true;
+        return;
+    end
+    [in2, on2] = inpolygon(polyB(1,1), polyB(1,2), polyA(:,1), polyA(:,2));
+    if in2 || on2
+        hit = true;
+    end
+end
+
+function tf = segmentsIntersect2D(p1, p2, q1, q2)
+% Robust 2D segment intersection including collinear overlap.
+    eps_v = 1e-9;
+    o1 = orient2d(p1, p2, q1);
+    o2 = orient2d(p1, p2, q2);
+    o3 = orient2d(q1, q2, p1);
+    o4 = orient2d(q1, q2, p2);
+
+    if ((o1 > eps_v && o2 < -eps_v) || (o1 < -eps_v && o2 > eps_v)) && ...
+       ((o3 > eps_v && o4 < -eps_v) || (o3 < -eps_v && o4 > eps_v))
+        tf = true;
+        return;
+    end
+
+    tf = (abs(o1) <= eps_v && onSegment2D(p1, q1, p2, eps_v)) || ...
+         (abs(o2) <= eps_v && onSegment2D(p1, q2, p2, eps_v)) || ...
+         (abs(o3) <= eps_v && onSegment2D(q1, p1, q2, eps_v)) || ...
+         (abs(o4) <= eps_v && onSegment2D(q1, p2, q2, eps_v));
+end
+
+function o = orient2d(a, b, c)
+    o = (b(1)-a(1))*(c(2)-a(2)) - (b(2)-a(2))*(c(1)-a(1));
+end
+
+function tf = onSegment2D(a, p, b, eps_v)
+    tf = p(1) <= max(a(1), b(1)) + eps_v && p(1) >= min(a(1), b(1)) - eps_v && ...
+         p(2) <= max(a(2), b(2)) + eps_v && p(2) >= min(a(2), b(2)) - eps_v;
+end
+
+function hull_cfg = buildHullFootprintConfig(length_nominal_m, beam_nominal_m, hull_scale, r_safety_point)
+% Build oriented-rectangle hull config and compatibility clearance.
+    if nargin < 1 || isempty(length_nominal_m)
+        length_nominal_m = 72;
+    end
+    if nargin < 2 || isempty(beam_nominal_m)
+        beam_nominal_m = 24;
+    end
+    if nargin < 3 || isempty(hull_scale)
+        hull_scale = 0.5;
+    end
+    if nargin < 4 || isempty(r_safety_point)
+        r_safety_point = 34;
+    end
+
+    hull_cfg = struct();
+    hull_cfg.length_m = max(4, hull_scale * length_nominal_m);
+    hull_cfg.beam_m = max(2, hull_scale * beam_nominal_m);
+    hull_cfg.half_length_m = 0.5 * hull_cfg.length_m;
+    hull_cfg.half_beam_m = 0.5 * hull_cfg.beam_m;
+
+    % Map old point-safety radius to footprint + clearance margin.
+    hull_cfg.circ_radius_m = hypot(hull_cfg.half_length_m, hull_cfg.half_beam_m);
+    hull_cfg.nmpc_clearance_m = max(2.0, r_safety_point - hull_cfg.circ_radius_m);
 end
 
 function drift = computeDynamicPackagingDrift(dynamic_obstacles, obs_local)

@@ -44,7 +44,7 @@ function animateSimResult(traj, waypoints, t_vec, harbor, cfg)
 
 
 %  Persistent image cache (loaded once, fixed orientation)
-persistent cachedImgFile shipImg shipAlpha shipWidthPx shipHeightPx
+persistent cachedImgFile shipImg shipAlpha shipWidthPx shipHeightPx shipEffWidthPx shipEffHeightPx
 
 %  0. Parse configuration
 if nargin < 5 || isempty(cfg), cfg = struct(); end
@@ -59,6 +59,7 @@ showLegend = cfgGet(cfg, 'showLegend', false);
 showCollisionCircles = cfgGet(cfg, 'showCollisionCircles', true);
 dynamicObsHistory = cfgGet(cfg, 'dynamicObsHistory', []);
 dynamicObsRadius = cfgGet(cfg, 'dynamicObsRadius', 20);
+hullCfg = cfgGet(cfg, 'hullCfg', []);
 recordVideo = cfgGet(cfg, 'recordVideo', false);
 recordGif = cfgGet(cfg, 'recordGif', false);
 recordFps = cfgGet(cfg, 'recordFps', 15);
@@ -92,6 +93,20 @@ if isempty(cachedImgFile) || ~strcmp(imgFile, cachedImgFile) || isempty(shipImg)
 
             shipHeightPx  = size(shipImg, 1);
             shipWidthPx   = size(shipImg, 2);
+
+            % Effective icon aspect from non-transparent pixels so we do not
+            % stretch square canvases with tall/narrow ship silhouettes.
+            mask = shipAlpha > 0.05;
+            cols = find(any(mask, 1));
+            rows = find(any(mask, 2));
+            if isempty(cols) || isempty(rows)
+                shipEffWidthPx = shipWidthPx;
+                shipEffHeightPx = shipHeightPx;
+            else
+                shipEffWidthPx = cols(end) - cols(1) + 1;
+                shipEffHeightPx = rows(end) - rows(1) + 1;
+            end
+
             cachedImgFile = imgFile;
             fprintf('  [animateSimResult] Icon loaded (%dx%d px).\n', shipWidthPx, shipHeightPx);
         catch ME
@@ -102,6 +117,10 @@ if isempty(cachedImgFile) || ~strcmp(imgFile, cachedImgFile) || isempty(shipImg)
     end
 else
     % Cache hit — reuse already-loaded image.
+    if isempty(shipEffWidthPx) || isempty(shipEffHeightPx)
+        shipEffWidthPx = shipWidthPx;
+        shipEffHeightPx = shipHeightPx;
+    end
 end
 
 %  2. Prepare trajectory data — extract x/y/psi from state matrix, apply frame-skip for animation
@@ -224,11 +243,26 @@ xlim(ax, [yMid - halfSpan, yMid + halfSpan]);
 ylim(ax, [xMid - halfSpan, xMid + halfSpan]);
 
 % Ship display size in axes units
-shipWidthAx  = axRng * shipSize;
-if useImage
-    shipHeightAx = shipWidthAx * (shipHeightPx / shipWidthPx);
+% When hull config is available, keep icon size physically consistent
+% with the same rectangle used by collision/hitbox plotting.
+if ~isempty(hullCfg) && isfield(hullCfg, 'half_beam_m') && isfield(hullCfg, 'half_length_m')
+    boxWidth  = 2 * hullCfg.half_beam_m;
+    boxHeight = 2 * hullCfg.half_length_m;
+    if useImage
+        effAspect = shipEffHeightPx / max(shipEffWidthPx, 1); % height/width
+        shipWidthAx  = min(boxWidth, boxHeight / max(effAspect, 1e-6));
+        shipHeightAx = shipWidthAx * effAspect;
+    else
+        shipWidthAx  = boxWidth;
+        shipHeightAx = boxHeight;
+    end
 else
-    shipHeightAx = shipWidthAx * 2.5;
+    shipWidthAx  = axRng * shipSize;
+    if useImage
+        shipHeightAx = shipWidthAx * (shipHeightPx / shipWidthPx);
+    else
+        shipHeightAx = shipWidthAx * 2.5;
+    end
 end
 
 % --- Initialise ship handle ----------------------------------------------
@@ -251,6 +285,18 @@ end
 hTrail = plot(ax, yPath(1), xPath(1), '-', ...
               'Color', [0.20 0.85 0.45], 'LineWidth', 2, ...
               'DisplayName', 'Own ship');
+
+% --- Hull footprint rectangle (if hull_cfg provided) ---------------------
+hHullRect = [];
+if ~isempty(hullCfg) && isstruct(hullCfg) && isfield(hullCfg, 'half_length_m')
+    % Initialize rectangle at starting position
+    cx0 = yPath(1);  cy0 = xPath(1);  psi0 = psi(1);
+    rectCorners0 = computeHullCorners(cx0, cy0, hullCfg.half_length_m, hullCfg.half_beam_m, psi0);
+    hHullRect = patch(ax, rectCorners0(1,:), rectCorners0(2,:), ...
+                      [1.0 0.50 0.20], ...
+                      'FaceAlpha', 0.15, 'EdgeColor', [1.0 0.50 0.20], ...
+                      'LineWidth', 1.5, 'HandleVisibility', 'off');
+end
 
 % --- Time stamp -----------------------------------------------------------
 xlims = xlim(ax);  ylims = ylim(ax);
@@ -335,6 +381,12 @@ for k = 1:length(idx)
     else
         [tx, ty] = shipTriangle(cx, cy, shipWidthAx, psi(i));
         set(hShip, 'XData', tx, 'YData', ty);
+    end
+
+    % Update hull footprint rectangle
+    if ~isempty(hHullRect) && isvalid(hHullRect)
+        rectCorners = computeHullCorners(cx, cy, hullCfg.half_length_m, hullCfg.half_beam_m, psi(i));
+        set(hHullRect, 'XData', rectCorners(1,:), 'YData', rectCorners(2,:));
     end
 
     % Update trail
@@ -456,3 +508,28 @@ function v = cfgGet(s, name, default)
         v = default;
     end
 end
+
+%  Hull footprint rectangle corner computation — returns 4 corner points (closed polygon)
+%  Inputs:
+%    cx, cy      - center position in world frame (East, North) [m]
+%    half_len    - half-length of rectangle aligned with ship longitudinal axis [m]
+%    half_beam   - half-beam of rectangle (perpendicular to length) [m]
+%    psi         - ship heading [rad]
+%  Output:
+%    corners     - 2×5 array: [cx1 cx2 cx3 cx4 cx1; cy1 cy2 cy3 cy4 cy1] (closed loop)
+%
+function corners = computeHullCorners(cx, cy, half_len, half_beam, psi)
+    % Rectangle corners in body frame (ship-aligned), then rotate and translate
+    % Bow at +x (length direction), starboard at +y (beam direction)
+    local_x = [ half_len,  half_len, -half_len, -half_len,  half_len];
+    local_y = [ half_beam, -half_beam, -half_beam,  half_beam,  half_beam];
+    
+    % Rotation matrix: rotate from body frame to world frame by angle psi
+    c = cos(psi);   s = sin(psi);
+    world_x = c .* local_x - s .* local_y;  % East
+    world_y = s .* local_x + c .* local_y;  % North
+    
+    % Translate to center position
+    corners = [cx + world_x; cy + world_y];
+end
+

@@ -35,6 +35,15 @@ classdef NMPC_Container_final < handle
         max_obs = 5
         r_safety = 35
 
+        % Collision geometry (point | oriented-rectangle)
+        collision_model = 'oriented-rectangle'
+        hull_length_m = 0
+        hull_beam_m = 0
+        hull_half_length_m = 0
+        hull_half_beam_m = 0
+        hull_clearance_m = 0
+        hull_smooth_eps = 1e-4
+
         % Solver internals
         solver
         solver_built = false
@@ -69,12 +78,26 @@ classdef NMPC_Container_final < handle
             obj.R_rate = getOr(cfg, 'R_rate', diag([0.05, 0.05, 0.005, 0.005]));
             obj.max_obs = getOr(cfg, 'max_obs', 5);
             obj.r_safety = getOr(cfg, 'r_safety', 30);
+            obj.collision_model = lower(strtrim(getOr(cfg, 'collision_model', 'point')));
+
+            obj.hull_length_m = getOr(cfg, 'hull_length_m', 36);
+            obj.hull_beam_m = getOr(cfg, 'hull_beam_m', 12);
+            obj.hull_half_length_m = 0.5 * max(1.0, obj.hull_length_m);
+            obj.hull_half_beam_m = 0.5 * max(0.5, obj.hull_beam_m);
+            obj.hull_clearance_m = getOr(cfg, 'hull_clearance_m', obj.r_safety);
+            obj.hull_smooth_eps = getOr(cfg, 'hull_smooth_eps', 1e-4);
             obj.enable_diagnostics = logical(getOr(cfg, 'enable_diagnostics', false));
 
             fprintf('NMPC_Container_final: N=%d, dt=%.2f, obs_slots=%d\n', ...
                 obj.N, obj.dt, obj.max_obs);
             fprintf('  8-state model: [u v r x y psi n1 n2]\n');
             fprintf('  4 controls: [alpha1 alpha2 n1_c n2_c]\n');
+            if strcmpi(obj.collision_model, 'oriented-rectangle')
+                fprintf('  collision: oriented rectangle %.1f x %.1f m (clearance %.1f m)\n', ...
+                    2*obj.hull_half_length_m, 2*obj.hull_half_beam_m, obj.hull_clearance_m);
+            else
+                fprintf('  collision: point model (r_safety %.1f m)\n', obj.r_safety);
+            end
         end
 
         function buildSolver(obj)
@@ -157,10 +180,28 @@ classdef NMPC_Container_final < handle
             % --- Obstacle avoidance (n_obs * (N_h+1) inequalities) ---
             for k = 1:(N_h+1)
                 for j = 1:n_obs
-                    dx = X(4,k) - P_obs_pos(1,j);
-                    dy = X(5,k) - P_obs_pos(2,j);
-                    dist = sqrt(dx^2 + dy^2 + 1e-3);
-                    g = vertcat(g, dist - P_obs_rad(j) - obj.r_safety);
+                    if strcmpi(obj.collision_model, 'oriented-rectangle')
+                        % Obstacle center in ship body frame at prediction step k.
+                        rx = P_obs_pos(1,j) - X(4,k);
+                        ry = P_obs_pos(2,j) - X(5,k);
+                        cpsi = cos(X(6,k));
+                        spsi = sin(X(6,k));
+
+                        qx = cpsi * rx + spsi * ry;
+                        qy = -spsi * rx + cpsi * ry;
+
+                        ax = abs(qx) - obj.hull_half_length_m;
+                        ay = abs(qy) - obj.hull_half_beam_m;
+                        dx = if_else(ax > 0, ax, 0);
+                        dy = if_else(ay > 0, ay, 0);
+                        dist = sqrt(dx^2 + dy^2 + obj.hull_smooth_eps);
+                        g = vertcat(g, dist - P_obs_rad(j) - obj.hull_clearance_m);
+                    else
+                        dx = X(4,k) - P_obs_pos(1,j);
+                        dy = X(5,k) - P_obs_pos(2,j);
+                        dist = sqrt(dx^2 + dy^2 + 1e-3);
+                        g = vertcat(g, dist - P_obs_rad(j) - obj.r_safety);
+                    end
                 end
             end
 
