@@ -145,6 +145,12 @@ R_weights = diag([0.1, 0.1, 0.01, 0.01]);
 % R_rate weights for smooth control transitions
 R_rate_weights = diag([0.08, 0.08, 0.006, 0.006]);
 
+% NEW: Actuator and forward motion penalties (ADDRESSING BACKWARD MOTION ISSUE)
+actuator_force_weight = 0.05;        % Penalty on RPM magnitude (increased 25x — reduces excessive swaying)
+forward_incentive_weight = 2.5;      % Penalty on backward motion (increased 5x — strongly discourages backward)
+waypoint_heading_weight = 0.0;       % Extra heading penalty at waypoints (0=disabled)
+u_min_forward = 0.5;                 % HARD CONSTRAINT: Minimum forward speed [m/s]
+
 % Obstacle-aware reference shaping (inertia/lookahead balance)
 avoid_ref_cfg = struct();
 avoid_ref_cfg.base_margin_m   = 75;    % baseline lateral keep-out in reference shaping
@@ -278,6 +284,10 @@ nmpc_cfg.hull_length_m = hull_cfg.length_m;
 nmpc_cfg.hull_beam_m = hull_cfg.beam_m;
 nmpc_cfg.hull_clearance_m = hull_cfg.nmpc_clearance_m;
 nmpc_cfg.enable_diagnostics = false;
+nmpc_cfg.actuator_force_weight = actuator_force_weight;
+nmpc_cfg.forward_incentive_weight = forward_incentive_weight;
+nmpc_cfg.waypoint_heading_weight = waypoint_heading_weight;
+nmpc_cfg.u_min_forward = u_min_forward;
 
 fprintf('\n--- Building NMPC solver (%d obstacle slots) ---\n', nmpc_cfg.max_obs);
 fprintf('  Hull footprint: oriented rectangle %.1f m x %.1f m (clearance %.1f m)\n', ...
@@ -722,6 +732,7 @@ cfg_anim.shipImgFile = shipImgPath;
 cfg_anim.shipSize    = 0.08;
 cfg_anim.maxFrames   = 200;
 cfg_anim.pauseTime   = 0.03;
+cfg_anim.flipShipImageVertical = false;  % Visualization-only: set true if icon appears bow/stern inverted
 
 % Recording options (passed to animateSimResult)
 cfg_anim.recordVideo = enable_animation_recording;
@@ -990,16 +1001,31 @@ function x_ref = buildSimpleRef8(x0, chi_d, U_d, N, dt, n1_ref, n2_ref)
     r_d = 0.35 * psi_err;
     r_d = max(-0.10, min(0.10, r_d));
     
+    % NEW: Smooth heading ramp to avoid spawning sideways
+    % First 5 steps: gradually increase heading command to chi_d
+    n_ramp = min(5, N);
+    
     for k = 2:(N+1)
         x_ref(1, k) = U_d;
         x_ref(2, k) = 0;
-        x_ref(3, k) = r_d;
-        x_ref(6, k) = chi_d;
         x_ref(7, k) = n1_ref;
         x_ref(8, k) = n2_ref;
         
-        dx = U_d * dt * cos(chi_d);
-        dy = U_d * dt * sin(chi_d);
+        % NEW: Smooth ramp for heading instead of step change
+        if k <= n_ramp + 1
+            % Linear ramp from current heading to desired heading
+            ramp_factor = (k - 1) / (n_ramp + 1);
+            x_ref(6, k) = x0(6) + ramp_factor * psi_err;
+            % Reduce rotation rate during ramp
+            x_ref(3, k) = 0.15 * r_d * sin((k-1) / (n_ramp + 1) * pi);
+        else
+            % After ramp, use full heading and rotation rate
+            x_ref(6, k) = chi_d;
+            x_ref(3, k) = r_d;
+        end
+        
+        dx = U_d * dt * cos(x_ref(6, k));
+        dy = U_d * dt * sin(x_ref(6, k));
         x_ref(4, k) = x_ref(4, k-1) + dx;
         x_ref(5, k) = x_ref(5, k-1) + dy;
     end
@@ -1061,9 +1087,17 @@ function x_ref = buildObstacleAwareRef8(x0, chi_d, U_d, N, dt, n1_ref, n2_ref, o
             chi_deflected = atan2(dy_ref, dx_ref);
             psi_err2 = atan2(sin(chi_deflected - x0(6)), cos(chi_deflected - x0(6)));
             r_d2 = max(-avoid_cfg.r_ref_max, min(avoid_cfg.r_ref_max, 0.35 * psi_err2));
+            % NEW: Preserve heading ramp during first few steps to avoid spawning sideways
+            n_ramp = min(5, N);
             for k = 2:(N+1)
-                x_ref(3, k) = r_d2;
-                x_ref(6, k) = chi_deflected;
+                if k <= n_ramp + 1
+                    % Keep the smooth ramp from buildSimpleRef8
+                    % Don't overwrite heading during initial ramp
+                    continue;
+                else
+                    x_ref(3, k) = r_d2;
+                    x_ref(6, k) = chi_deflected;
+                end
             end
         end
     end
@@ -1071,28 +1105,29 @@ end
 
 function x_next = rk4Step8(x, u_ctrl, dt_s)
 % RK4 integration for 8-state container model
-    x(1) = max(x(1), 0.1);
+    % NEW: Enforce minimum forward speed constraint in integration
+    x(1) = max(x(1), 0.5);  % Minimum forward speed 0.5 m/s
     x(7) = max(x(7), 0);
     
     [k1, ~] = container(x, u_ctrl);
     
     x2 = x + k1*dt_s/2;
-    x2(1) = max(x2(1), 0.1);
+    x2(1) = max(x2(1), 0.5);  % Enforce minimum
     x2(7) = max(x2(7), 0);
     [k2, ~] = container(x2, u_ctrl);
     
     x3 = x + k2*dt_s/2;
-    x3(1) = max(x3(1), 0.1);
+    x3(1) = max(x3(1), 0.5);  % Enforce minimum
     x3(7) = max(x3(7), 0);
     [k3, ~] = container(x3, u_ctrl);
     
     x4 = x + k3*dt_s;
-    x4(1) = max(x4(1), 0.1);
+    x4(1) = max(x4(1), 0.5);  % Enforce minimum
     x4(7) = max(x4(7), 0);
     [k4, ~] = container(x4, u_ctrl);
     
     x_next = x + dt_s/6 * (k1 + 2*k2 + 2*k3 + k4);
-    x_next(1) = max(x_next(1), 0.1);
+    x_next(1) = max(x_next(1), 0.5);  % Enforce minimum
 end
 
 function angle = wrapToPi(angle)

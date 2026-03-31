@@ -44,6 +44,12 @@ classdef NMPC_Container_final < handle
         hull_clearance_m = 0
         hull_smooth_eps = 1e-4
 
+        % NEW: Actuator and forward motion control
+        actuator_force_weight = 0.05     % Penalty on RPM magnitude (reduces swaying) — increased 25x
+        forward_incentive_weight = 2.5   % Penalty on backward motion (encourages forward bow) — increased 5x
+        waypoint_heading_weight = 0.0    % Extra heading penalty at waypoints (0=disabled)
+        u_min_forward = 0.5              % Minimum forward speed constraint [m/s] (hard constraint)
+
         % Solver internals
         solver
         solver_built = false
@@ -79,6 +85,10 @@ classdef NMPC_Container_final < handle
             obj.max_obs = getOr(cfg, 'max_obs', 5);
             obj.r_safety = getOr(cfg, 'r_safety', 30);
             obj.collision_model = lower(strtrim(getOr(cfg, 'collision_model', 'point')));
+            obj.actuator_force_weight = getOr(cfg, 'actuator_force_weight', 0.05);
+            obj.forward_incentive_weight = getOr(cfg, 'forward_incentive_weight', 2.5);
+            obj.waypoint_heading_weight = getOr(cfg, 'waypoint_heading_weight', 0.0);
+            obj.u_min_forward = getOr(cfg, 'u_min_forward', 0.5);
 
             obj.hull_length_m = getOr(cfg, 'hull_length_m', 36);
             obj.hull_beam_m = getOr(cfg, 'hull_beam_m', 12);
@@ -92,6 +102,9 @@ classdef NMPC_Container_final < handle
                 obj.N, obj.dt, obj.max_obs);
             fprintf('  8-state model: [u v r x y psi n1 n2]\n');
             fprintf('  4 controls: [alpha1 alpha2 n1_c n2_c]\n');
+            fprintf('  forward speed constraint: u >= %.2f m/s\n', obj.u_min_forward);
+            fprintf('  actuator penalty: %.4f | forward incentive: %.2f\n', ...
+                obj.actuator_force_weight, obj.forward_incentive_weight);
             if strcmpi(obj.collision_model, 'oriented-rectangle')
                 fprintf('  collision: oriented rectangle %.1f x %.1f m (clearance %.1f m)\n', ...
                     2*obj.hull_half_length_m, 2*obj.hull_half_beam_m, obj.hull_clearance_m);
@@ -146,6 +159,15 @@ classdef NMPC_Container_final < handle
                 J = J + Q_n1  * (X(7,k) - P_xref(7,k))^2;
                 J = J + Q_n2  * (X(8,k) - P_xref(8,k))^2;
 
+                % NEW: Actuator force penalty (reduces thruster swaying)
+                % Penalizes the magnitude of RPM commands to discourage excessive actuation
+                J = J + obj.actuator_force_weight * (X(7,k)^2 + X(8,k)^2);
+
+                % NEW: Forward velocity encouragement (makes bow go forward)
+                % Penalizes negative forward speed to naturally prefer forward motion
+                u_back = min(0, X(1,k));  % Only penalize if going backward
+                J = J + obj.forward_incentive_weight * u_back^2;
+
                 du = U(:,k) - P_uref(:,k);
                 J = J + du' * obj.R * du;
             end
@@ -163,6 +185,10 @@ classdef NMPC_Container_final < handle
             J = J + 2*Q_x   * (X(4,N_h+1) - P_xref(4,N_h+1))^2;
             J = J + 2*Q_y   * (X(5,N_h+1) - P_xref(5,N_h+1))^2;
             J = J + 2*Q_psi * psi_err_N^2;
+            % NEW: Terminal actuator force and forward incentive penalties
+            J = J + 2 * obj.actuator_force_weight * (X(7,N_h+1)^2 + X(8,N_h+1)^2);
+            u_back_N = min(0, X(1,N_h+1));
+            J = J + 2 * obj.forward_incentive_weight * u_back_N^2;
 
             %  CONSTRAINTS
             g = [];
@@ -237,7 +263,7 @@ classdef NMPC_Container_final < handle
             % State bounds
             for k = 1:(N_h+1)
                 base = (k-1)*nx;
-                lbx(base+1) = 0.1;        ubx(base+1) = 12;
+                lbx(base+1) = obj.u_min_forward;  ubx(base+1) = 12;  % NEW: Hard minimum forward speed
                 lbx(base+2) = -3;         ubx(base+2) = 3;
                 lbx(base+3) = -0.15;      ubx(base+3) = 0.15;
                 lbx(base+4) = -1e5;       ubx(base+4) = 1e5;

@@ -17,6 +17,7 @@ function animateSimResult(traj, waypoints, t_vec, harbor, cfg)
 %     .testName     String label in figure title     (default '')
 %     .shipImgFile  Absolute path to vessel icon     (default: viking.png)
 %     .shipSize     Ship width as fraction of range  (default 0.08)
+%     .shipImageScale Display scale vs hitbox size   (default 1.20)
 %     .maxFrames    Max frames rendered (auto-skip)  (default 150)
 %     .pauseTime    Pause between frames [s]         (default 0.05)
 %     .recordVideo  Save MP4 file                    (default false)
@@ -60,6 +61,8 @@ showCollisionCircles = cfgGet(cfg, 'showCollisionCircles', true);
 dynamicObsHistory = cfgGet(cfg, 'dynamicObsHistory', []);
 dynamicObsRadius = cfgGet(cfg, 'dynamicObsRadius', 20);
 hullCfg = cfgGet(cfg, 'hullCfg', []);
+flipShipImageVertical = cfgGet(cfg, 'flipShipImageVertical', false);
+shipImageScale = cfgGet(cfg, 'shipImageScale', 1.20);
 recordVideo = cfgGet(cfg, 'recordVideo', false);
 recordGif = cfgGet(cfg, 'recordGif', false);
 recordFps = cfgGet(cfg, 'recordFps', 15);
@@ -87,9 +90,15 @@ if isempty(cachedImgFile) || ~strcmp(imgFile, cachedImgFile) || isempty(shipImg)
                 rawAlpha = double(rawAlpha) / 255;
             end
 
-            % flipud: MATLAB image() rows go top-to-bottom but plot y goes upward.
-            shipImg   = flipud(rawImg);
-            shipAlpha = flipud(rawAlpha);
+            % Optional vertical flip for icons stored with opposite row orientation.
+            % Default false so bow/stern orientation follows the source image directly.
+            if flipShipImageVertical
+                shipImg   = flipud(rawImg);
+                shipAlpha = flipud(rawAlpha);
+            else
+                shipImg   = rawImg;
+                shipAlpha = rawAlpha;
+            end
 
             shipHeightPx  = size(shipImg, 1);
             shipWidthPx   = size(shipImg, 2);
@@ -275,8 +284,17 @@ else
     shipHalfBeam = shipWidthAx / 2;
 end
 
+% Display-only scaling for the ship icon (does not alter collision hitbox geometry).
+shipImgHalfLen = shipHalfLen;
+shipImgHalfBeam = shipHalfBeam;
 if useImage
-    [xq0, yq0] = computeShipImageQuad(cx0, cy0, shipHalfLen, shipHalfBeam, psi0);
+    shipImageScale = max(0.5, shipImageScale);
+    shipImgHalfLen = shipHalfLen * shipImageScale;
+    shipImgHalfBeam = shipHalfBeam * shipImageScale;
+end
+
+if useImage
+    [xq0, yq0] = computeShipImageQuad(cx0, cy0, shipImgHalfLen, shipImgHalfBeam, psi0);
     hShip = surface(ax, ...
         xq0, yq0, zeros(2), ...
         'CData', shipImg, ...
@@ -293,9 +311,9 @@ else
 end
 
 % Small bow-direction arrow (always visible, independent of icon details)
-bowArrowLen = max(6, 0.28 * (2 * shipHalfLen));
-hBow = quiver(ax, cx0, cy0, bowArrowLen*cos(psi0), bowArrowLen*sin(psi0), 0, ...
-    'Color', [1.0 0.2 0.2], 'LineWidth', 1.8, 'MaxHeadSize', 1.4, ...
+bowArrowLen = max(10, 0.45 * (2 * shipHalfLen));
+hBow = quiver(ax, cx0, cy0, bowArrowLen*sin(psi0), bowArrowLen*cos(psi0), 0, ...
+    'Color', [1.0 0.95 0.10], 'LineWidth', 2.4, 'MaxHeadSize', 2.2, ...
     'HandleVisibility', 'off');
 uistack(hBow, 'top');
 
@@ -312,8 +330,10 @@ if ~isempty(hullCfg) && isstruct(hullCfg) && isfield(hullCfg, 'half_length_m')
     rectCorners0 = computeHullCorners(cx0, cy0, hullCfg.half_length_m, hullCfg.half_beam_m, psi0);
     hHullRect = patch(ax, rectCorners0(1,:), rectCorners0(2,:), ...
                       [1.0 0.50 0.20], ...
-                      'FaceAlpha', 0.15, 'EdgeColor', [1.0 0.50 0.20], ...
-                      'LineWidth', 1.5, 'HandleVisibility', 'off');
+                      'FaceAlpha', 0.04, 'EdgeColor', [1.0 0.62 0.18], ...
+                      'LineWidth', 2.0, 'LineStyle', '--', 'HandleVisibility', 'off');
+    uistack(hHullRect, 'top');
+    uistack(hBow, 'top');
 end
 
 % --- Time stamp -----------------------------------------------------------
@@ -393,7 +413,7 @@ for k = 1:length(idx)
 
     % Move ship icon and align orientation to hull heading
     if useImage
-        [xq, yq] = computeShipImageQuad(cx, cy, shipHalfLen, shipHalfBeam, psi(i));
+        [xq, yq] = computeShipImageQuad(cx, cy, shipImgHalfLen, shipImgHalfBeam, psi(i));
         set(hShip, 'XData', xq, 'YData', yq);
     else
         [tx, ty] = shipTriangle(cx, cy, 2 * shipHalfBeam, psi(i));
@@ -401,7 +421,7 @@ for k = 1:length(idx)
     end
 
     set(hBow, 'XData', cx, 'YData', cy, ...
-        'UData', bowArrowLen*cos(psi(i)), 'VData', bowArrowLen*sin(psi(i)));
+        'UData', bowArrowLen*sin(psi(i)), 'VData', bowArrowLen*cos(psi(i)));
 
     % Update hull footprint rectangle
     if ~isempty(hHullRect) && isvalid(hHullRect)
@@ -514,10 +534,10 @@ function [tx, ty] = shipTriangle(cx, cy, w, psi)
     % Local coords: bow tip at (0, h/2), stern corners at (±w/2, -h/2)
     lx = [0,  w/2, 0, -w/2, 0];
     ly = [h/2, -h/2, -h/4, -h/2, h/2];
-    % Rotate by psi CW from North
-    c = cos(psi);  s = sin(psi);
-    tx = cx + c.*lx - s.*ly;   % East
-    ty = cy + s.*lx + c.*ly;   % North
+    % Map body frame to plot frame (x=East, y=North) with psi referenced from North.
+    s = sin(psi);  c = cos(psi);
+    tx = cx + s.*lx + c.*ly;   % East
+    ty = cy + c.*lx - s.*ly;   % North
 end
 
 %  Local helper — cfgGet returns cfg.(name) if present and non-empty, otherwise returns default
@@ -544,10 +564,10 @@ function corners = computeHullCorners(cx, cy, half_len, half_beam, psi)
     local_x = [ half_len,  half_len, -half_len, -half_len,  half_len];
     local_y = [ half_beam, -half_beam, -half_beam,  half_beam,  half_beam];
     
-    % Rotation matrix: rotate from body frame to world frame by angle psi
-    c = cos(psi);   s = sin(psi);
-    world_x = c .* local_x - s .* local_y;  % East
-    world_y = s .* local_x + c .* local_y;  % North
+    % Map from body frame to plot frame (East, North) with psi from North.
+    s = sin(psi);   c = cos(psi);
+    world_x = s .* local_x + c .* local_y;  % East
+    world_y = c .* local_x - s .* local_y;  % North
     
     % Translate to center position
     corners = [cx + world_x; cy + world_y];
@@ -561,9 +581,9 @@ function [xq, yq] = computeShipImageQuad(cx, cy, half_len, half_beam, psi)
     local_x = [ half_len,  half_len, -half_len, -half_len];
     local_y = [ half_beam, -half_beam, -half_beam,  half_beam];
 
-    c = cos(psi);   s = sin(psi);
-    world_x = cx + c .* local_x - s .* local_y;
-    world_y = cy + s .* local_x + c .* local_y;
+    s = sin(psi);   c = cos(psi);
+    world_x = cx + s .* local_x + c .* local_y;
+    world_y = cy + c .* local_x - s .* local_y;
 
     xq = [world_x(1), world_x(2); world_x(4), world_x(3)];
     yq = [world_y(1), world_y(2); world_y(4), world_y(3)];
