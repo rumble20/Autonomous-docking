@@ -26,10 +26,10 @@ fprintf('═══════════════════════�
 %  USER CONFIGURATION — EDIT THIS SECTION
 
 % ---- WAYPOINTS (rows = [x, y] in meters, NED frame) ----
-waypoints = [-4600, -500;
-             -4200, -400;
-             -3900, -650;
-             -3600, -800;];
+waypoints = [-6100, -1500;
+             -5700, -1300;
+             -5400, -1550;
+             -5000, -2000;];
 
 % ---- CRUISE SPEED TARGET (m/s) ----
 % Guidance now uses one global cruise speed and lets the speed governor +
@@ -46,8 +46,8 @@ static_obstacles = [];
 % - Positions are rows [x y] in meters.
 % - Headings are in degrees (0=+x/North, 90=+y/East).
 % - Speeds are in m/s (scalar or one per obstacle).
-dynamic_obs_positions_xy = [-3900 -900];  % Example: [-3000 -1700; -2920 -1740]
-dynamic_obs_headings_deg = [30];           % Example: [90; 110]
+dynamic_obs_positions_xy = [-5600 -1550];  % Example: [-3000 -1700; -2920 -1740]
+dynamic_obs_headings_deg = [0];           % Example: [90; 110]
 dynamic_obs_speeds_mps   = [5];             % [] uses dynamic_obs_speed_mps for all
 
 % ---- SIMULATION PARAMETERS ----
@@ -80,6 +80,14 @@ terminal_relax_dist_m = 260;
 terminal_map_exclusion_m = 120;
 terminal_min_avoid_scale = 0.55;
 terminal_disable_map_samples = true;  % disable virtual map sample obstacles near final approach
+
+% Optional map-aware terminal stop capture:
+% If final waypoint sits close to map keep-out, allow mission success inside
+% a safe radius around the final point at low speed.
+enable_safe_terminal_stop = true;
+safe_terminal_radius_m = 65;
+safe_terminal_speed_mps = 1.2;
+safe_terminal_hold_s = 5;
 
 % ---- MAP OBSTACLE SAMPLING ----
 enable_map_obstacles = true;   % Set false to disable red-zone awareness
@@ -136,14 +144,14 @@ nmpc_dt = 1.0;          % Sample time [s]
 r_safety = 34;          % Safety margin around obstacles [m]
 
 % === BALANCED TUNING (default for open water & cluttered zones) ===
-Q_weights_balanced = diag([2.0, 0.1, 0.6, 5.3, 5.3, 3.8, 0.001, 0.001]);
-R_weights_balanced = diag([0.08, 0.08, 0.007, 0.007]);
-R_rate_weights_balanced = diag([0.06, 0.06, 0.004, 0.004]);
+Q_weights_balanced = diag([2.0, 0.18, 0.95, 5.4, 5.4, 4.4, 0.001, 0.001]);
+R_weights_balanced = diag([0.06, 0.06, 0.007, 0.007]);
+R_rate_weights_balanced = diag([0.045, 0.045, 0.004, 0.004]);
 
 % === AGGRESSIVE TUNING (activated in tight corridor mode) ===
-Q_weights_aggressive = diag([2.0, 0.1, 0.6, 5.5, 5.5, 4.0, 0.001, 0.001]);
-R_weights_aggressive = diag([0.06, 0.06, 0.005, 0.005]);
-R_rate_weights_aggressive = diag([0.05, 0.05, 0.003, 0.003]);
+Q_weights_aggressive = diag([2.0, 0.22, 1.10, 5.7, 5.7, 4.9, 0.001, 0.001]);
+R_weights_aggressive = diag([0.045, 0.045, 0.005, 0.005]);
+R_rate_weights_aggressive = diag([0.035, 0.035, 0.003, 0.003]);
 
 % Start with balanced tuning (will switch dynamically)
 Q_weights = Q_weights_balanced;
@@ -166,10 +174,10 @@ u_min_forward = 0.5;                 % HARD CONSTRAINT: Minimum forward speed [m
 
 % Obstacle-aware reference shaping (inertia/lookahead balance)
 avoid_ref_cfg = struct();
-avoid_ref_cfg.base_margin_m   = 75;    % baseline lateral keep-out in reference shaping
-avoid_ref_cfg.speed_gain_s    = 2.2;   % extra margin = speed_gain * U_d
+avoid_ref_cfg.base_margin_m   = 68;    % baseline lateral keep-out in reference shaping
+avoid_ref_cfg.speed_gain_s    = 1.8;   % extra margin = speed_gain * U_d
 avoid_ref_cfg.obs_radius_gain = 0.45;  % how much obstacle radius increases lateral deflection
-avoid_ref_cfg.deflect_sigma   = 0.19;  % smaller -> sharper local avoidance bend
+avoid_ref_cfg.deflect_sigma   = 0.24;  % larger -> smoother local avoidance bend
 avoid_ref_cfg.r_ref_max       = 0.14;  % max |r_ref| sent to NMPC [rad/s]
 
 % ---- PID FALLBACK GAINS (used when NMPC fails) ----
@@ -233,6 +241,7 @@ end
 
 % Pre-sample map polygon edges for fast local queries
 map_sample_pts = [];
+final_is_map_constrained = false;
 if enable_map_obstacles && ~isempty(map)
     map_sample_pts = buildMapSamplePoints(map, map_edge_spacing_m, ...
         map_include_interior_samples, map_interior_spacing_m);
@@ -243,6 +252,7 @@ if enable_map_obstacles && ~isempty(map)
     fprintf('  Final waypoint -> nearest map sample: %.1f m (nominal keepout %.1f m)\n', ...
         d_final_map, nominal_keepout);
     if d_final_map < nominal_keepout
+        final_is_map_constrained = true;
         warning(['Final waypoint is close to virtual map keep-out. ', ...
             'Terminal relaxation may be required to avoid circling.']);
     end
@@ -333,6 +343,8 @@ t  = 0:dt:T_final;
 wp_idx = 1;
 final_capture_count = 0;
 final_capture_steps_needed = max(1, ceil(final_capture_hold_s / dt));
+safe_terminal_count = 0;
+safe_terminal_steps_needed = max(1, ceil(safe_terminal_hold_s / dt));
 terminal_mode_announced = false;
 
 % Preallocate logging
@@ -613,6 +625,8 @@ for i = 1:length(t)
     U_now_ship = hypot(x(1), x(2));
     hard_final_hit = (d_final_now < R_accept_final);
     soft_final_hit = (d_final_now < R_accept_final_soft) && (U_now_ship <= final_capture_speed_mps);
+    safe_terminal_hit = enable_safe_terminal_stop && final_is_map_constrained && ...
+        (d_final_now < safe_terminal_radius_m) && (U_now_ship <= safe_terminal_speed_mps);
 
     if hard_final_hit || soft_final_hit
         final_capture_count = final_capture_count + 1;
@@ -620,9 +634,20 @@ for i = 1:length(t)
         final_capture_count = 0;
     end
 
-    if hard_final_hit || final_capture_count >= final_capture_steps_needed
+    if safe_terminal_hit
+        safe_terminal_count = safe_terminal_count + 1;
+    else
+        safe_terminal_count = 0;
+    end
+
+    if hard_final_hit || final_capture_count >= final_capture_steps_needed || ...
+            safe_terminal_count >= safe_terminal_steps_needed
         if hard_final_hit
             fprintf('\n  ✓ FINAL WAYPOINT REACHED (hard gate %.1f m) at t=%.1f s!\n', R_accept_final, t(i));
+        elseif safe_terminal_count >= safe_terminal_steps_needed
+            fprintf(['\n  ✓ FINAL WAYPOINT SAFELY CAPTURED (map-constrained goal): ', ...
+                     'radius %.1f m, U<=%.1f m/s for %.1f s at t=%.1f s!\n'], ...
+                safe_terminal_radius_m, safe_terminal_speed_mps, safe_terminal_hold_s, t(i));
         else
             fprintf('\n  ✓ FINAL WAYPOINT CAPTURED (soft gate %.1f m, U<=%.1f m/s for %.1f s) at t=%.1f s!\n', ...
                 R_accept_final_soft, final_capture_speed_mps, final_capture_hold_s, t(i));
@@ -853,7 +878,8 @@ function [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, wp, cruise_speed_mps, 
     % Once wp_idx reaches n_wps-1, we still check it once more for completion, then lock to final.
     loop_count = 0;
     max_loops = n_wps;  % Prevent infinite loops
-    while wp_idx < n_wps && loop_count < max_loops
+    advanced_this_step = false;
+    while wp_idx < n_wps && loop_count < max_loops && ~advanced_this_step
         loop_count = loop_count + 1;
         p_from = wp(wp_idx, :)';
         p_to   = wp(min(wp_idx + 1, n_wps), :)';
@@ -879,12 +905,12 @@ function [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, wp, cruise_speed_mps, 
         p_next = wp(min(wp_idx + 2, n_wps), :)';
         d_to_next_waypoint = norm(pos - p_next);
         xte_seg = abs(((pos(1)-p_from(1))*seg(2) - (pos(2)-p_from(2))*seg(1)) / max(seg_len, 1e-6));
-        near_segment = xte_seg <= max(3*R_accept, 120);
+        near_segment = xte_seg <= max(1.5*R_accept, 70);
 
         % Intermediate checkpoints are intentionally skippable when
         % obstacle/dynamic constraints push the vessel off the nominal line.
-        skip_due_to_progress = (proj >= 0.95) && near_segment;
-        skip_due_to_better_next = (proj >= 0.75) && near_segment && (d_to_next_waypoint < d_to_waypoint);
+        skip_due_to_progress = (proj >= 0.98) && near_segment;
+        skip_due_to_better_next = (proj >= 0.85) && near_segment && (d_to_next_waypoint < d_to_waypoint);
         
         % For pre-final waypoint, also allow skipping if we've reached it
         if wp_idx == n_wps - 1
@@ -896,6 +922,7 @@ function [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, wp, cruise_speed_mps, 
         
         if can_skip
             wp_idx = wp_idx + 1;
+            advanced_this_step = true;  % avoid wp2->wp4 jumps in one solver step
         else
             break;
         end
@@ -908,23 +935,55 @@ function [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, wp, cruise_speed_mps, 
     p2 = wp(min(wp_idx + 1, n_wps), :)';
     seg = p2 - p1;
     seg_len = norm(seg);
+    xte_active = 0;
 
     if seg_len < 1e-6
         target = p2;
     else
         s_proj = dot(pos - p1, seg) / seg_len;
         s_proj = max(0, min(seg_len, s_proj));
+
+        % Cross-track relative to currently active segment.
+        xte_active = abs(((pos(1)-p1(1))*seg(2) - (pos(2)-p1(2))*seg(1)) / max(seg_len, 1e-6));
+
         U_now = max(1.0, sqrt(x(1)^2 + x(2)^2));
-        lookahead_nominal = max(60, 8 * U_now);
+        lookahead_nominal = max(45, 7 * U_now);
         lookahead_terminal = 30 + 0.55 * d_final;
-        lookahead = max(20, min(lookahead_nominal, lookahead_terminal));
-        s_target = min(seg_len, s_proj + lookahead);
+
+        % Recapture logic: if too far from corridor centerline, prioritize rejoining
+        % the segment before advancing deeply ahead.
+        xte_rejoin_thr = max(1.4 * R_accept, 60);
+        if xte_active > xte_rejoin_thr
+            s_target = s_proj;
+        else
+            lookahead = max(18, min(lookahead_nominal, lookahead_terminal));
+            xte_soft = max(0.7 * xte_rejoin_thr, 25);
+            recapture_gain = max(0.35, min(1.0, 1.0 - xte_active / max(xte_soft, 1e-6)));
+            lookahead = recapture_gain * lookahead;
+            s_target = min(seg_len, s_proj + lookahead);
+        end
+
         target = p1 + (s_target / seg_len) * seg;
     end
 
     dp = target - pos;
     chi_d = atan2(dp(2), dp(1));
     U_d = cruise_speed_mps;
+
+    % Turn-aware speed shaping: slow down for large heading error to reduce sway
+    % and help the vessel rotate before accelerating along the segment.
+    psi_err_abs = abs(wrapToPi(chi_d - x(6)));
+    psi_err_enter = deg2rad(12);
+    psi_err_full  = deg2rad(48);
+    turn_alpha = (psi_err_abs - psi_err_enter) / max(psi_err_full - psi_err_enter, 1e-6);
+    turn_alpha = max(0, min(1, turn_alpha));
+    U_turn_cap = 3.2 + (cruise_speed_mps - 3.2) * (1 - turn_alpha);
+    U_d = min(U_d, U_turn_cap);
+
+    % Extra recapture slowdown when far off-track.
+    if xte_active > max(1.2 * R_accept, 55)
+        U_d = min(U_d, 4.2);
+    end
 
     if d_final < 220
         U_d = min(U_d, 1.2 + 0.03 * d_final);
