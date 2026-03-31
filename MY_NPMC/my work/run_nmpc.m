@@ -26,20 +26,29 @@ fprintf('═══════════════════════�
 %  USER CONFIGURATION — EDIT THIS SECTION
 
 % ---- WAYPOINTS (rows = [x, y] in meters, NED frame) ----
-waypoints = [-3300, -1550;
-             -2800, -1600;
-             -2300, -2050;];
+waypoints = [-4600, -500;
+             -4200, -400;
+             -3900, -650;
+             -3600, -800;];
 
 % ---- CRUISE SPEED TARGET (m/s) ----
 % Guidance now uses one global cruise speed and lets the speed governor +
 % NMPC handle local slowdowns near obstacles/final approach.
-cruise_speed_mps = 7;
+cruise_speed_mps = 5;
 
 % ---- STATIC OBSTACLES (set to empty [] for none) ----
 % Each obstacle: struct with 'position' [x; y] and 'radius' [m]
 static_obstacles = [];
 % static_obstacles(1).position = [-3000; -1400];
 % static_obstacles(1).radius   = 30;
+
+% Manual dynamic obstacle definition (required when enabled):
+% - Positions are rows [x y] in meters.
+% - Headings are in degrees (0=+x/North, 90=+y/East).
+% - Speeds are in m/s (scalar or one per obstacle).
+dynamic_obs_positions_xy = [-3900 -900];  % Example: [-3000 -1700; -2920 -1740]
+dynamic_obs_headings_deg = [30];           % Example: [90; 110]
+dynamic_obs_speeds_mps   = [5];             % [] uses dynamic_obs_speed_mps for all
 
 % ---- SIMULATION PARAMETERS ----
 T_final     = 600;      % Total simulation time [s]
@@ -79,7 +88,7 @@ map_lookahead_m      = 400;    % Base forward lookahead distance [m]
 map_half_width_m     = 200;    % Base corridor half-width [m]
 map_sample_radius_m  = 13;     % Virtual obstacle radius for map points
 
-map_edge_spacing_m = 100; % Spacing for sampling map polygon edges (smaller = more obstacles, more realism, higher computation)
+map_edge_spacing_m = 70; % Spacing for sampling map polygon edges (smaller = more obstacles, more realism, higher computation)
 map_include_interior_samples = false; % Whether to fill large polygon interiors with random samples (increases obstacle count, can improve avoidance in wide zones)
 map_interior_spacing_m = 120; % Spacing for interior map samples; Larger = fewer obstacles, less realism, lower computation.
 
@@ -98,14 +107,6 @@ dynamic_obs_boundary_policy = 'deactivate'; % deactivate | clip | wrap
 dynamic_obs_boundary_margin = 120;    % Margin around map bounds [m]
 enable_dynamic_replay_check = true;   % Determinism self-check
 
-% Manual dynamic obstacle definition (required when enabled):
-% - Positions are rows [x y] in meters.
-% - Headings are in degrees (0=+x/North, 90=+y/East).
-% - Speeds are in m/s (scalar or one per obstacle).
-dynamic_obs_positions_xy = [-2600 -1600];  % Example: [-3000 -1700; -2920 -1740]
-dynamic_obs_headings_deg = [230];           % Example: [90; 110]
-dynamic_obs_speeds_mps   = [5];             % [] uses dynamic_obs_speed_mps for all
-
 % Dynamic obstacle motion trigger mode:
 % - 'immediate': obstacles move from t=0
 % - 'proximity': obstacles stay stationary until ship is close
@@ -121,29 +122,41 @@ speed_governor = struct();
 speed_governor.enabled = true;
 speed_governor.cruise_speed_mps = cruise_speed_mps;
 speed_governor.min_speed_mps = 0.2;            % Keep >= NMPC lower bound (0.1 m/s)
-speed_governor.dist_trigger_m = 220;           % Begin slowing when clearance below this
-speed_governor.dist_stop_m = 45;               % Strong slowdown close to obstacle
-speed_governor.clearance_buffer_m = 20;        % Extra standoff added to obstacle radii
+speed_governor.dist_trigger_m = 180;           % Begin slowing when clearance below this (more responsive)
+speed_governor.dist_stop_m = 35;               % Strong slowdown close to obstacle (earlier & deeper)
+speed_governor.clearance_buffer_m = 25;        % Extra standoff added to obstacle radii (more conservative)
 speed_governor.use_map_samples_for_dist_cap = false; % Avoid map-point-induced crawl; NMPC still sees map obstacles
-speed_governor.tcpa_horizon_s = 45;            % Lookahead for collision-time risk
-speed_governor.dcpa_trigger_m = 90;            % DCPA threshold for slowdown
+speed_governor.tcpa_horizon_s = 50;            % Lookahead for collision-time risk (longer preview)
+speed_governor.dcpa_trigger_m = 105;           % DCPA threshold for slowdown (earlier trigger)
 speed_governor.tcpa_risk_gain = 1.35;          % >1 to counter strong speed-tracking weight
 
 % ---- NMPC TUNING ----
-nmpc_N  = 60;           % Prediction horizon steps
+nmpc_N  = 70;           % Prediction horizon steps (increased for better lookahead in constrained scenarios)
 nmpc_dt = 1.0;          % Sample time [s]
 r_safety = 34;          % Safety margin around obstacles [m]
 
-% Q weights: [u, v, r, x, y, psi, n1, n2]
-%   - Higher position weights (x,y) → better obstacle avoidance
-%   - Higher heading weight (psi) → tighter path tracking
-Q_weights = diag([2.0, 0.1, 0.6, 5.0, 5.0, 3.2, 0.001, 0.001]);
+% === BALANCED TUNING (default for open water & cluttered zones) ===
+Q_weights_balanced = diag([2.0, 0.1, 0.6, 5.3, 5.3, 3.8, 0.001, 0.001]);
+R_weights_balanced = diag([0.08, 0.08, 0.007, 0.007]);
+R_rate_weights_balanced = diag([0.06, 0.06, 0.004, 0.004]);
 
-% R weights: [alpha1, alpha2, n1_c, n2_c]
-R_weights = diag([0.1, 0.1, 0.01, 0.01]);
+% === AGGRESSIVE TUNING (activated in tight corridor mode) ===
+Q_weights_aggressive = diag([2.0, 0.1, 0.6, 5.5, 5.5, 4.0, 0.001, 0.001]);
+R_weights_aggressive = diag([0.06, 0.06, 0.005, 0.005]);
+R_rate_weights_aggressive = diag([0.05, 0.05, 0.003, 0.003]);
 
-% R_rate weights for smooth control transitions
-R_rate_weights = diag([0.08, 0.08, 0.006, 0.006]);
+% Start with balanced tuning (will switch dynamically)
+Q_weights = Q_weights_balanced;
+R_weights = R_weights_balanced;
+R_rate_weights = R_rate_weights_balanced;
+
+% ---- TIGHT CORRIDOR MODE (auto-detection) ----
+enable_tight_corridor_mode = true;      % Master switch for adaptive tuning
+tight_corridor_threshold_m = 60;        % Trigger when available maneuver space < this [m]
+tight_corridor_hysteresis_m = 80;       % Hysteresis to prevent oscillation [m]
+tight_corridor_density_radius_m = 220;  % Radius to count nearby obstacles for crowding trigger [m]
+tight_corridor_min_obs_count = 4;       % Trigger when >= this many nearby obstacles create constrained passage
+tight_corridor_mode_active = false;     % Runtime flag (updated in simulation loop)
 
 % NEW: Actuator and forward motion penalties (ADDRESSING BACKWARD MOTION ISSUE)
 actuator_force_weight = 0.05;        % Penalty on RPM magnitude (increased 25x — reduces excessive swaying)
@@ -358,6 +371,9 @@ psi_err_prev = 0;
 % Previous control for NMPC rate limiting (NEW!)
 u_prev = [0; 0; n1_cruise; n2_cruise];
 
+% Tight corridor mode state tracking
+loose_prev_was_tight = false;
+
 fprintf('\n  Waypoints: ');
 for i = 1:size(waypoints, 1)
     fprintf('(%d, %d) ', waypoints(i,1), waypoints(i,2));
@@ -457,6 +473,42 @@ for i = 1:length(t)
         U_d = applySpeedGovernor(U_d, x, obs_for_speed, dynamic_obstacles, speed_governor);
     end
     obs_time_log(i) = toc(t_seg);
+
+    % ---- 2.5) TIGHT CORRIDOR MODE DETECTION & WEIGHT SWITCHING -----------
+    if enable_tight_corridor_mode && ~isempty(obs_local)
+        tight_corridor_mode_active = detectTightCorridor(x, obs_local, hull_cfg.beam_m, ...
+            tight_corridor_threshold_m, tight_corridor_hysteresis_m, ...
+            tight_corridor_density_radius_m, tight_corridor_min_obs_count, ...
+            tight_corridor_mode_active);
+        
+        % Check if mode just changed
+        mode_switched = (tight_corridor_mode_active ~= loose_prev_was_tight);
+        
+        if mode_switched
+            if tight_corridor_mode_active
+                % Switch to aggressive tuning and rebuild solver
+                Q_weights = Q_weights_aggressive;
+                R_weights = R_weights_aggressive;
+                R_rate_weights = R_rate_weights_aggressive;
+                fprintf('  [tight-corridor-mode ON] switching to aggressive NMPC tuning and rebuilding solver\n');
+            else
+                % Revert to balanced tuning and rebuild solver
+                Q_weights = Q_weights_balanced;
+                R_weights = R_weights_balanced;
+                R_rate_weights = R_rate_weights_balanced;
+                fprintf('  [tight-corridor-mode OFF] reverting to balanced NMPC tuning and rebuilding solver\n');
+            end
+            
+            % Rebuild NMPC solver with new weights
+            nmpc_cfg.Q = Q_weights;
+            nmpc_cfg.R = R_weights;
+            nmpc_cfg.R_rate = R_rate_weights;
+            nmpc = NMPC_Container_final(nmpc_cfg);
+            nmpc.buildSolver();
+            
+            loose_prev_was_tight = tight_corridor_mode_active;
+        end
+    end
 
     % ---- 3) Build reference trajectory ----------------------------------
     t_seg = tic;
@@ -971,6 +1023,46 @@ function U_cmd = applySpeedGovernor(U_base, x, obs_local, dynamic_obstacles, cfg
 
     U_cmd = min(U_base, U_cap);
     U_cmd = max(U_min, U_cmd);
+end
+
+function is_tight = detectTightCorridor(x_state, obs_list, hull_beam_m, clearance_enter_m, clearance_exit_m, crowd_radius_m, crowd_count_enter, mode_was_active)
+% Detect tight-corridor conditions from either:
+% 1) Low available clearance (map walls or close obstacles), or
+% 2) High local obstacle crowding that forms a constrained channel.
+    if nargin < 8
+        mode_was_active = false;
+    end
+    if isempty(obs_list)
+        is_tight = false;
+        return;
+    end
+
+    ship_pos = x_state(4:5);
+    min_clearance = inf;
+    near_count = 0;
+
+    for k = 1:length(obs_list)
+        obs_pos = obs_list(k).position(1:2);
+        obs_rad = obs_list(k).radius;
+        d_center = norm(ship_pos - obs_pos);
+        clearance_k = max(0.1, d_center - obs_rad - hull_beam_m/2);
+        min_clearance = min(min_clearance, clearance_k);
+        if d_center <= crowd_radius_m
+            near_count = near_count + 1;
+        end
+    end
+
+    if mode_was_active
+        crowd_count_thresh = max(1, crowd_count_enter - 1);
+        clearance_thresh = clearance_exit_m;
+    else
+        crowd_count_thresh = max(1, crowd_count_enter);
+        clearance_thresh = clearance_enter_m;
+    end
+
+    is_tight_by_clearance = min_clearance < clearance_thresh;
+    is_tight_by_crowding = near_count >= crowd_count_thresh;
+    is_tight = is_tight_by_clearance || is_tight_by_crowding;
 end
 
 function xte = computeXTE(x, wp, wp_idx)

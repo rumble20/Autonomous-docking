@@ -228,3 +228,12 @@ What this means for high-level guidance:
 ## About the actuation motors mounted
 
 Even if with the current limits it still works, the high volatile changing yaw now actuated by the control of the azipod would be best suited rather by ABB DynaFin, which could prove useful for this case
+
+## Tight corridor mode 
+
+The adoption of a tight-corridor adaptive control mode is justified provided that mode transitions are implemented with continuous command authority and certified fallback behavior. Specifically, both nominal and corridor-optimized controllers shall preserve identical hard safety constraints, while transition logic shall use hysteresis, bounded dwell time, and deterministic backup commands to eliminate unsafe control gaps. Under these conditions, adaptive mode switching improves maneuverability in constrained waterways without introducing unacceptable operational risk, and is therefore an appropriate safety-performance tradeoff for autonomous harbor navigation.
+
+## About what I tried with Test 20
+
+The observed collision in the narrow-passage scenario is attributed to a feasibility limitation rather than a lack of controller aggressiveness. Even with adaptive tight-corridor tuning, the NMPC must satisfy strict geometric and safety constraints, which can reduce the effective navigable width below the required maneuvering envelope. Therefore, this case is classified as constraint-infeasible under the current safety policy, and it justifies the inclusion of supervisory logic that detects infeasible passages and triggers alternative behaviors (speed reduction, holding, or route replanning) instead of forcing unsafe traversal.
+
