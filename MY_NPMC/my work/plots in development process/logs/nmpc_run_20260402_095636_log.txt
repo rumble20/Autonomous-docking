@@ -1,0 +1,94 @@
+  Terminal log recording to: C:\Users\SERILEG\OneDrive - ABB\Autonomous-docking\MY_NPMC\my work\plots in development process\logs\nmpc_run_20260402_095636_log.txt
+  container.m check: u_dot=0.0406, r_dot=0.000000, U=7.00 m/s
+
+  Harbor map loaded: 60 polygons
+  Final waypoint is outside mapped forbidden zones
+  Map sample points: 3729
+  Final waypoint -> nearest map sample: 172.6 m (nominal keepout 115.0 m)
+  Dynamic obstacles enabled: 1
+  Dynamic replay determinism check: PASS
+
+--- Building NMPC solver (4 obstacle slots) ---
+  Hull footprint: oriented rectangle 87.5 m x 12.7 m (clearance 2.0 m)
+NMPC_Container_final: N=25, dt=1.00, obs_slots=4
+  8-state model: [u v r x y psi n1 n2]
+  4 controls: [alpha1 alpha2 n1_c n2_c]
+  forward speed constraint: u >= 0.50 m/s
+  actuator penalty: 0.0500 | forward incentive: 2.50
+  collision: oriented rectangle 87.5 x 12.7 m (clearance 2.0 m)
+  nlpsol built: 308 vars, 412 constraints
+    - Equalities: 208 (initial + dynamics)
+    - Obstacle:   104 (slots × horizon)
+    - Rate:       100 (first-step + consecutive)
+
+  Waypoints: (-6100, -1500) (-5700, -1300) (-5400, -1550) (-5200, -2000)   [t=  0.0] pos=(-6093.7,-1496.9) psi= +26.6deg wp=1 xte=+0.0m obs_d=192m ok=1 comp=934.5ms solve=891.3ms RT=0.93 obs=4 fb=0
+  [t=  4.0] pos=(-6068.5,-1484.3) psi= +26.6deg wp=1 xte=+0.0m obs_d=171m ok=1 comp=1078.2ms solve=966.7ms RT=1.08 obs=4 fb=0
+  [t= 19.0] pos=(-5979.3,-1434.3) psi= +20.6deg wp=1 xte=-3.9m obs_d=103m ok=1 comp=584.5ms solve=583.5ms RT=0.58 obs=4 fb=0
+  [t= 39.0] pos=(-5861.0,-1355.9) psi= +13.9deg wp=1 xte=-21.6m obs_d=106m ok=1 comp=564.4ms solve=563.5ms RT=0.56 obs=4 fb=0
+  [t= 59.0] pos=(-5754.0,-1290.6) psi=  +9.5deg wp=2 xte=+31.4m obs_d=91m ok=1 comp=543.7ms solve=542.5ms RT=0.54 obs=4 fb=0
+  [t= 79.0] pos=(-5665.1,-1257.0) psi= +20.4deg wp=2 xte=-52.7m obs_d=122m ok=1 comp=498.9ms solve=496.8ms RT=0.50 obs=4 fb=0
+  [t= 84.0] pos=(-5651.8,-1258.9) psi= +21.7deg wp=2 xte=-61.9m obs_d=126m ok=1 comp=1110.5ms solve=1109.2ms RT=1.11 obs=4 fb=0
+  [t= 85.0] pos=(-5650.4,-1259.8) psi= +21.7deg wp=2 xte=-62.4m obs_d=126m ok=1 comp=1235.4ms solve=1233.4ms RT=1.24 obs=4 fb=0
+  [t= 91.0] pos=(-5643.7,-1267.5) psi= +20.9deg wp=2 xte=-61.4m obs_d=121m ok=1 comp=1041.5ms solve=1039.9ms RT=1.04 obs=4 fb=0
+  [t= 99.0] pos=(-5635.2,-1279.2) psi= +18.3deg wp=2 xte=-57.9m obs_d=115m ok=1 comp=560.8ms solve=559.2ms RT=0.56 obs=4 fb=0
+  [t=119.0] pos=(-5616.9,-1310.4) psi= +10.8deg wp=2 xte=-46.0m obs_d=104m ok=1 comp=475.4ms solve=472.3ms RT=0.48 obs=4 fb=0
+  [mode-switch] Would rebuild solver (DISABLED for stability)
+  [t=139.0] pos=(-5579.7,-1344.7) psi=  +6.2deg wp=2 xte=-42.4m obs_d=117m ok=1 comp=556.0ms solve=554.7ms RT=0.56 obs=4 fb=0
+  [t=159.0] pos=(-5555.8,-1380.4) psi=  +1.8deg wp=2 xte=-31.6m obs_d=129m ok=1 comp=495.9ms solve=495.1ms RT=0.50 obs=4 fb=0
+  [t=179.0] pos=(-5538.2,-1420.5) psi=  -0.9deg wp=2 xte=-11.5m obs_d=134m ok=1 comp=540.1ms solve=539.1ms RT=0.54 obs=4 fb=0
+
+══════════════════════════════════════════════════════════════
+  SUMMARY
+══════════════════════════════════════════════════════════════
+  NMPC solves: 181/181 (100.0%)
+  PID fallback: 0 times
+  Mean |XTE|: 31.2 m, Max |XTE|: 62.6 m
+  Final position: (-5536.4, -1422.5)
+  Dynamic packaging drift [m]: max=0.000
+  Collisions detected: 0
+
+  REAL-TIME FEASIBILITY (dt = 1.000 s)
+  Step compute [ms]: mean=576.83, p95=806.46, max=1235.40
+  NMPC solve  [ms]: mean=574.48, p95=805.07, max=1233.37
+  RT overruns (step_time > dt): 4/181 (2.21%)
+  Worst RT ratio: 1.235
+
+  TOP-5 SLOWEST STEPS
+    k    t[s]   step[ms]  solve[ms]  guide[ms]  obs[ms]  ref[ms]  int[ms]  ok
+    86    85.0   1235.40    1233.37       0.38     0.86     0.04     0.05   1
+    85    84.0   1110.48    1109.17       0.10     0.41     0.03     0.06   1
+     5     4.0   1078.20     966.68      46.29    34.15     5.59     3.34   1
+    92    91.0   1041.49    1039.93       0.11     0.40     0.03     0.06   1
+    87    86.0    977.93     976.51       0.14     0.74     0.05     0.03   1
+
+  TERMINAL TIMING PLOTS (ASCII)
+    Total step time (ref=1.000)
+      0-25%    |                                     0
+      25-50%   | #####                              25
+      50-75%   | ################################  146
+      75-100%  | #                                   6
+      100-125% | #                                   4
+      >125%    |                                     0
+    NMPC solve time (ref=1.000)
+      0-25%    |                                     0
+      25-50%   | ######                             27
+      50-75%   | ################################  144
+      75-100%  | ##                                  7
+      100-125% | #                                   3
+      >125%    |                                     0
+    RT ratio (step/dt) (ref=1.000)
+      0-25%    |                                     0
+      25-50%   | #####                              25
+      50-75%   | ################################  146
+      75-100%  | #                                   6
+      100-125% | #                                   4
+      >125%    |                                     0
+
+  Launching animation...
+  Recording video to: C:\Users\SERILEG\OneDrive - ABB\Autonomous-docking\MY_NPMC\my work\plots in development process\recordings\nmpc_run_20260402_095636.mp4
+  [animateSimResult] Loading ship icon: "C:\Users\SERILEG\OneDrive - ABB\Autonomous-docking\useful pictures\vessel_top.png"...
+  [animateSimResult] Icon loaded (312x312 px).
+  [animateSimResult] Recording video: "C:\Users\SERILEG\OneDrive - ABB\Autonomous-docking\MY_NPMC\my work\plots in development process\recordings\nmpc_run_20260402_095636.mp4"
+[Warning: The video's width and height has been padded to be a multiple of two as required by the H.264 codec.] 
+  [animateSimResult] Video saved: "C:\Users\SERILEG\OneDrive - ABB\Autonomous-docking\MY_NPMC\my work\plots in development process\recordings\nmpc_run_20260402_095636.mp4"
+  Video saved: C:\Users\SERILEG\OneDrive - ABB\Autonomous-docking\MY_NPMC\my work\plots in development process\recordings\nmpc_run_20260402_095636.mp4

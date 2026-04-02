@@ -52,7 +52,7 @@ dynamic_obs_speeds_mps   = [5];             % [] uses dynamic_obs_speed_mps for 
 
 % ---- SIMULATION PARAMETERS ----
 T_final     = 600;      % Total simulation time [s]
-R_accept    = 85;       % Intermediate waypoint acceptance radius [m] (moderately permissive)
+R_accept    = 70;       % Intermediate waypoint acceptance radius [m] (less premature segment switching)
 R_accept_final = 25;    % Final waypoint acceptance radius [m]
 R_accept_final_soft = 65;      % Soft terminal capture radius [m] (used with low-speed hold)
 final_capture_speed_mps = 2.5; % Max speed for soft terminal capture [m/s]
@@ -91,12 +91,12 @@ terminal_disable_map_samples = true;  % disable virtual map sample obstacles nea
 % Keep strong forward-bias during normal transit, but allow near-stop
 % recapture and tight turning on final waypoint approach.
 enable_terminal_precision_mode = true;
-terminal_precision_dist_m = 450;              % Activate precision behavior inside this final-range [m]
-terminal_precision_u_min_forward_mps = 0.05;  % Relaxed forward-speed lower bound near terminal [m/s]
-terminal_precision_guidance_min_mps = 0.05;   % Guidance speed floor during terminal precision mode [m/s]
-terminal_precision_guidance_max_mps = 1.2;    % Guidance cap during terminal precision mode [m/s]
-terminal_precision_close_dist_m = 24;         % Extra-slow zone for tight final recapture [m]
-terminal_precision_close_speed_mps = 0.45;    % Max speed in extra-slow zone [m/s]
+terminal_precision_dist_m = 160;              % Activate precision behavior only close to terminal [m]
+terminal_precision_u_min_forward_mps = 0.35;  % Keep enough forward authority during recapture [m/s]
+terminal_precision_guidance_min_mps = 0.35;   % Guidance speed floor during terminal precision mode [m/s]
+terminal_precision_guidance_max_mps = 1.4;    % Guidance cap during terminal precision mode [m/s]
+terminal_precision_close_dist_m = 20;         % Extra-slow zone for tight final recapture [m]
+terminal_precision_close_speed_mps = 0.50;    % Max speed in extra-slow zone [m/s]
 terminal_heading_hold_radius_m = 12;          % Freeze noisy dp-heading when very close to target [m]
 terminal_heading_velocity_switch_mps = 0.35;  % If moving enough, align with velocity heading [m/s]
 
@@ -104,15 +104,15 @@ terminal_heading_velocity_switch_mps = 0.35;  % If moving enough, align with vel
 % If final waypoint sits close to map keep-out, allow mission success inside
 % a safe radius around the final point at low speed.
 enable_safe_terminal_stop = true;
-safe_terminal_radius_m = 65;
+safe_terminal_radius_m = 50;
 safe_terminal_speed_mps = 1.2;
 safe_terminal_hold_s = 5;
 
 % ---- MAP OBSTACLE SAMPLING ----
 enable_map_obstacles = true;   % Set false to disable red-zone awareness
-max_map_obstacles    = 8;     % Max map sample points as obstacles
+max_map_obstacles    = 3;     % Max map sample points as obstacles (runtime-safe)
 map_sample_radius_m  = 13;     % Virtual obstacle radius for map points
-map_edge_spacing_m = 70; % Spacing for sampling map polygon edges (smaller = more obstacles, more realism, higher computation)
+map_edge_spacing_m = 110; % Spacing for sampling map polygon edges (larger = fewer virtual obstacles)
 map_include_interior_samples = false; % Whether to fill large polygon interiors with random samples (increases obstacle count, can improve avoidance in wide zones)
 map_interior_spacing_m = 120; % Spacing for interior map samples; Larger = fewer obstacles, less realism, lower computation.
 
@@ -155,7 +155,7 @@ speed_governor.dcpa_trigger_m = 105;           % DCPA threshold for slowdown (ea
 speed_governor.tcpa_risk_gain = 1.35;          % >1 to counter strong speed-tracking weight
 
 % ---- NMPC TUNING ----
-nmpc_N  = 70;           % Prediction horizon steps (increased for better lookahead in constrained scenarios)
+nmpc_N  = 25;           % Prediction horizon steps (runtime/accuracy compromise)
 nmpc_dt = 1.0;          % Sample time [s]
 r_safety = 34;          % Safety margin around obstacles [m]
 
@@ -175,7 +175,7 @@ R_weights = R_weights_balanced;
 R_rate_weights = R_rate_weights_balanced;
 
 % ---- TIGHT CORRIDOR MODE (auto-detection) ----
-enable_tight_corridor_mode = true;      % Master switch for adaptive tuning
+enable_tight_corridor_mode = true;      % Detection active; solver remains fixed-build
 tight_corridor_threshold_m = 60;        % Trigger when available maneuver space < this [m]
 tight_corridor_hysteresis_m = 80;       % Hysteresis to prevent oscillation [m]
 tight_corridor_density_radius_m = 220;  % Radius to count nearby obstacles for crowding trigger [m]
@@ -231,7 +231,20 @@ end
 
 %  INITIALIZATION (DO NOT EDIT BELOW UNLESS DEBUGGING)
 
+scriptDir = fileparts(mfilename('fullpath'));
+repoRoot = fileparts(fileparts(scriptDir));
+
+% Resolve relative output folders against repo root so logging is robust
+% even if other functions change the current working directory.
+if isempty(regexp(record_output_dir, '^[A-Za-z]:[\\/]|^\\\\', 'once'))
+    record_output_dir = fullfile(repoRoot, record_output_dir);
+end
+if isempty(regexp(terminal_log_output_dir, '^[A-Za-z]:[\\/]|^\\\\', 'once'))
+    terminal_log_output_dir = fullfile(repoRoot, terminal_log_output_dir);
+end
+
 run_timestamp = datestr(now, 'yyyymmdd_HHMMSS');
+terminal_log_file = '';
 if enable_terminal_log_recording
     if ~exist(terminal_log_output_dir, 'dir')
         mkdir(terminal_log_output_dir);
@@ -251,8 +264,6 @@ fprintf('  container.m check: u_dot=%.4f, r_dot=%.6f, U=%.2f m/s\n\n', ...
     xdot_test(1), xdot_test(3), U_test);
 
 %% ===== Ship image path (for animation) ==================================
-scriptDir = fileparts(mfilename('fullpath'));
-repoRoot = fileparts(fileparts(scriptDir));
 shipImgPath = fullfile(repoRoot, 'useful pictures', 'vessel_top.png');
 if ~isfile(shipImgPath)
     warning('Ship image not found. Animation will use fallback shape.');
@@ -412,9 +423,7 @@ u_prev = [0; 0; n1_cruise; n2_cruise];
 
 % Tight corridor mode state tracking
 loose_prev_was_tight = false;
-last_u_min_forward_for_solver = u_min_forward_nav;
 terminal_precision_was_active = false;
-terminal_precision_was_ever_active = false;
 
 % Missed-approach detector state (script-scope, persists across loop iterations)
 d_final_prev = inf;
@@ -443,14 +452,6 @@ for i = 1:length(t)
     on_final_leg = wp_idx >= max(1, size(waypoints,1)-1);
     terminal_precision_mode_active = terminal_precision_cfg.enabled && on_final_leg && ...
         (d_final_now < terminal_precision_cfg.activation_dist_m);
-
-    % Hysteresis: once terminal precision is activated on final leg, keep it latched on.
-    if terminal_precision_mode_active
-        terminal_precision_was_ever_active = true;
-    end
-    if terminal_precision_was_ever_active && on_final_leg
-        terminal_precision_mode_active = true;
-    end
 
     if terminal_precision_mode_active && ~terminal_precision_was_active
         fprintf('  [terminal-precision ON] relaxing min forward speed for tight final recapture (d_final=%.1f m)\n', d_final_now);
@@ -570,14 +571,15 @@ for i = 1:length(t)
         end
         
         % Proactive deceleration: if stopping distance > distance to target, SLOW DOWN NOW
-        if stopping_distance_estimate > d_final_now * 0.8
-            U_d_brake = sqrt(2 * a_decel_max * d_final_now * 0.6);
-            if U_d_brake < U_d
-                fprintf('  [BRAKE] stop_dist=%.0fm > 0.8*d_final=%.0fm -> U_d: %.2f -> %.2f m/s\n', ...
-                    stopping_distance_estimate, d_final_now*0.8, U_d, U_d_brake);
-                U_d = U_d_brake;
-            end
-        end
+        % DISABLED: Stopping distance braking conflicts with NMPC's planned deceleration.
+        % The solver is already formulating a trajectory toward the target; external
+        % braking overrides this and causes the boat to get stuck in low-speed oscillation.
+        % if stopping_distance_estimate > d_final_now * 0.8
+        %     U_d_brake = sqrt(2 * a_decel_max * d_final_now * 0.6);
+        %     if U_d_brake < U_d
+        %         U_d = U_d_brake;
+        %     end
+        % end
         
         fprintf('  [FINAL-LEG DEBUG] d_final=%.1f m, U_ship=%.2f m/s, U_d=%.2f m/s, XTE=%.1f m\n', ...
             d_final_now, U_now_ship, U_d, xte);
@@ -626,19 +628,8 @@ for i = 1:length(t)
         fprintf('  [mode-switch] Would rebuild solver (DISABLED for stability)\n');
     end
 
-    if terminal_precision_mode_active
-        desired_u_min_forward = terminal_precision_u_min_forward_mps;
-    else
-        desired_u_min_forward = u_min_forward_nav;
-    end
-    u_min_switched = abs(desired_u_min_forward - last_u_min_forward_for_solver) > 1e-6;
-
-    if u_min_switched
-        fprintf('  [u-min switch] Would rebuild solver for %.2f -> %.2f m/s (DISABLED for stability)\n', ...
-            last_u_min_forward_for_solver, desired_u_min_forward);
-    end
+    desired_u_min_forward = u_min_forward_nav;
     loose_prev_was_tight = tight_corridor_mode_active;
-    last_u_min_forward_for_solver = desired_u_min_forward;
 
     % ---- 3) Build reference trajectory ----------------------------------
     t_seg = tic;
@@ -694,7 +685,7 @@ for i = 1:length(t)
 
     % ---- 6) Simulate plant (RK4) ----------------------------------------
     t_seg = tic;
-    x = rk4Step8(x, u_opt, dt, last_u_min_forward_for_solver);
+    x = rk4Step8(x, u_opt, dt, desired_u_min_forward);
     integr_time_log(i) = toc(t_seg);
     step_time_log(i) = toc(t_step);
     rt_ratio_log(i) = step_time_log(i) / max(dt, 1e-9);
@@ -1102,12 +1093,12 @@ function [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, wp, cruise_speed_mps, 
         p_next = wp(min(wp_idx + 2, n_wps), :)';
         d_to_next_waypoint = norm(pos - p_next);
         xte_seg = abs(((pos(1)-p_from(1))*seg(2) - (pos(2)-p_from(2))*seg(1)) / max(seg_len, 1e-6));
-        near_segment = xte_seg <= max(1.5*R_accept, 70);
+        near_segment = xte_seg <= max(0.9*R_accept, 50);
 
         % Intermediate checkpoints are intentionally skippable when
         % obstacle/dynamic constraints push the vessel off the nominal line.
-        skip_due_to_progress = (proj >= 0.98) && near_segment;
-        skip_due_to_better_next = (proj >= 0.85) && near_segment && (d_to_next_waypoint < d_to_waypoint);
+        skip_due_to_progress = (proj >= 0.99) && near_segment;
+        skip_due_to_better_next = (proj >= 0.90) && near_segment && (d_to_next_waypoint < d_to_waypoint);
 
         if in_terminal_lock_window
             % In terminal lock window, disallow aggressive "better next"
@@ -1158,11 +1149,11 @@ function [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, wp, cruise_speed_mps, 
 
         U_now = max(1.0, sqrt(x(1)^2 + x(2)^2));
         lookahead_nominal = max(45, 7 * U_now);
-        lookahead_terminal = 30 + 0.55 * d_final;
+        lookahead_terminal = 30 + 0.25 * min(d_final, 250);
 
         % Recapture logic: if too far from corridor centerline, prioritize rejoining
         % the segment before advancing deeply ahead.
-        xte_rejoin_thr = max(1.4 * R_accept, 60);
+        xte_rejoin_thr = max(0.6 * R_accept, 35);
         if xte_active > xte_rejoin_thr
             s_target = s_proj;
         else

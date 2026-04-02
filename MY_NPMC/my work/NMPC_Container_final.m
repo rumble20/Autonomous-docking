@@ -314,10 +314,10 @@ classdef NMPC_Container_final < handle
             opts = struct;
             opts.ipopt.print_level = 0;
             opts.print_time = 0;
-            opts.ipopt.max_iter = 500;
-            opts.ipopt.tol = 1e-3;
-            opts.ipopt.acceptable_tol = 1e-2;
-            opts.ipopt.acceptable_iter = 5;
+            opts.ipopt.max_iter = 120;
+            opts.ipopt.tol = 2e-3;
+            opts.ipopt.acceptable_tol = 2e-2;
+            opts.ipopt.acceptable_iter = 3;
             opts.ipopt.mu_strategy = 'adaptive';
             opts.ipopt.nlp_scaling_method = 'gradient-based';
             opts.ipopt.sb = 'yes';
