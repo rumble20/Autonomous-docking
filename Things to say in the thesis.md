@@ -229,6 +229,50 @@ What this means for high-level guidance:
 
 Even if with the current limits it still works, the high volatile changing yaw now actuated by the control of the azipod would be best suited rather by ABB DynaFin, which could prove useful for this case
 
+## Realism-oriented modifications (model and controller): from a point-based model to a 4-angle-all-obstacle-aware one and other modifications
+
+The following changes were introduced to increase physical realism and operational plausibility of the docking controller. These points refer to model/controller behavior, not to scenario-specific waypoint edits.
+
+1) Vessel collision geometry upgraded from point-mass to oriented rectangular footprint
+- Collision checking now uses a yawed rectangle aligned with vessel heading rather than a point approximation.
+- This reflects the actual occupied area and orientation dependence of clearance.
+- Active dimensions in the current setup are based on nominal vessel geometry (175 m x 25.4 m) with a scaled operational hitbox and explicit clearance margin.
+- Implemented in: run_nmpc.m, NMPC_Container_final.m.
+
+2) Forward-motion realism enforced through hard constraints
+- A hard lower bound on surge speed is imposed in NMPC (u >= 0.5 m/s in nominal mode), preventing unrealistic optimization solutions that rely on persistent reverse drift.
+- Guidance and integration logic were aligned with this forward-motion assumption so planning and execution remain consistent.
+- Implemented in: run_nmpc.m, NMPC_Container_final.m.
+
+3) Actuation realism improved with effort and reverse-motion penalties
+- A dedicated actuator-effort term penalizes excessive shaft activity to reduce high-frequency RPM thrashing and nonphysical sway-inducing behavior.
+- A backward-motion penalty discourages unnecessary reverse operation while preserving feasibility when reverse action is genuinely needed.
+- Implemented in: NMPC_Container_final.m.
+
+4) Azimuth continuity and mechanical rate realism at first step
+- Azimuth rate limits are enforced both across the horizon and between the previously applied control and the first predicted control move.
+- This closes a common realism gap where the optimizer can otherwise issue nonphysical first-step jumps.
+- Implemented in: NMPC_Container_final.m.
+
+5) Terminal maneuvering behavior aligned with large-vessel practice
+- A terminal-precision regime is activated near final approach to favor controlled low-speed recapture over aggressive late corrections.
+- Heading handling near low speed is stabilized using hold/switch logic (position-heading vs velocity-heading usage).
+- Success detection includes a soft capture gate (distance + speed + dwell time), which better reflects practical docking acceptance than a strict instantaneous point hit.
+- Implemented in: run_nmpc.m.
+
+6) Harbor-environment coupling strengthened
+- Map-aware obstacle sampling and dynamic-obstacle packaging were retained and validated with determinism checks.
+- This maintains realistic interaction with constrained harbor geometry and moving traffic rather than evaluating tracking in open-water-only assumptions.
+- Implemented in: run_nmpc.m.
+
+### Explicitly excluded from this realism changelog
+- Waypoint coordinate changes.
+- Test-specific dynamic obstacle placements/headings/speeds.
+- Any scenario reshaping done only for validation experiments.
+
+Those are scenario-definition edits, not model/controller realism upgrades.
+
+
 ## Tight corridor mode 
 
 The adoption of a tight-corridor adaptive control mode is justified provided that mode transitions are implemented with continuous command authority and certified fallback behavior. Specifically, both nominal and corridor-optimized controllers shall preserve identical hard safety constraints, while transition logic shall use hysteresis, bounded dwell time, and deterministic backup commands to eliminate unsafe control gaps. Under these conditions, adaptive mode switching improves maneuverability in constrained waterways without introducing unacceptable operational risk, and is therefore an appropriate safety-performance tradeoff for autonomous harbor navigation.

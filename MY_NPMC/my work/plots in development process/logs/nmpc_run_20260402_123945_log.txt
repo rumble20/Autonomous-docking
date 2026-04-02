@@ -1,0 +1,376 @@
+  Terminal log recording to: C:\Users\SERILEG\OneDrive - ABB\Autonomous-docking\MY_NPMC\my work\plots in development process\logs\nmpc_run_20260402_123945_log.txt
+  container.m check: u_dot=0.0406, r_dot=0.000000, U=7.00 m/s
+
+  Harbor map loaded: 60 polygons
+  Final waypoint is outside mapped forbidden zones
+  Map sample points: 3729
+  Final waypoint -> nearest map sample: 123.1 m (nominal keepout 115.0 m)
+  Dynamic obstacles enabled: 2
+  Dynamic replay determinism check: PASS
+
+--- Building NMPC solver (5 obstacle slots) ---
+  Hull footprint: oriented rectangle 87.5 m x 12.7 m (clearance 2.0 m)
+NMPC_Container_final: N=25, dt=1.00, obs_slots=5
+  8-state model: [u v r x y psi n1 n2]
+  4 controls: [alpha1 alpha2 n1_c n2_c]
+  forward speed constraint: u >= 0.50 m/s
+  actuator penalty: 0.0500 | forward incentive: 2.50
+  collision: oriented rectangle 87.5 x 12.7 m (clearance 2.0 m)
+  nlpsol built: 308 vars, 438 constraints
+    - Equalities: 208 (initial + dynamics)
+    - Obstacle:   130 (slots × horizon)
+    - Rate:       100 (first-step + consecutive)
+
+  Waypoints: (-3500, -1600) (-3100, -1500) (-2850, -1700) (-2600, -1500)   [t=  0.0] pos=(-3493.2,-1598.3) psi= +14.0deg wp=1 xte=+0.0m obs_d=224m ok=1 comp=973.6ms solve=924.3ms RT=0.97 obs=5 fb=0
+  [t=  2.0] pos=(-3479.5,-1594.9) psi= +14.0deg wp=1 xte=-0.0m obs_d=219m ok=1 comp=1026.7ms solve=1006.7ms RT=1.03 obs=5 fb=0
+  [t=  3.0] pos=(-3472.7,-1593.1) psi= +14.0deg wp=1 xte=-0.0m obs_d=217m ok=1 comp=1239.0ms solve=1221.4ms RT=1.24 obs=5 fb=0
+  [t=  4.0] pos=(-3465.8,-1591.4) psi= +14.0deg wp=1 xte=-0.0m obs_d=215m ok=1 comp=1205.1ms solve=1147.6ms RT=1.21 obs=5 fb=0
+  [t=  6.0] pos=(-3452.1,-1587.9) psi= +13.9deg wp=1 xte=-0.1m obs_d=212m ok=1 comp=1111.1ms solve=1108.2ms RT=1.11 obs=5 fb=0
+  [t=  7.0] pos=(-3445.3,-1586.2) psi= +13.9deg wp=1 xte=-0.1m obs_d=210m ok=1 comp=1484.1ms solve=1482.4ms RT=1.48 obs=5 fb=0
+  [t=  8.0] pos=(-3438.5,-1584.5) psi= +13.9deg wp=1 xte=-0.1m obs_d=209m ok=1 comp=1055.4ms solve=1053.5ms RT=1.06 obs=5 fb=0
+  [t=  9.0] pos=(-3431.7,-1582.8) psi= +13.8deg wp=1 xte=-0.1m obs_d=207m ok=1 comp=1146.4ms solve=1144.4ms RT=1.15 obs=5 fb=0
+  [mode-switch] Would rebuild solver (DISABLED for stability)
+  [t= 17.0] pos=(-3378.1,-1570.0) psi= +15.6deg wp=1 xte=+0.3m obs_d=196m ok=1 comp=1107.9ms solve=1106.4ms RT=1.11 obs=5 fb=0
+  [t= 19.0] pos=(-3365.8,-1567.4) psi= +16.8deg wp=1 xte=+0.7m obs_d=179m ok=1 comp=652.9ms solve=651.2ms RT=0.65 obs=5 fb=0
+  [t= 21.0] pos=(-3354.8,-1565.2) psi= +18.1deg wp=1 xte=+1.2m obs_d=164m ok=1 comp=1154.3ms solve=1152.6ms RT=1.15 obs=5 fb=0
+  [t= 39.0] pos=(-3310.5,-1554.8) psi= +32.4deg wp=1 xte=+2.3m obs_d=136m ok=1 comp=550.5ms solve=549.3ms RT=0.55 obs=5 fb=0
+  [t= 58.0] pos=(-3272.1,-1538.8) psi= +38.8deg wp=1 xte=-3.8m obs_d=208m ok=1 comp=1230.2ms solve=1228.5ms RT=1.23 obs=5 fb=0
+  [t= 59.0] pos=(-3269.1,-1537.8) psi= +38.7deg wp=1 xte=-4.1m obs_d=209m ok=1 comp=1039.7ms solve=1034.7ms RT=1.04 obs=5 fb=0
+  [t= 60.0] pos=(-3265.9,-1536.7) psi= +38.5deg wp=1 xte=-4.4m obs_d=210m ok=1 comp=1131.9ms solve=1130.0ms RT=1.13 obs=5 fb=0
+  [mode-switch] Would rebuild solver (DISABLED for stability)
+  [t= 63.0] pos=(-3255.5,-1533.7) psi= +37.7deg wp=1 xte=-4.9m obs_d=212m ok=1 comp=1348.1ms solve=1346.1ms RT=1.35 obs=5 fb=0
+  [t= 64.0] pos=(-3251.8,-1532.7) psi= +37.3deg wp=1 xte=-5.0m obs_d=213m ok=1 comp=1132.9ms solve=1130.5ms RT=1.13 obs=5 fb=0
+  [t= 67.0] pos=(-3240.4,-1529.9) psi= +36.3deg wp=1 xte=-5.1m obs_d=215m ok=1 comp=1101.2ms solve=1099.7ms RT=1.10 obs=5 fb=0
+  [t= 79.0] pos=(-3192.2,-1518.8) psi= +32.3deg wp=1 xte=-4.2m obs_d=190m ok=1 comp=629.2ms solve=628.2ms RT=0.63 obs=5 fb=0
+  [t= 99.0] pos=(-3109.1,-1502.5) psi= +25.7deg wp=2 xte=+9.8m obs_d=127m ok=1 comp=604.1ms solve=603.2ms RT=0.60 obs=5 fb=0
+  [mode-switch] Would rebuild solver (DISABLED for stability)
+  [t=119.0] pos=(-3057.6,-1523.1) psi= +21.4deg wp=2 xte=-9.0m obs_d=76m ok=1 comp=548.9ms solve=546.7ms RT=0.55 obs=5 fb=0
+  [t=131.0] pos=(-3036.7,-1539.2) psi= +19.8deg wp=2 xte=-7.5m obs_d=51m ok=1 comp=1114.0ms solve=1112.6ms RT=1.11 obs=5 fb=0
+  [t=139.0] pos=(-3002.4,-1540.8) psi= +19.9deg wp=2 xte=-26.3m obs_d=41m ok=1 comp=715.9ms solve=714.8ms RT=0.72 obs=5 fb=0
+  [t=156.0] pos=(-2952.0,-1551.4) psi= +20.7deg wp=2 xte=-52.4m obs_d=58m ok=1 comp=1423.4ms solve=1420.6ms RT=1.42 obs=5 fb=0
+  [t=157.0] pos=(-2951.1,-1552.4) psi= +20.6deg wp=2 xte=-52.3m obs_d=58m ok=1 comp=1186.9ms solve=1184.7ms RT=1.19 obs=5 fb=0
+  [t=158.0] pos=(-2950.1,-1553.5) psi= +20.5deg wp=2 xte=-52.1m obs_d=58m ok=1 comp=1505.0ms solve=1503.1ms RT=1.50 obs=5 fb=0
+  [t=159.0] pos=(-2949.2,-1554.6) psi= +20.3deg wp=2 xte=-51.9m obs_d=58m ok=1 comp=963.9ms solve=960.0ms RT=0.96 obs=5 fb=0
+  [t=160.0] pos=(-2948.2,-1555.6) psi= +20.2deg wp=2 xte=-51.6m obs_d=58m ok=1 comp=2118.4ms solve=2116.0ms RT=2.12 obs=5 fb=0
+  [t=161.0] pos=(-2947.2,-1556.6) psi= +20.0deg wp=2 xte=-51.4m obs_d=58m ok=1 comp=1383.3ms solve=1381.7ms RT=1.38 obs=5 fb=0
+  [t=162.0] pos=(-2946.3,-1557.6) psi= +19.9deg wp=2 xte=-51.2m obs_d=57m ok=1 comp=1109.0ms solve=1107.3ms RT=1.11 obs=5 fb=0
+  [t=163.0] pos=(-2945.4,-1558.5) psi= +19.8deg wp=2 xte=-51.1m obs_d=57m ok=1 comp=1055.8ms solve=1053.9ms RT=1.06 obs=5 fb=0
+  [t=179.0] pos=(-2927.9,-1571.6) psi= +18.0deg wp=2 xte=-51.1m obs_d=60m ok=1 comp=553.2ms solve=552.0ms RT=0.55 obs=5 fb=0
+  [t=189.0] pos=(-2899.3,-1581.0) psi= +15.5deg wp=2 xte=-60.5m obs_d=75m ok=1 comp=1479.6ms solve=1477.5ms RT=1.48 obs=5 fb=0
+  [t=190.0] pos=(-2895.4,-1581.9) psi= +15.2deg wp=2 xte=-62.2m obs_d=78m ok=1 comp=1392.8ms solve=1390.2ms RT=1.39 obs=5 fb=0
+  [t=191.0] pos=(-2891.4,-1583.0) psi= +15.1deg wp=2 xte=-63.8m obs_d=82m ok=1 comp=1414.9ms solve=1413.4ms RT=1.41 obs=5 fb=0
+  [t=192.0] pos=(-2887.3,-1584.2) psi= +14.9deg wp=2 xte=-65.5m obs_d=85m ok=1 comp=1136.6ms solve=1135.2ms RT=1.14 obs=5 fb=0
+  [t=199.0] pos=(-2862.5,-1594.4) psi= +15.1deg wp=2 xte=-74.3m obs_d=105m ok=1 comp=749.7ms solve=748.1ms RT=0.75 obs=5 fb=0
+  [t=201.0] pos=(-2857.9,-1598.1) psi= +15.3deg wp=2 xte=-74.8m obs_d=109m ok=1 comp=1626.8ms solve=1624.8ms RT=1.63 obs=5 fb=0
+  [t=202.0] pos=(-2855.9,-1600.0) psi= +15.3deg wp=2 xte=-74.7m obs_d=110m ok=1 comp=2417.9ms solve=2414.7ms RT=2.42 obs=5 fb=0
+  [t=210.0] pos=(-2844.5,-1616.2) psi= +16.4deg wp=2 xte=-69.8m obs_d=120m ok=1 comp=1440.6ms solve=1437.5ms RT=1.44 obs=5 fb=0
+  [t=211.0] pos=(-2843.4,-1618.2) psi= +16.5deg wp=2 xte=-68.9m obs_d=121m ok=1 comp=1595.7ms solve=1590.4ms RT=1.60 obs=5 fb=0
+  [t=212.0] pos=(-2842.3,-1620.2) psi= +16.6deg wp=2 xte=-68.0m obs_d=122m ok=1 comp=1170.3ms solve=1167.6ms RT=1.17 obs=5 fb=0
+  [t=219.0] pos=(-2834.9,-1632.8) psi= +15.6deg wp=2 xte=-62.6m obs_d=120m ok=1 comp=604.5ms solve=603.1ms RT=0.60 obs=5 fb=0
+  [FINAL-LEG DEBUG] d_final=269.8 m, U_ship=1.93 m/s, U_d=2.00 m/s, XTE=-43.1 m
+  [t=220.0] pos=(-2833.9,-1634.4) psi= +15.3deg wp=3 xte=-43.1m obs_d=119m ok=1 comp=1374.0ms solve=1369.7ms RT=1.37 obs=5 fb=0
+  [FINAL-LEG DEBUG] d_final=269.8 m, U_ship=1.91 m/s, U_d=2.00 m/s, XTE=-41.2 m
+  [FINAL-LEG DEBUG] d_final=269.7 m, U_ship=1.89 m/s, U_d=2.00 m/s, XTE=-39.3 m
+  [FINAL-LEG DEBUG] d_final=269.5 m, U_ship=1.89 m/s, U_d=2.00 m/s, XTE=-37.4 m
+  [t=223.0] pos=(-2830.5,-1639.0) psi= +14.3deg wp=3 xte=-37.4m obs_d=117m ok=1 comp=1238.5ms solve=1234.9ms RT=1.24 obs=5 fb=0
+  [FINAL-LEG DEBUG] d_final=269.2 m, U_ship=1.90 m/s, U_d=2.00 m/s, XTE=-35.5 m
+  [t=224.0] pos=(-2829.2,-1640.3) psi= +13.9deg wp=3 xte=-35.5m obs_d=117m ok=1 comp=1919.7ms solve=1912.7ms RT=1.92 obs=5 fb=0
+  [FINAL-LEG DEBUG] d_final=268.7 m, U_ship=1.93 m/s, U_d=2.00 m/s, XTE=-33.6 m
+  [t=225.0] pos=(-2827.6,-1641.5) psi= +13.6deg wp=3 xte=-33.6m obs_d=117m ok=1 comp=2281.3ms solve=2277.2ms RT=2.28 obs=5 fb=0
+  [FINAL-LEG DEBUG] d_final=268.1 m, U_ship=1.99 m/s, U_d=2.00 m/s, XTE=-31.7 m
+  [FINAL-LEG DEBUG] d_final=267.2 m, U_ship=2.06 m/s, U_d=2.00 m/s, XTE=-29.8 m
+  [FINAL-LEG DEBUG] d_final=266.3 m, U_ship=2.13 m/s, U_d=2.00 m/s, XTE=-27.8 m
+  [FINAL-LEG DEBUG] d_final=265.2 m, U_ship=2.18 m/s, U_d=2.00 m/s, XTE=-25.8 m
+  [FINAL-LEG DEBUG] d_final=264.0 m, U_ship=2.22 m/s, U_d=2.00 m/s, XTE=-23.9 m
+  [FINAL-LEG DEBUG] d_final=262.8 m, U_ship=2.24 m/s, U_d=2.00 m/s, XTE=-21.9 m
+  [FINAL-LEG DEBUG] d_final=261.6 m, U_ship=2.24 m/s, U_d=2.00 m/s, XTE=-19.9 m
+  [FINAL-LEG DEBUG] d_final=260.4 m, U_ship=2.24 m/s, U_d=2.00 m/s, XTE=-18.0 m
+  [terminal-mode] final-leg map-sample relaxation active (d_final=259.1 m)
+  [FINAL-LEG DEBUG] d_final=259.1 m, U_ship=2.24 m/s, U_d=2.00 m/s, XTE=-16.0 m
+  [mode-switch] Would rebuild solver (DISABLED for stability)
+  [FINAL-LEG DEBUG] d_final=257.9 m, U_ship=2.24 m/s, U_d=2.00 m/s, XTE=-14.1 m
+  [t=235.0] pos=(-2807.7,-1650.5) psi= +11.0deg wp=3 xte=-14.1m obs_d=1786m ok=1 comp=1259.5ms solve=1250.6ms RT=1.26 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=256.6 m, U_ship=2.23 m/s, U_d=2.00 m/s, XTE=-12.2 m
+  [t=236.0] pos=(-2805.6,-1651.2) psi= +10.8deg wp=3 xte=-12.2m obs_d=1795m ok=1 comp=1003.1ms solve=1001.2ms RT=1.00 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=255.2 m, U_ship=2.22 m/s, U_d=2.00 m/s, XTE=-10.4 m
+  [FINAL-LEG DEBUG] d_final=253.9 m, U_ship=2.21 m/s, U_d=2.00 m/s, XTE=-8.6 m
+  [FINAL-LEG DEBUG] d_final=252.6 m, U_ship=2.20 m/s, U_d=2.00 m/s, XTE=-6.8 m
+  [t=239.0] pos=(-2799.3,-1653.0) psi= +10.2deg wp=3 xte=-6.8m obs_d=1822m ok=1 comp=615.7ms solve=609.9ms RT=0.62 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=251.2 m, U_ship=2.21 m/s, U_d=2.00 m/s, XTE=-5.0 m
+  [FINAL-LEG DEBUG] d_final=249.8 m, U_ship=2.21 m/s, U_d=2.00 m/s, XTE=-3.3 m
+  [FINAL-LEG DEBUG] d_final=248.4 m, U_ship=2.20 m/s, U_d=2.00 m/s, XTE=-1.5 m
+  [FINAL-LEG DEBUG] d_final=247.0 m, U_ship=2.20 m/s, U_d=2.00 m/s, XTE=0.1 m
+  [FINAL-LEG DEBUG] d_final=245.5 m, U_ship=2.19 m/s, U_d=2.00 m/s, XTE=1.8 m
+  [FINAL-LEG DEBUG] d_final=244.1 m, U_ship=2.19 m/s, U_d=2.00 m/s, XTE=3.4 m
+  [FINAL-LEG DEBUG] d_final=242.5 m, U_ship=2.17 m/s, U_d=2.00 m/s, XTE=4.9 m
+  [FINAL-LEG DEBUG] d_final=241.0 m, U_ship=2.16 m/s, U_d=2.00 m/s, XTE=6.4 m
+  [FINAL-LEG DEBUG] d_final=239.4 m, U_ship=2.14 m/s, U_d=2.00 m/s, XTE=7.7 m
+  [FINAL-LEG DEBUG] d_final=237.7 m, U_ship=2.10 m/s, U_d=2.00 m/s, XTE=9.1 m
+  [FINAL-LEG DEBUG] d_final=236.1 m, U_ship=2.04 m/s, U_d=2.00 m/s, XTE=10.2 m
+  [FINAL-LEG DEBUG] d_final=234.4 m, U_ship=1.97 m/s, U_d=2.00 m/s, XTE=11.3 m
+  [FINAL-LEG DEBUG] d_final=232.8 m, U_ship=1.90 m/s, U_d=2.00 m/s, XTE=12.2 m
+  [FINAL-LEG DEBUG] d_final=231.1 m, U_ship=1.90 m/s, U_d=2.00 m/s, XTE=12.9 m
+  [FINAL-LEG DEBUG] d_final=229.3 m, U_ship=1.94 m/s, U_d=2.00 m/s, XTE=13.5 m
+  [FINAL-LEG DEBUG] d_final=227.4 m, U_ship=1.94 m/s, U_d=2.00 m/s, XTE=14.0 m
+  [FINAL-LEG DEBUG] d_final=225.6 m, U_ship=1.95 m/s, U_d=2.00 m/s, XTE=14.4 m
+  [FINAL-LEG DEBUG] d_final=223.7 m, U_ship=1.93 m/s, U_d=2.00 m/s, XTE=14.8 m
+  [FINAL-LEG DEBUG] d_final=221.8 m, U_ship=1.95 m/s, U_d=2.00 m/s, XTE=15.1 m
+  [FINAL-LEG DEBUG] d_final=219.9 m, U_ship=1.96 m/s, U_d=2.00 m/s, XTE=15.3 m
+  [t=259.0] pos=(-2760.1,-1647.9) psi=  +5.9deg wp=3 xte=+15.3m obs_d=1981m ok=1 comp=668.6ms solve=667.0ms RT=0.67 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=217.9 m, U_ship=1.95 m/s, U_d=2.00 m/s, XTE=15.5 m
+  [t=260.0] pos=(-2758.5,-1646.8) psi=  +5.6deg wp=3 xte=+15.5m obs_d=1988m ok=1 comp=1013.4ms solve=1011.7ms RT=1.01 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=216.0 m, U_ship=1.96 m/s, U_d=2.00 m/s, XTE=15.6 m
+  [t=261.0] pos=(-2756.9,-1645.7) psi=  +5.4deg wp=3 xte=+15.6m obs_d=1996m ok=1 comp=1283.5ms solve=1281.8ms RT=1.28 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=214.1 m, U_ship=1.97 m/s, U_d=2.00 m/s, XTE=15.8 m
+  [t=262.0] pos=(-2755.2,-1644.5) psi=  +5.1deg wp=3 xte=+15.8m obs_d=2003m ok=1 comp=1023.7ms solve=1015.2ms RT=1.02 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=212.1 m, U_ship=1.97 m/s, U_d=2.00 m/s, XTE=15.9 m
+  [FINAL-LEG DEBUG] d_final=210.2 m, U_ship=1.96 m/s, U_d=2.00 m/s, XTE=16.0 m
+  [t=264.0] pos=(-2752.1,-1642.2) psi=  +4.6deg wp=3 xte=+16.0m obs_d=2017m ok=1 comp=1100.1ms solve=1098.7ms RT=1.10 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=208.2 m, U_ship=1.94 m/s, U_d=2.00 m/s, XTE=16.0 m
+  [t=265.0] pos=(-2750.6,-1641.0) psi=  +4.4deg wp=3 xte=+16.0m obs_d=2024m ok=1 comp=1044.5ms solve=1043.0ms RT=1.04 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=206.3 m, U_ship=1.93 m/s, U_d=2.00 m/s, XTE=16.0 m
+  [FINAL-LEG DEBUG] d_final=204.4 m, U_ship=1.91 m/s, U_d=2.00 m/s, XTE=16.0 m
+  [FINAL-LEG DEBUG] d_final=202.5 m, U_ship=1.90 m/s, U_d=2.00 m/s, XTE=16.0 m
+  [FINAL-LEG DEBUG] d_final=200.6 m, U_ship=1.87 m/s, U_d=2.00 m/s, XTE=15.9 m
+  [FINAL-LEG DEBUG] d_final=198.7 m, U_ship=1.86 m/s, U_d=1.20 m/s, XTE=15.8 m
+  [FINAL-LEG DEBUG] d_final=196.9 m, U_ship=1.83 m/s, U_d=1.20 m/s, XTE=15.7 m
+  [t=271.0] pos=(-2742.1,-1633.6) psi=  +3.3deg wp=3 xte=+15.7m obs_d=2065m ok=1 comp=1567.9ms solve=1566.0ms RT=1.57 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=195.1 m, U_ship=1.80 m/s, U_d=1.20 m/s, XTE=15.5 m
+  [t=272.0] pos=(-2740.8,-1632.4) psi=  +3.2deg wp=3 xte=+15.5m obs_d=2072m ok=1 comp=1586.5ms solve=1584.2ms RT=1.59 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=193.3 m, U_ship=1.78 m/s, U_d=1.20 m/s, XTE=15.4 m
+  [t=273.0] pos=(-2739.5,-1631.1) psi=  +3.0deg wp=3 xte=+15.4m obs_d=2079m ok=1 comp=1543.0ms solve=1541.1ms RT=1.54 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=191.5 m, U_ship=1.76 m/s, U_d=1.20 m/s, XTE=15.2 m
+  [t=274.0] pos=(-2738.3,-1630.0) psi=  +2.9deg wp=3 xte=+15.2m obs_d=2086m ok=1 comp=1297.7ms solve=1295.6ms RT=1.30 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=189.7 m, U_ship=1.74 m/s, U_d=1.20 m/s, XTE=15.1 m
+  [t=275.0] pos=(-2737.0,-1628.8) psi=  +2.8deg wp=3 xte=+15.1m obs_d=2093m ok=1 comp=1701.2ms solve=1699.4ms RT=1.70 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=188.0 m, U_ship=1.71 m/s, U_d=1.20 m/s, XTE=15.0 m
+  [t=276.0] pos=(-2735.8,-1627.6) psi=  +2.6deg wp=3 xte=+15.0m obs_d=2100m ok=1 comp=1426.1ms solve=1424.4ms RT=1.43 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=186.3 m, U_ship=1.68 m/s, U_d=1.20 m/s, XTE=14.8 m
+  [FINAL-LEG DEBUG] d_final=184.7 m, U_ship=1.65 m/s, U_d=1.20 m/s, XTE=14.7 m
+  [FINAL-LEG DEBUG] d_final=183.0 m, U_ship=1.61 m/s, U_d=1.20 m/s, XTE=14.5 m
+  [t=279.0] pos=(-2732.3,-1624.2) psi=  +2.2deg wp=3 xte=+14.5m obs_d=2120m ok=1 comp=220.3ms solve=219.3ms RT=0.22 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=181.5 m, U_ship=1.54 m/s, U_d=1.20 m/s, XTE=14.3 m
+  [FINAL-LEG DEBUG] d_final=180.0 m, U_ship=1.47 m/s, U_d=1.20 m/s, XTE=14.1 m
+  [FINAL-LEG DEBUG] d_final=178.5 m, U_ship=1.40 m/s, U_d=1.20 m/s, XTE=13.8 m
+  [t=282.0] pos=(-2729.5,-1620.9) psi=  +1.8deg wp=3 xte=+13.8m obs_d=2141m ok=1 comp=1090.3ms solve=1088.7ms RT=1.09 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=177.2 m, U_ship=1.34 m/s, U_d=1.20 m/s, XTE=13.5 m
+  [FINAL-LEG DEBUG] d_final=175.9 m, U_ship=1.29 m/s, U_d=1.20 m/s, XTE=13.2 m
+  [FINAL-LEG DEBUG] d_final=174.6 m, U_ship=1.25 m/s, U_d=1.20 m/s, XTE=12.9 m
+  [FINAL-LEG DEBUG] d_final=173.4 m, U_ship=1.22 m/s, U_d=1.20 m/s, XTE=12.7 m
+  [FINAL-LEG DEBUG] d_final=172.2 m, U_ship=1.19 m/s, U_d=1.20 m/s, XTE=12.4 m
+  [FINAL-LEG DEBUG] d_final=171.1 m, U_ship=1.16 m/s, U_d=1.20 m/s, XTE=12.1 m
+  [FINAL-LEG DEBUG] d_final=169.9 m, U_ship=1.14 m/s, U_d=1.20 m/s, XTE=11.9 m
+  [FINAL-LEG DEBUG] d_final=168.8 m, U_ship=1.12 m/s, U_d=1.20 m/s, XTE=11.7 m
+  [FINAL-LEG DEBUG] d_final=167.7 m, U_ship=1.10 m/s, U_d=1.20 m/s, XTE=11.5 m
+  [FINAL-LEG DEBUG] d_final=166.6 m, U_ship=1.08 m/s, U_d=1.20 m/s, XTE=11.3 m
+  [FINAL-LEG DEBUG] d_final=165.6 m, U_ship=1.06 m/s, U_d=1.20 m/s, XTE=11.1 m
+  [FINAL-LEG DEBUG] d_final=164.5 m, U_ship=1.04 m/s, U_d=1.20 m/s, XTE=10.9 m
+  [FINAL-LEG DEBUG] d_final=163.5 m, U_ship=1.03 m/s, U_d=1.20 m/s, XTE=10.8 m
+  [FINAL-LEG DEBUG] d_final=162.5 m, U_ship=1.02 m/s, U_d=1.20 m/s, XTE=10.6 m
+  [FINAL-LEG DEBUG] d_final=161.4 m, U_ship=1.00 m/s, U_d=1.20 m/s, XTE=10.5 m
+  [FINAL-LEG DEBUG] d_final=160.5 m, U_ship=0.99 m/s, U_d=1.20 m/s, XTE=10.4 m
+  [terminal-precision ON] relaxing min forward speed for tight final recapture (d_final=159.5 m)
+  [FINAL-LEG DEBUG] d_final=159.5 m, U_ship=0.98 m/s, U_d=1.20 m/s, XTE=10.3 m
+  [t=299.0] pos=(-2717.1,-1606.8) psi=  +0.6deg wp=3 xte=+10.3m obs_d=2263m ok=1 comp=147.8ms solve=142.4ms RT=0.15 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=158.5 m, U_ship=0.97 m/s, U_d=1.20 m/s, XTE=10.2 m
+  [FINAL-LEG DEBUG] d_final=157.5 m, U_ship=0.95 m/s, U_d=1.20 m/s, XTE=10.1 m
+  [FINAL-LEG DEBUG] d_final=156.6 m, U_ship=0.94 m/s, U_d=1.20 m/s, XTE=10.1 m
+  [FINAL-LEG DEBUG] d_final=155.7 m, U_ship=0.93 m/s, U_d=1.20 m/s, XTE=10.0 m
+  [FINAL-LEG DEBUG] d_final=154.7 m, U_ship=0.92 m/s, U_d=1.20 m/s, XTE=10.0 m
+  [FINAL-LEG DEBUG] d_final=153.8 m, U_ship=0.92 m/s, U_d=1.20 m/s, XTE=9.9 m
+  [FINAL-LEG DEBUG] d_final=152.9 m, U_ship=0.91 m/s, U_d=1.20 m/s, XTE=9.9 m
+  [FINAL-LEG DEBUG] d_final=152.0 m, U_ship=0.90 m/s, U_d=1.20 m/s, XTE=9.9 m
+  [FINAL-LEG DEBUG] d_final=151.1 m, U_ship=0.89 m/s, U_d=1.20 m/s, XTE=9.8 m
+  [FINAL-LEG DEBUG] d_final=150.2 m, U_ship=0.88 m/s, U_d=1.20 m/s, XTE=9.8 m
+  [FINAL-LEG DEBUG] d_final=149.3 m, U_ship=0.88 m/s, U_d=1.20 m/s, XTE=9.8 m
+  [FINAL-LEG DEBUG] d_final=148.5 m, U_ship=0.87 m/s, U_d=1.20 m/s, XTE=9.8 m
+  [FINAL-LEG DEBUG] d_final=147.6 m, U_ship=0.87 m/s, U_d=1.20 m/s, XTE=9.8 m
+  [FINAL-LEG DEBUG] d_final=146.7 m, U_ship=0.86 m/s, U_d=1.20 m/s, XTE=9.8 m
+  [FINAL-LEG DEBUG] d_final=145.9 m, U_ship=0.85 m/s, U_d=1.20 m/s, XTE=9.9 m
+  [FINAL-LEG DEBUG] d_final=145.0 m, U_ship=0.85 m/s, U_d=1.20 m/s, XTE=9.9 m
+  [FINAL-LEG DEBUG] d_final=144.2 m, U_ship=0.84 m/s, U_d=1.20 m/s, XTE=9.9 m
+  [FINAL-LEG DEBUG] d_final=143.4 m, U_ship=0.84 m/s, U_d=1.20 m/s, XTE=9.9 m
+  [FINAL-LEG DEBUG] d_final=142.5 m, U_ship=0.84 m/s, U_d=1.20 m/s, XTE=10.0 m
+  [FINAL-LEG DEBUG] d_final=141.7 m, U_ship=0.83 m/s, U_d=1.20 m/s, XTE=10.0 m
+  [t=319.0] pos=(-2703.4,-1595.6) psi=  -0.2deg wp=3 xte=+10.0m obs_d=2411m ok=1 comp=95.0ms solve=93.4ms RT=0.10 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=140.9 m, U_ship=0.83 m/s, U_d=1.20 m/s, XTE=10.1 m
+  [FINAL-LEG DEBUG] d_final=140.0 m, U_ship=0.83 m/s, U_d=1.20 m/s, XTE=10.1 m
+  [FINAL-LEG DEBUG] d_final=139.2 m, U_ship=0.83 m/s, U_d=1.20 m/s, XTE=10.2 m
+  [FINAL-LEG DEBUG] d_final=138.4 m, U_ship=0.84 m/s, U_d=1.20 m/s, XTE=10.2 m
+  [t=323.0] pos=(-2700.7,-1593.7) psi=  -0.2deg wp=3 xte=+10.2m obs_d=2441m ok=1 comp=1406.9ms solve=1405.3ms RT=1.41 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=137.6 m, U_ship=0.84 m/s, U_d=1.20 m/s, XTE=10.3 m
+  [t=324.0] pos=(-2700.0,-1593.2) psi=  -0.2deg wp=3 xte=+10.3m obs_d=2449m ok=1 comp=1168.6ms solve=1166.4ms RT=1.17 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=136.7 m, U_ship=0.85 m/s, U_d=1.20 m/s, XTE=10.3 m
+  [t=325.0] pos=(-2699.3,-1592.7) psi=  -0.2deg wp=3 xte=+10.3m obs_d=2456m ok=1 comp=1183.8ms solve=1182.3ms RT=1.18 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=135.9 m, U_ship=0.85 m/s, U_d=1.20 m/s, XTE=10.4 m
+  [FINAL-LEG DEBUG] d_final=135.0 m, U_ship=0.86 m/s, U_d=1.20 m/s, XTE=10.4 m
+  [FINAL-LEG DEBUG] d_final=134.2 m, U_ship=0.88 m/s, U_d=1.20 m/s, XTE=10.4 m
+  [FINAL-LEG DEBUG] d_final=133.3 m, U_ship=0.90 m/s, U_d=1.20 m/s, XTE=10.5 m
+  [FINAL-LEG DEBUG] d_final=132.4 m, U_ship=0.91 m/s, U_d=1.20 m/s, XTE=10.5 m
+  [FINAL-LEG DEBUG] d_final=131.5 m, U_ship=0.93 m/s, U_d=1.20 m/s, XTE=10.5 m
+  [FINAL-LEG DEBUG] d_final=130.5 m, U_ship=0.95 m/s, U_d=1.20 m/s, XTE=10.5 m
+  [FINAL-LEG DEBUG] d_final=129.6 m, U_ship=0.96 m/s, U_d=1.20 m/s, XTE=10.4 m
+  [FINAL-LEG DEBUG] d_final=128.6 m, U_ship=0.97 m/s, U_d=1.20 m/s, XTE=10.4 m
+  [FINAL-LEG DEBUG] d_final=127.6 m, U_ship=0.98 m/s, U_d=1.20 m/s, XTE=10.4 m
+  [FINAL-LEG DEBUG] d_final=126.7 m, U_ship=0.98 m/s, U_d=1.20 m/s, XTE=10.3 m
+  [FINAL-LEG DEBUG] d_final=125.7 m, U_ship=0.99 m/s, U_d=1.20 m/s, XTE=10.3 m
+  [FINAL-LEG DEBUG] d_final=124.7 m, U_ship=0.99 m/s, U_d=1.20 m/s, XTE=10.3 m
+  [FINAL-LEG DEBUG] d_final=123.7 m, U_ship=0.99 m/s, U_d=1.20 m/s, XTE=10.2 m
+  [t=339.0] pos=(-2689.1,-1584.3) psi=  +1.4deg wp=3 xte=+10.2m obs_d=2560m ok=1 comp=122.8ms solve=121.2ms RT=0.12 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=122.7 m, U_ship=0.99 m/s, U_d=1.20 m/s, XTE=10.2 m
+  [FINAL-LEG DEBUG] d_final=121.7 m, U_ship=0.99 m/s, U_d=1.20 m/s, XTE=10.2 m
+  [FINAL-LEG DEBUG] d_final=120.7 m, U_ship=0.99 m/s, U_d=1.20 m/s, XTE=10.1 m
+  [FINAL-LEG DEBUG] d_final=119.7 m, U_ship=0.99 m/s, U_d=1.20 m/s, XTE=10.1 m
+  [FINAL-LEG DEBUG] d_final=118.7 m, U_ship=0.99 m/s, U_d=1.20 m/s, XTE=10.1 m
+  [FINAL-LEG DEBUG] d_final=117.8 m, U_ship=0.99 m/s, U_d=1.20 m/s, XTE=10.1 m
+  [FINAL-LEG DEBUG] d_final=116.8 m, U_ship=0.99 m/s, U_d=1.20 m/s, XTE=10.0 m
+  [FINAL-LEG DEBUG] d_final=115.8 m, U_ship=0.98 m/s, U_d=1.20 m/s, XTE=10.0 m
+  [FINAL-LEG DEBUG] d_final=114.8 m, U_ship=0.98 m/s, U_d=1.20 m/s, XTE=10.0 m
+  [FINAL-LEG DEBUG] d_final=113.8 m, U_ship=0.98 m/s, U_d=1.20 m/s, XTE=10.0 m
+  [FINAL-LEG DEBUG] d_final=112.9 m, U_ship=0.98 m/s, U_d=1.20 m/s, XTE=10.0 m
+  [FINAL-LEG DEBUG] d_final=111.9 m, U_ship=0.98 m/s, U_d=1.20 m/s, XTE=10.0 m
+  [FINAL-LEG DEBUG] d_final=110.9 m, U_ship=0.98 m/s, U_d=1.20 m/s, XTE=10.0 m
+  [FINAL-LEG DEBUG] d_final=109.9 m, U_ship=0.98 m/s, U_d=1.20 m/s, XTE=10.0 m
+  [FINAL-LEG DEBUG] d_final=109.0 m, U_ship=0.97 m/s, U_d=1.20 m/s, XTE=10.0 m
+  [FINAL-LEG DEBUG] d_final=108.0 m, U_ship=0.97 m/s, U_d=1.20 m/s, XTE=10.0 m
+  [FINAL-LEG DEBUG] d_final=107.0 m, U_ship=0.97 m/s, U_d=1.20 m/s, XTE=10.0 m
+  [FINAL-LEG DEBUG] d_final=106.1 m, U_ship=0.97 m/s, U_d=1.20 m/s, XTE=10.0 m
+  [FINAL-LEG DEBUG] d_final=105.1 m, U_ship=0.97 m/s, U_d=1.20 m/s, XTE=10.0 m
+  [FINAL-LEG DEBUG] d_final=104.1 m, U_ship=0.97 m/s, U_d=1.20 m/s, XTE=10.0 m
+  [t=359.0] pos=(-2673.9,-1571.9) psi=  +3.6deg wp=3 xte=+10.0m obs_d=2708m ok=1 comp=89.4ms solve=88.3ms RT=0.09 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=103.1 m, U_ship=0.98 m/s, U_d=1.20 m/s, XTE=10.0 m
+  [FINAL-LEG DEBUG] d_final=102.2 m, U_ship=0.98 m/s, U_d=1.20 m/s, XTE=10.0 m
+  [FINAL-LEG DEBUG] d_final=101.2 m, U_ship=0.98 m/s, U_d=1.20 m/s, XTE=10.0 m
+  [FINAL-LEG DEBUG] d_final=100.2 m, U_ship=0.98 m/s, U_d=1.20 m/s, XTE=10.0 m
+  [FINAL-LEG DEBUG] d_final=99.3 m, U_ship=0.98 m/s, U_d=0.60 m/s, XTE=10.0 m
+  [FINAL-LEG DEBUG] d_final=98.3 m, U_ship=0.98 m/s, U_d=0.60 m/s, XTE=10.0 m
+  [FINAL-LEG DEBUG] d_final=97.3 m, U_ship=0.97 m/s, U_d=0.60 m/s, XTE=10.0 m
+  [t=366.0] pos=(-2668.6,-1567.7) psi=  +4.1deg wp=3 xte=+10.0m obs_d=2759m ok=1 comp=1239.4ms solve=1237.2ms RT=1.24 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=96.3 m, U_ship=0.96 m/s, U_d=0.60 m/s, XTE=10.0 m
+  [FINAL-LEG DEBUG] d_final=95.4 m, U_ship=0.95 m/s, U_d=0.60 m/s, XTE=10.0 m
+  [FINAL-LEG DEBUG] d_final=94.5 m, U_ship=0.93 m/s, U_d=0.60 m/s, XTE=9.9 m
+  [FINAL-LEG DEBUG] d_final=93.5 m, U_ship=0.91 m/s, U_d=0.60 m/s, XTE=9.9 m
+  [FINAL-LEG DEBUG] d_final=92.7 m, U_ship=0.88 m/s, U_d=0.60 m/s, XTE=9.8 m
+  [FINAL-LEG DEBUG] d_final=91.8 m, U_ship=0.84 m/s, U_d=0.60 m/s, XTE=9.8 m
+  [FINAL-LEG DEBUG] d_final=91.0 m, U_ship=0.82 m/s, U_d=0.60 m/s, XTE=9.7 m
+  [FINAL-LEG DEBUG] d_final=90.2 m, U_ship=0.79 m/s, U_d=0.60 m/s, XTE=9.6 m
+  [FINAL-LEG DEBUG] d_final=89.4 m, U_ship=0.77 m/s, U_d=0.60 m/s, XTE=9.5 m
+  [FINAL-LEG DEBUG] d_final=88.6 m, U_ship=0.76 m/s, U_d=0.60 m/s, XTE=9.4 m
+  [FINAL-LEG DEBUG] d_final=87.9 m, U_ship=0.74 m/s, U_d=0.60 m/s, XTE=9.3 m
+  [FINAL-LEG DEBUG] d_final=87.1 m, U_ship=0.73 m/s, U_d=0.60 m/s, XTE=9.2 m
+  [FINAL-LEG DEBUG] d_final=86.4 m, U_ship=0.72 m/s, U_d=0.60 m/s, XTE=9.1 m
+  [t=379.0] pos=(-2660.9,-1560.3) psi=  +4.9deg wp=3 xte=+9.1m obs_d=2856m ok=1 comp=605.4ms solve=604.2ms RT=0.61 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=85.7 m, U_ship=0.71 m/s, U_d=0.60 m/s, XTE=9.1 m
+  [FINAL-LEG DEBUG] d_final=85.0 m, U_ship=0.70 m/s, U_d=0.60 m/s, XTE=9.0 m
+  [FINAL-LEG DEBUG] d_final=84.3 m, U_ship=0.69 m/s, U_d=0.60 m/s, XTE=8.9 m
+  [t=382.0] pos=(-2659.4,-1558.8) psi=  +5.0deg wp=3 xte=+8.9m obs_d=2878m ok=1 comp=1017.2ms solve=1016.2ms RT=1.02 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=83.6 m, U_ship=0.68 m/s, U_d=0.60 m/s, XTE=8.8 m
+  [FINAL-LEG DEBUG] d_final=82.9 m, U_ship=0.68 m/s, U_d=0.60 m/s, XTE=8.7 m
+  [t=384.0] pos=(-2658.5,-1557.9) psi=  +5.1deg wp=3 xte=+8.7m obs_d=2893m ok=1 comp=1039.3ms solve=1038.0ms RT=1.04 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=82.3 m, U_ship=0.67 m/s, U_d=0.60 m/s, XTE=8.6 m
+  [FINAL-LEG DEBUG] d_final=81.6 m, U_ship=0.66 m/s, U_d=0.60 m/s, XTE=8.6 m
+  [FINAL-LEG DEBUG] d_final=80.9 m, U_ship=0.66 m/s, U_d=0.60 m/s, XTE=8.5 m
+  [t=387.0] pos=(-2657.1,-1556.5) psi=  +5.1deg wp=3 xte=+8.5m obs_d=2915m ok=1 comp=1280.1ms solve=1278.7ms RT=1.28 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=80.3 m, U_ship=0.66 m/s, U_d=0.60 m/s, XTE=8.4 m
+  [t=388.0] pos=(-2656.6,-1556.0) psi=  +5.2deg wp=3 xte=+8.4m obs_d=2923m ok=1 comp=1089.5ms solve=1088.5ms RT=1.09 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=79.6 m, U_ship=0.65 m/s, U_d=0.60 m/s, XTE=8.4 m
+  [t=389.0] pos=(-2656.1,-1555.6) psi=  +5.2deg wp=3 xte=+8.4m obs_d=2930m ok=1 comp=1236.2ms solve=1235.0ms RT=1.24 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=79.0 m, U_ship=0.65 m/s, U_d=0.60 m/s, XTE=8.3 m
+  [t=390.0] pos=(-2655.7,-1555.1) psi=  +5.2deg wp=3 xte=+8.3m obs_d=2938m ok=1 comp=1144.5ms solve=1139.4ms RT=1.14 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=78.3 m, U_ship=0.64 m/s, U_d=0.60 m/s, XTE=8.3 m
+  [FINAL-LEG DEBUG] d_final=77.7 m, U_ship=0.64 m/s, U_d=0.60 m/s, XTE=8.2 m
+  [t=392.0] pos=(-2654.7,-1554.2) psi=  +5.2deg wp=3 xte=+8.2m obs_d=2953m ok=1 comp=1350.1ms solve=1348.5ms RT=1.35 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=77.0 m, U_ship=0.64 m/s, U_d=0.60 m/s, XTE=8.2 m
+  [FINAL-LEG DEBUG] d_final=76.4 m, U_ship=0.64 m/s, U_d=0.60 m/s, XTE=8.1 m
+  [t=394.0] pos=(-2653.8,-1553.4) psi=  +5.2deg wp=3 xte=+8.1m obs_d=2968m ok=1 comp=1432.4ms solve=1430.3ms RT=1.43 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=75.8 m, U_ship=0.64 m/s, U_d=0.60 m/s, XTE=8.1 m
+  [t=395.0] pos=(-2653.3,-1552.9) psi=  +5.2deg wp=3 xte=+8.1m obs_d=2976m ok=1 comp=1583.2ms solve=1580.2ms RT=1.58 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=75.1 m, U_ship=0.64 m/s, U_d=0.60 m/s, XTE=8.0 m
+  [t=396.0] pos=(-2652.8,-1552.5) psi=  +5.2deg wp=3 xte=+8.0m obs_d=2983m ok=1 comp=1744.2ms solve=1742.9ms RT=1.74 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=74.5 m, U_ship=0.65 m/s, U_d=0.60 m/s, XTE=8.0 m
+  [t=397.0] pos=(-2652.3,-1552.0) psi=  +5.2deg wp=3 xte=+8.0m obs_d=2991m ok=1 comp=1045.1ms solve=1043.6ms RT=1.05 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=73.8 m, U_ship=0.66 m/s, U_d=0.60 m/s, XTE=7.9 m
+  [t=398.0] pos=(-2651.9,-1551.6) psi=  +5.2deg wp=3 xte=+7.9m obs_d=2998m ok=1 comp=1963.9ms solve=1960.1ms RT=1.96 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=73.1 m, U_ship=0.67 m/s, U_d=0.60 m/s, XTE=7.9 m
+  [t=399.0] pos=(-2651.4,-1551.1) psi=  +5.2deg wp=3 xte=+7.9m obs_d=3006m ok=1 comp=1045.8ms solve=1044.3ms RT=1.05 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=72.5 m, U_ship=0.68 m/s, U_d=0.60 m/s, XTE=7.8 m
+  [FINAL-LEG DEBUG] d_final=71.8 m, U_ship=0.68 m/s, U_d=0.60 m/s, XTE=7.8 m
+  [FINAL-LEG DEBUG] d_final=71.1 m, U_ship=0.68 m/s, U_d=0.60 m/s, XTE=7.7 m
+  [FINAL-LEG DEBUG] d_final=70.4 m, U_ship=0.68 m/s, U_d=0.60 m/s, XTE=7.7 m
+  [FINAL-LEG DEBUG] d_final=69.8 m, U_ship=0.67 m/s, U_d=0.60 m/s, XTE=7.6 m
+  [FINAL-LEG DEBUG] d_final=69.1 m, U_ship=0.67 m/s, U_d=0.60 m/s, XTE=7.6 m
+  [t=405.0] pos=(-2648.4,-1548.4) psi=  +4.9deg wp=3 xte=+7.6m obs_d=3051m ok=1 comp=1012.1ms solve=1011.1ms RT=1.01 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=68.4 m, U_ship=0.67 m/s, U_d=0.60 m/s, XTE=7.5 m
+  [FINAL-LEG DEBUG] d_final=67.8 m, U_ship=0.67 m/s, U_d=0.60 m/s, XTE=7.5 m
+  [t=407.0] pos=(-2647.4,-1547.5) psi=  +4.8deg wp=3 xte=+7.5m obs_d=3066m ok=1 comp=1191.3ms solve=1189.6ms RT=1.19 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=67.1 m, U_ship=0.67 m/s, U_d=0.60 m/s, XTE=7.4 m
+  [t=408.0] pos=(-2646.9,-1547.0) psi=  +4.8deg wp=3 xte=+7.4m obs_d=3073m ok=1 comp=1042.1ms solve=1040.5ms RT=1.04 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=66.4 m, U_ship=0.67 m/s, U_d=0.60 m/s, XTE=7.4 m
+  [FINAL-LEG DEBUG] d_final=65.7 m, U_ship=0.68 m/s, U_d=0.60 m/s, XTE=7.3 m
+  [FINAL-LEG DEBUG] d_final=65.1 m, U_ship=0.68 m/s, U_d=0.60 m/s, XTE=7.3 m
+  [FINAL-LEG DEBUG] d_final=64.4 m, U_ship=0.68 m/s, U_d=0.60 m/s, XTE=7.3 m
+  [FINAL-LEG DEBUG] d_final=63.7 m, U_ship=0.68 m/s, U_d=0.60 m/s, XTE=7.2 m
+  [t=413.0] pos=(-2644.4,-1544.7) psi=  +4.6deg wp=3 xte=+7.2m obs_d=3111m ok=1 comp=1212.1ms solve=1210.8ms RT=1.21 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=63.0 m, U_ship=0.68 m/s, U_d=0.60 m/s, XTE=7.2 m
+  [t=414.0] pos=(-2643.9,-1544.3) psi=  +4.5deg wp=3 xte=+7.2m obs_d=3118m ok=1 comp=1142.0ms solve=1140.5ms RT=1.14 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=62.3 m, U_ship=0.68 m/s, U_d=0.60 m/s, XTE=7.2 m
+  [t=415.0] pos=(-2643.3,-1543.8) psi=  +4.5deg wp=3 xte=+7.2m obs_d=3126m ok=1 comp=1095.2ms solve=1093.9ms RT=1.10 obs=2 fb=0
+  [FINAL-LEG DEBUG] d_final=61.7 m, U_ship=0.69 m/s, U_d=0.60 m/s, XTE=7.2 m
+
+  ✓ FINAL WAYPOINT CAPTURED (soft gate 65.0 m, U<=2.5 m/s for 6.0 s) at t=416.0 s!
+
+══════════════════════════════════════════════════════════════
+  SUMMARY
+══════════════════════════════════════════════════════════════
+  NMPC solves: 417/417 (100.0%)
+  PID fallback: 0 times
+  Mean |XTE|: 18.8 m, Max |XTE|: 74.8 m
+  Final position: (-2642.8, -1543.4)
+  Dynamic packaging drift [m]: max=0.000
+  Collisions detected: 0
+
+  REAL-TIME FEASIBILITY (dt = 1.000 s)
+  Step compute [ms]: mean=692.68, p95=1412.10, max=2417.87
+  NMPC solve  [ms]: mean=690.46, p95=1410.54, max=2414.75
+  RT overruns (step_time > dt): 73/417 (17.51%)
+  Worst RT ratio: 2.418
+
+  TOP-5 SLOWEST STEPS
+    k    t[s]   step[ms]  solve[ms]  guide[ms]  obs[ms]  ref[ms]  int[ms]  ok
+   203   202.0   2417.87    2414.75       0.15     0.76     0.07     0.05   1
+   226   225.0   2281.33    2277.21       1.56     1.43     0.14     0.05   1
+   161   160.0   2118.44    2116.01       0.12     0.94     0.07     0.07   1
+   399   398.0   1963.88    1960.08       0.42     1.63     0.20     0.05   1
+   225   224.0   1919.71    1912.70       1.03     3.91     0.89     0.05   1
+
+  TERMINAL TIMING PLOTS (ASCII)
+    Total step time (ref=1.000)
+      0-25%    | #################                  83
+      25-50%   | ##                                 12
+      50-75%   | ################################  158
+      75-100%  | ##################                 91
+      100-125% | #########                          42
+      >125%    | ######                             31
+    NMPC solve time (ref=1.000)
+      0-25%    | #################                  83
+      25-50%   | ##                                 12
+      50-75%   | ################################  158
+      75-100%  | ##################                 91
+      100-125% | #########                          42
+      >125%    | ######                             31
+    RT ratio (step/dt) (ref=1.000)
+      0-25%    | #################                  83
+      25-50%   | ##                                 12
+      50-75%   | ################################  158
+      75-100%  | ##################                 91
+      100-125% | #########                          42
+      >125%    | ######                             31
+
+  Launching animation...
+  Recording video to: C:\Users\SERILEG\OneDrive - ABB\Autonomous-docking\MY_NPMC\my work\plots in development process\recordings\nmpc_run_20260402_123945.mp4
+  [animateSimResult] Loading ship icon: "C:\Users\SERILEG\OneDrive - ABB\Autonomous-docking\useful pictures\vessel_top.png"...
+  [animateSimResult] Icon loaded (312x312 px).
+  [animateSimResult] Recording video: "C:\Users\SERILEG\OneDrive - ABB\Autonomous-docking\MY_NPMC\my work\plots in development process\recordings\nmpc_run_20260402_123945.mp4"
+[Warning: The video's width and height has been padded to be a multiple of two as required by the H.264 codec.] 
+  [animateSimResult] Video saved: "C:\Users\SERILEG\OneDrive - ABB\Autonomous-docking\MY_NPMC\my work\plots in development process\recordings\nmpc_run_20260402_123945.mp4"
+  Video saved: C:\Users\SERILEG\OneDrive - ABB\Autonomous-docking\MY_NPMC\my work\plots in development process\recordings\nmpc_run_20260402_123945.mp4

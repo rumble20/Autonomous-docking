@@ -1,7 +1,7 @@
-%% run_nmpc.m
+﻿%% run_nmpc.m
 % NMPC harbor navigation with 8-state azipod container ship model
 %
-% UNIFIED TEST — Single configurable test with:
+% UNIFIED TEST ΓÇö Single configurable test with:
 %   - Multi-waypoint path following
 %   - Optional static obstacles
 %   - Red-zone map obstacle awareness
@@ -26,10 +26,7 @@ fprintf('═══════════════════════�
 %  USER CONFIGURATION — EDIT THIS SECTION
 
 % ---- WAYPOINTS (rows = [x, y] in meters, NED frame) ----
-waypoints = [-6100, -1500;
-             -5700, -1300;
-             -5400, -1550;
-             -5200, -2000;];
+waypoints = [-3500, -1600; -3100, -1500; -2850, -1700; -2500, -1500];
 
 % ---- CRUISE SPEED TARGET (m/s) ----
 % Guidance now uses one global cruise speed and lets the speed governor +
@@ -46,9 +43,9 @@ static_obstacles = [];
 % - Positions are rows [x y] in meters.
 % - Headings are in degrees (0=+x/North, 90=+y/East).
 % - Speeds are in m/s (scalar or one per obstacle).
-dynamic_obs_positions_xy = [-5600 -1550];  % Example: [-3000 -1700; -2920 -1740]
-dynamic_obs_headings_deg = [30];           % Example: [90; 110]
-dynamic_obs_speeds_mps   = [5];             % [] uses dynamic_obs_speed_mps for all
+dynamic_obs_positions_xy = [-3100 -1700; -2800 -1800];  % Example: [-3000 -1700; -2920 -1740]
+dynamic_obs_headings_deg = [90; 45];           % Example: [90; 110]
+dynamic_obs_speeds_mps   = [4; 4];             % [] uses dynamic_obs_speed_mps for all
 
 % ---- SIMULATION PARAMETERS ----
 T_final     = 600;      % Total simulation time [s]
@@ -135,7 +132,18 @@ enable_dynamic_replay_check = true;   % Determinism self-check
 % - 'immediate': obstacles move from t=0
 % - 'proximity': obstacles stay stationary until ship is close
 dynamic_obs_start_mode = 'proximity';       % immediate | proximity
-dynamic_obs_trigger_distance_m = 250;       % scalar or one per obstacle
+dynamic_obs_trigger_distance_m = 420;       % scalar or one per obstacle (earlier activation)
+
+% Latent awareness for proximity-triggered dynamic obstacles:
+% Adds a lightweight predicted occupancy tube so NMPC can anticipate
+% obstacle motion before and during activation.
+dynamic_latent_awareness = struct();
+dynamic_latent_awareness.enabled = true;
+dynamic_latent_awareness.horizon_s = 18;
+dynamic_latent_awareness.n_samples = 2;
+dynamic_latent_awareness.awareness_distance_m = 700;
+dynamic_latent_awareness.radius_scale = 1.15;
+dynamic_latent_awareness.only_when_not_moving = false;
 
 % ---- SPEED GOVERNOR (reference speed capping) ----
 % Combines:
@@ -146,18 +154,18 @@ speed_governor = struct();
 speed_governor.enabled = true;
 speed_governor.cruise_speed_mps = cruise_speed_mps;
 speed_governor.min_speed_mps = 0.2;            % Keep >= NMPC lower bound (0.1 m/s)
-speed_governor.dist_trigger_m = 180;           % Begin slowing when clearance below this (more responsive)
-speed_governor.dist_stop_m = 35;               % Strong slowdown close to obstacle (earlier & deeper)
-speed_governor.clearance_buffer_m = 25;        % Extra standoff added to obstacle radii (more conservative)
+speed_governor.dist_trigger_m = 220;           % Begin slowing when clearance below this (more responsive)
+speed_governor.dist_stop_m = 45;               % Strong slowdown close to obstacle (earlier & deeper)
+speed_governor.clearance_buffer_m = 40;        % Extra standoff added to obstacle radii (more conservative)
 speed_governor.use_map_samples_for_dist_cap = false; % Avoid map-point-induced crawl; NMPC still sees map obstacles
-speed_governor.tcpa_horizon_s = 50;            % Lookahead for collision-time risk (longer preview)
-speed_governor.dcpa_trigger_m = 105;           % DCPA threshold for slowdown (earlier trigger)
-speed_governor.tcpa_risk_gain = 1.35;          % >1 to counter strong speed-tracking weight
+speed_governor.tcpa_horizon_s = 60;            % Lookahead for collision-time risk (longer preview)
+speed_governor.dcpa_trigger_m = 130;           % DCPA threshold for slowdown (earlier trigger)
+speed_governor.tcpa_risk_gain = 1.60;          % >1 to counter strong speed-tracking weight
 
 % ---- NMPC TUNING ----
 nmpc_N  = 25;           % Prediction horizon steps (runtime/accuracy compromise)
 nmpc_dt = 1.0;          % Sample time [s]
-r_safety = 34;          % Safety margin around obstacles [m]
+r_safety = 40;          % Safety margin around obstacles [m]
 
 % === BALANCED TUNING (default for open water & cluttered zones) ===
 Q_weights_balanced = diag([2.0, 0.18, 0.95, 5.4, 5.4, 4.4, 0.001, 0.001]);
@@ -175,16 +183,19 @@ R_weights = R_weights_balanced;
 R_rate_weights = R_rate_weights_balanced;
 
 % ---- TIGHT CORRIDOR MODE (auto-detection) ----
-enable_tight_corridor_mode = true;      % Detection active; solver remains fixed-build
+enable_tight_corridor_mode = false;     % Keep disabled by default; fixed-build solver cannot retune weights online safely
 tight_corridor_threshold_m = 60;        % Trigger when available maneuver space < this [m]
 tight_corridor_hysteresis_m = 80;       % Hysteresis to prevent oscillation [m]
 tight_corridor_density_radius_m = 220;  % Radius to count nearby obstacles for crowding trigger [m]
 tight_corridor_min_obs_count = 4;       % Trigger when >= this many nearby obstacles create constrained passage
 tight_corridor_mode_active = false;     % Runtime flag (updated in simulation loop)
+tight_corridor_speed_cap_mps = 3.6;     % Global speed cap in constrained passages
+tight_corridor_avoid_scale = 0.78;      % Reduce reference keep-out inflation in narrow channels
+tight_corridor_r_ref_max = 0.18;        % Allow stronger heading correction when corridor is tight
 
 % NEW: Actuator and forward motion penalties (ADDRESSING BACKWARD MOTION ISSUE)
-actuator_force_weight = 0.05;        % Penalty on RPM magnitude (increased 25x — reduces excessive swaying)
-forward_incentive_weight = 2.5;      % Penalty on backward motion (increased 5x — strongly discourages backward)
+actuator_force_weight = 0.05;        % Penalty on RPM magnitude (increased 25x ΓÇö reduces excessive swaying)
+forward_incentive_weight = 2.5;      % Penalty on backward motion (increased 5x ΓÇö strongly discourages backward)
 waypoint_heading_weight = 0.0;       % Extra heading penalty at waypoints (0=disabled)
 u_min_forward = 0.5;                 % HARD CONSTRAINT: Minimum forward speed [m/s]
 u_min_forward_nav = u_min_forward;   % Keep nominal forward-only behavior in normal navigation
@@ -207,6 +218,19 @@ avoid_ref_cfg.speed_gain_s    = 1.8;   % extra margin = speed_gain * U_d
 avoid_ref_cfg.obs_radius_gain = 0.45;  % how much obstacle radius increases lateral deflection
 avoid_ref_cfg.deflect_sigma   = 0.24;  % larger -> smoother local avoidance bend
 avoid_ref_cfg.r_ref_max       = 0.14;  % max |r_ref| sent to NMPC [rad/s]
+avoid_ref_cfg.include_map_samples = false; % avoid map-point-induced global drift in reference shaping
+
+% Cross-track recovery policy (general, map/obstacle agnostic)
+% When |XTE| grows, reduce avoidance inflation + speed and allow more
+% yaw-rate authority in the reference so the vessel recenters faster.
+xte_recovery_cfg = struct();
+xte_recovery_cfg.enabled = true;
+xte_recovery_cfg.trigger_m = 42;                 % start recovery shaping above this |XTE|
+xte_recovery_cfg.full_m = 95;                    % full recovery gain at/above this |XTE|
+xte_recovery_cfg.min_avoid_scale = 0.62;         % minimum scale on avoid_ref base margin
+xte_recovery_cfg.min_speed_gain_scale = 0.58;    % minimum scale on avoid_ref speed gain
+xte_recovery_cfg.recapture_r_ref_max = 0.24;     % stronger heading-rate authority during recapture
+xte_recovery_cfg.speed_cap_full_mps = 2.8;       % speed cap when recovery is fully engaged
 
 % ---- PID FALLBACK GAINS (used when NMPC fails) ----
 pid_Kp = 0.8;
@@ -227,6 +251,10 @@ if ~isempty(env_tfinal)
     if isfinite(tf_num) && tf_num > 0
         T_final = tf_num;
     end
+end
+env_tight = getenv('NMPC_ENABLE_TIGHT_CORRIDOR_MODE');
+if ~isempty(env_tight)
+    enable_tight_corridor_mode = strcmpi(strtrim(env_tight), '1') || strcmpi(strtrim(env_tight), 'true');
 end
 
 %  INITIALIZATION (DO NOT EDIT BELOW UNLESS DEBUGGING)
@@ -336,13 +364,18 @@ hull_cfg = buildHullFootprintConfig(hull_nominal_length_m, hull_nominal_beam_m, 
 
 n_static_obs = length(static_obstacles);
 n_dynamic_obs = 0;
+n_dynamic_obs_virtual = 0;
 if enable_dynamic_obstacles
     n_dynamic_obs = length(dynamic_obstacles);
+    if isfield(dynamic_latent_awareness, 'enabled') && dynamic_latent_awareness.enabled
+        n_samp = max(0, round(getOr(dynamic_latent_awareness, 'n_samples', 0)));
+        n_dynamic_obs_virtual = n_dynamic_obs * n_samp;
+    end
 end
 if enable_map_obstacles && ~isempty(map_sample_pts)
-    max_obs_slots = n_static_obs + max_map_obstacles + n_dynamic_obs;
+    max_obs_slots = n_static_obs + max_map_obstacles + n_dynamic_obs + n_dynamic_obs_virtual;
 else
-    max_obs_slots = n_static_obs + n_dynamic_obs;
+    max_obs_slots = n_static_obs + n_dynamic_obs + n_dynamic_obs_virtual;
 end
 
 nmpc_cfg = struct();
@@ -480,6 +513,7 @@ for i = 1:length(t)
     % ---- 2) Gather obstacles (static + map samples) ---------------------
     t_seg = tic;
     obs_local = static_obstacles;
+    obs_map = struct('position', {}, 'radius', {});
     
     if enable_map_obstacles && ~isempty(map_sample_pts)
         U_now = max(1.0, sqrt(x(1)^2 + x(2)^2));
@@ -527,9 +561,13 @@ for i = 1:length(t)
     end
     
     obs_dyn = struct('position', {}, 'radius', {});
+    obs_dyn_latent = struct('position', {}, 'radius', {});
     if enable_dynamic_obstacles && ~isempty(dynamic_obstacles)
         obs_dyn = dynamicToCircleObstacles(dynamic_obstacles);
-        obs_local = [obs_local, obs_dyn];
+        if isfield(dynamic_latent_awareness, 'enabled') && dynamic_latent_awareness.enabled
+            obs_dyn_latent = buildLatentDynamicAwarenessObstacles(dynamic_obstacles, x(4:5), dynamic_latent_awareness);
+        end
+        obs_local = [obs_local, obs_dyn_latent, obs_dyn];
         obs_pack_drift_log(i) = computeDynamicPackagingDrift(dynamic_obstacles, obs_local);
     end
 
@@ -543,17 +581,21 @@ for i = 1:length(t)
         if speed_governor.use_map_samples_for_dist_cap
             obs_for_speed = obs_local;
         else
-            obs_for_speed = [static_obstacles, obs_dyn];
+            obs_for_speed = [static_obstacles, obs_dyn_latent, obs_dyn];
         end
         U_d = applySpeedGovernor(U_d, x, obs_for_speed, dynamic_obstacles, speed_governor_step);
+    end
+
+    if tight_corridor_mode_active
+        U_d = min(U_d, tight_corridor_speed_cap_mps);
     end
 
     if on_final_leg
         U_now_ship = hypot(x(1), x(2));
         
         % ----- FINAL APPROACH SPEED LIMITING (CRITICAL FIX) -----
-        % Assume max deceleration ~0.02 m/s² for large vessel
-        a_decel_max = 0.02;  % m/s² - conservative for container ship
+        % Assume max deceleration ~0.02 m/s┬▓ for large vessel
+        a_decel_max = 0.02;  % m/s┬▓ - conservative for container ship
         stopping_distance_estimate = (U_now_ship^2) / (2 * a_decel_max) + 50;  % +50m safety
         
         % Hard speed caps based on distance to final waypoint
@@ -615,17 +657,10 @@ for i = 1:length(t)
     mode_switched = (tight_corridor_mode_active ~= loose_prev_was_tight);
     if mode_switched
         if tight_corridor_mode_active
-            % Switch to aggressive tuning targets (solver rebuild disabled)
-            Q_weights = Q_weights_aggressive;
-            R_weights = R_weights_aggressive;
-            R_rate_weights = R_rate_weights_aggressive;
+            fprintf('  [mode-switch] tight-corridor ON: applying conservative speed + corridor-aware ref shaping\n');
         else
-            % Revert to balanced tuning targets (solver rebuild disabled)
-            Q_weights = Q_weights_balanced;
-            R_weights = R_weights_balanced;
-            R_rate_weights = R_rate_weights_balanced;
+            fprintf('  [mode-switch] tight-corridor OFF: restoring nominal guidance shaping\n');
         end
-        fprintf('  [mode-switch] Would rebuild solver (DISABLED for stability)\n');
     end
 
     desired_u_min_forward = u_min_forward_nav;
@@ -634,13 +669,48 @@ for i = 1:length(t)
     % ---- 3) Build reference trajectory ----------------------------------
     t_seg = tic;
     avoid_ref_step = avoid_ref_cfg;
+    if tight_corridor_mode_active
+        avoid_ref_step.base_margin_m = tight_corridor_avoid_scale * avoid_ref_step.base_margin_m;
+        avoid_ref_step.speed_gain_s = tight_corridor_avoid_scale * avoid_ref_step.speed_gain_s;
+        avoid_ref_step.deflect_sigma = 0.90 * avoid_ref_step.deflect_sigma;
+        avoid_ref_step.r_ref_max = max(avoid_ref_step.r_ref_max, tight_corridor_r_ref_max);
+    end
     if enable_terminal_map_relax && wp_idx >= max(1, size(waypoints,1)-1) && d_final_now < terminal_relax_dist_m
         avoid_scale = max(terminal_min_avoid_scale, d_final_now / max(terminal_relax_dist_m, 1));
         avoid_ref_step.base_margin_m = avoid_ref_cfg.base_margin_m * avoid_scale;
         avoid_ref_step.speed_gain_s = avoid_ref_cfg.speed_gain_s * avoid_scale;
     end
+
+    % General XTE-recapture shaping to prevent prolonged off-segment drift.
+    if xte_recovery_cfg.enabled
+        xte_abs = abs(xte);
+        if xte_abs > xte_recovery_cfg.trigger_m
+            beta = (xte_abs - xte_recovery_cfg.trigger_m) / ...
+                max(xte_recovery_cfg.full_m - xte_recovery_cfg.trigger_m, 1e-6);
+            beta = max(0, min(1, beta));
+
+            avoid_scale_xte = max(xte_recovery_cfg.min_avoid_scale, ...
+                1 - beta * (1 - xte_recovery_cfg.min_avoid_scale));
+            speed_gain_scale_xte = max(xte_recovery_cfg.min_speed_gain_scale, ...
+                1 - beta * (1 - xte_recovery_cfg.min_speed_gain_scale));
+
+            avoid_ref_step.base_margin_m = avoid_ref_step.base_margin_m * avoid_scale_xte;
+            avoid_ref_step.speed_gain_s = avoid_ref_step.speed_gain_s * speed_gain_scale_xte;
+            avoid_ref_step.r_ref_max = max(avoid_ref_step.r_ref_max, xte_recovery_cfg.recapture_r_ref_max);
+
+            U_cap_xte = cruise_speed_mps - beta * (cruise_speed_mps - xte_recovery_cfg.speed_cap_full_mps);
+            U_d = min(U_d, U_cap_xte);
+        end
+    end
+
+    if getOr(avoid_ref_step, 'include_map_samples', false)
+        obs_for_ref = obs_local;
+    else
+        obs_for_ref = [static_obstacles, obs_dyn_latent, obs_dyn];
+    end
+
     x_ref = buildObstacleAwareRef8(x, chi_d, U_d, nmpc.N, dt, ...
-                                   n1_cruise, n2_cruise, obs_local, avoid_ref_step);
+                                   n1_cruise, n2_cruise, obs_for_ref, avoid_ref_step);
     ref_time_log(i) = toc(t_seg);
 
     % ---- 4) Solve NMPC (MODIFIED - now passes u_prev) -------------------
@@ -672,7 +742,7 @@ for i = 1:length(t)
         alpha = pid_Kp * psi_err + pid_Ki * psi_err_int + pid_Kd * psi_err_dot;
         alpha = max(-pi/4, min(pi/4, alpha));
         
-        n1_cmd = n1_cruise * (U_d / 7.0);
+        n1_cmd = n1_cruise * (U_d / max(cruise_speed_mps, 1e-3));
         n1_cmd = max(0, min(160, n1_cmd));
         
         u_opt = [alpha; 0; n1_cmd; 0];
@@ -1010,20 +1080,6 @@ catch ME
     fprintf('⚠ Attempting to still save logs and partial outputs...\n\n');
 end
 
-% FINAL CLEANUP: Always close diary and confirm outputs were saved
-if enable_terminal_log_recording
-    diary off;
-    if exist('terminal_log_cleanup', 'var') && ~isempty(terminal_log_cleanup)
-        clear terminal_log_cleanup;
-    end
-    % Final confirmation
-    if exist('terminal_log_file', 'var') && isfile(terminal_log_file)
-        fprintf('  ✓ Terminal log confirmed saved: %s\n', terminal_log_file);
-    elseif exist('terminal_log_file', 'var')
-        fprintf('  ✗ WARNING: Terminal log file not found: %s\n', terminal_log_file);
-    end
-end
-
 % Report any errors that occurred
 if sim_error_occurred
     fprintf('\n⚠ SUMMARY: Simulation was interrupted (%s)\n', sim_error_msg);
@@ -1034,9 +1090,9 @@ if output_gen_error
     fprintf('\n⚠ Some output generation failed, but logs were saved\n');
 end
 
-fprintf('\n══════════════════════════════════════════════════════════════\n');
+fprintf('\nΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ\n');
 fprintf('  Simulation and output generation complete\n');
-fprintf('══════════════════════════════════════════════════════════════\n');
+fprintf('ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ\n');
 
 
 %  LOCAL FUNCTIONS
@@ -1821,6 +1877,63 @@ function obs_dyn = dynamicToCircleObstacles(dynamic_obstacles)
         out_idx = out_idx + 1;
         obs_dyn(out_idx).position = dynamic_obstacles(k).position(1:2);
         obs_dyn(out_idx).radius = dynamic_obstacles(k).radius;
+    end
+end
+
+function obs_virtual = buildLatentDynamicAwarenessObstacles(dynamic_obstacles, ship_pos, cfg)
+% Build virtual future-occupancy circles for dynamic obstacles.
+    obs_virtual = struct('position', {}, 'radius', {});
+    if isempty(dynamic_obstacles) || nargin < 3 || isempty(cfg)
+        return;
+    end
+    if ~getOr(cfg, 'enabled', false)
+        return;
+    end
+
+    horizon_s = max(0, getOr(cfg, 'horizon_s', 0));
+    n_samples = max(0, round(getOr(cfg, 'n_samples', 0)));
+    if horizon_s <= 0 || n_samples <= 0
+        return;
+    end
+
+    radius_scale = max(1.0, getOr(cfg, 'radius_scale', 1.0));
+    awareness_distance_m = max(0, getOr(cfg, 'awareness_distance_m', inf));
+    only_when_not_moving = getOr(cfg, 'only_when_not_moving', true);
+
+    tau = linspace(horizon_s / n_samples, horizon_s, n_samples);
+    out_idx = 0;
+
+    for k = 1:length(dynamic_obstacles)
+        is_enabled = isfield(dynamic_obstacles(k), 'enabled') && dynamic_obstacles(k).enabled;
+        is_active = isfield(dynamic_obstacles(k), 'active') && dynamic_obstacles(k).active;
+        if ~(is_enabled && is_active)
+            continue;
+        end
+
+        if only_when_not_moving
+            is_moving = isfield(dynamic_obstacles(k), 'moving') && dynamic_obstacles(k).moving;
+            if is_moving
+                continue;
+            end
+        end
+
+        if nargin >= 2 && ~isempty(ship_pos)
+            if norm(dynamic_obstacles(k).position(1:2) - ship_pos(:)) > awareness_distance_m
+                continue;
+            end
+        end
+
+        p0 = dynamic_obstacles(k).position(1:2);
+        speed_k = dynamic_obstacles(k).speed;
+        hdg_k = dynamic_obstacles(k).heading;
+        vel_k = speed_k * [cos(hdg_k); sin(hdg_k)];
+        rad_k = dynamic_obstacles(k).radius * radius_scale;
+
+        for j = 1:length(tau)
+            out_idx = out_idx + 1;
+            obs_virtual(out_idx).position = p0 + tau(j) * vel_k;
+            obs_virtual(out_idx).radius = rad_k;
+        end
     end
 end
 
