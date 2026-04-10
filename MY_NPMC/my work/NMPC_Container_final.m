@@ -49,6 +49,7 @@ classdef NMPC_Container_final < handle
         forward_incentive_weight = 2.5   % Penalty on backward motion (encourages forward bow) — increased 5x
         waypoint_heading_weight = 0.0    % Extra heading penalty at waypoints (0=disabled)
         u_min_forward = 0.5              % Minimum forward speed constraint [m/s] (hard constraint)
+        max_brake_rate = 0.3             % Max deceleration rate [m/s²] to minimize braking fuel costs
 
         % Solver internals
         solver
@@ -66,6 +67,8 @@ classdef NMPC_Container_final < handle
         % Warm-start
         prev_sol
         prev_u
+        prev_lam_x
+        prev_lam_g
 
         enable_diagnostics = false
     end
@@ -89,6 +92,7 @@ classdef NMPC_Container_final < handle
             obj.forward_incentive_weight = getOr(cfg, 'forward_incentive_weight', 2.5);
             obj.waypoint_heading_weight = getOr(cfg, 'waypoint_heading_weight', 0.0);
             obj.u_min_forward = getOr(cfg, 'u_min_forward', 0.5);
+            obj.max_brake_rate = getOr(cfg, 'max_brake_rate', 0.3);
 
             obj.hull_length_m = getOr(cfg, 'hull_length_m', 36);
             obj.hull_beam_m = getOr(cfg, 'hull_beam_m', 12);
@@ -103,6 +107,7 @@ classdef NMPC_Container_final < handle
             fprintf('  8-state model: [u v r x y psi n1 n2]\n');
             fprintf('  4 controls: [alpha1 alpha2 n1_c n2_c]\n');
             fprintf('  forward speed constraint: u >= %.2f m/s\n', obj.u_min_forward);
+            fprintf('  max brake rate: %.2f m/s²\n', obj.max_brake_rate);
             fprintf('  actuator penalty: %.4f | forward incentive: %.2f\n', ...
                 obj.actuator_force_weight, obj.forward_incentive_weight);
             if strcmpi(obj.collision_model, 'oriented-rectangle')
@@ -133,9 +138,10 @@ classdef NMPC_Container_final < handle
             P_obs_pos  = SX.sym('P_obs_pos', 2, n_obs);
             P_obs_rad  = SX.sym('P_obs_rad', n_obs, 1);
             P_u_prev   = SX.sym('P_u_prev', nu, 1);  % NEW: Previous applied control
+            P_max_brake_rate = SX.sym('P_max_brake_rate', 1, 1);  % NEW: Max deceleration rate
 
             P_all = vertcat(P_x0, P_xref(:), P_uref(:), P_n_obs_real, ...
-                            P_obs_pos(:), P_obs_rad, P_u_prev);
+                            P_obs_pos(:), P_obs_rad, P_u_prev, P_max_brake_rate);
             obj.np_total = size(P_all, 1);
 
             %  COST FUNCTION
@@ -253,6 +259,19 @@ classdef NMPC_Container_final < handle
                 g = vertcat(g, -d_alpha2 - obj.alpha_rate_max * obj.dt);
             end
 
+            % --- Braking constraint (surge deceleration limit) ---
+            % NEW: Constraint to reduce excessive braking (fuel cost minimization).
+            % Between consecutive prediction steps, forward speed cannot decrease faster than max_brake_rate.
+            % This prevents the optimizer from making unrealistic sharp decelerations.
+            % First step: constrain u(k=1) relative to initial state u0
+            du_brake_first = X(1,1) - P_x0(1);  % This should be >= -max_brake_rate * dt
+            g = vertcat(g, du_brake_first + P_max_brake_rate * obj.dt);
+            % Subsequent steps: constrain u(k) relative to u(k-1)
+            for k = 1:(N_h)
+                du_brake = X(1,k+1) - X(1,k);
+                g = vertcat(g, du_brake + P_max_brake_rate * obj.dt);
+            end
+
             %  VARIABLE BOUNDS
             OPT = vertcat(X(:), U(:));
             n_vars = size(OPT, 1);
@@ -287,7 +306,8 @@ classdef NMPC_Container_final < handle
             n_eq        = nx + nx*N_h;
             n_obs_ineq  = n_obs * (N_h+1);
             n_rate_ineq = 4 + 4*(N_h-1);  % 4 for first step + 4*(N-1) for rest
-            n_constraints = n_eq + n_obs_ineq + n_rate_ineq;
+            n_brake_ineq = 1 + N_h;       % NEW: 1 for first step + N for subsequent steps
+            n_constraints = n_eq + n_obs_ineq + n_rate_ineq + n_brake_ineq;
 
             lbg = zeros(n_constraints, 1);
             ubg = zeros(n_constraints, 1);
@@ -304,9 +324,15 @@ classdef NMPC_Container_final < handle
 
             % Rate: g <= 0
             rate_start = obs_end + 1;
-            rate_end   = n_constraints;
+            rate_end   = obs_end + n_rate_ineq;
             lbg(rate_start:rate_end) = -inf;
             ubg(rate_start:rate_end) = 0;
+
+            % Brake: g >= 0  (du_brake + max_brake_rate * dt >= 0)
+            brake_start = rate_end + 1;
+            brake_end   = n_constraints;
+            lbg(brake_start:brake_end) = 0;
+            ubg(brake_start:brake_end) = inf;
 
             %  BUILD SOLVER
             nlp = struct('f', J, 'x', OPT, 'g', g, 'p', P_all);
@@ -321,6 +347,10 @@ classdef NMPC_Container_final < handle
             opts.ipopt.mu_strategy = 'adaptive';
             opts.ipopt.nlp_scaling_method = 'gradient-based';
             opts.ipopt.sb = 'yes';
+            opts.ipopt.warm_start_init_point = 'yes';
+            opts.ipopt.warm_start_bound_push = 1e-6;
+            opts.ipopt.warm_start_mult_bound_push = 1e-6;
+            opts.ipopt.warm_start_slack_bound_push = 1e-6;
 
             solver_tag = floor(1e7 * rem(now, 1));
             solver_name = sprintf('nmpc_unified_%d', solver_tag);
@@ -336,19 +366,21 @@ classdef NMPC_Container_final < handle
             fprintf('    - Equalities: %d (initial + dynamics)\n', n_eq);
             fprintf('    - Obstacle:   %d (slots × horizon)\n', n_obs_ineq);
             fprintf('    - Rate:       %d (first-step + consecutive)\n', n_rate_ineq);
+            fprintf('    - Brake:      %d (first-step + consecutive)\n', n_brake_ineq);
         end
 
 
-        function [u_opt, X_pred, info] = solve(obj, x0, x_ref, obstacles, u_prev)
+        function [u_opt, X_pred, info] = solve(obj, x0, x_ref, obstacles, u_prev, u_min_forward_override)
             % solve  Solve NMPC problem
             %
-            %   [u_opt, X_pred, info] = solve(obj, x0, x_ref, obstacles, u_prev)
+            %   [u_opt, X_pred, info] = solve(obj, x0, x_ref, obstacles, u_prev, u_min_forward_override)
             %
             %   Inputs:
             %       x0        - Current state (8x1)
             %       x_ref     - Reference trajectory (8 x N+1)
             %       obstacles - Array of obstacles (optional)
             %       u_prev    - Previous applied control (4x1) - NEW!
+            %       u_min_forward_override - Optional per-step lower bound for surge state u
             %
             %   Outputs:
             %       u_opt  - Optimal control for current step (4x1)
@@ -365,6 +397,12 @@ classdef NMPC_Container_final < handle
             nx = obj.nx;
             nu = obj.nu;
             n_obs = obj.max_obs;
+
+            if nargin < 6 || isempty(u_min_forward_override)
+                u_min_local = obj.u_min_forward;
+            else
+                u_min_local = max(0.0, min(12.0, u_min_forward_override));
+            end
 
             % Handle previous control
             if nargin < 5 || isempty(u_prev)
@@ -393,8 +431,8 @@ classdef NMPC_Container_final < handle
             u_ref(3,:) = x0(7);
             u_ref(4,:) = x0(8);
 
-            % Build parameter vector (now includes u_prev)
-            p_val = [x0(:); x_ref(:); u_ref(:); n_real; obs_pos(:); obs_rad(:); u_prev(:)];
+            % Build parameter vector (now includes u_prev and max_brake_rate)
+            p_val = [x0(:); x_ref(:); u_ref(:); n_real; obs_pos(:); obs_rad(:); u_prev(:); obj.max_brake_rate];
 
             % Initial guess (warm start)
             if ~isempty(obj.prev_sol)
@@ -432,6 +470,10 @@ classdef NMPC_Container_final < handle
             % Fix initial state bounds
             lbx_local = obj.lbx_vec;
             ubx_local = obj.ubx_vec;
+            for k = 2:(N_h+1)
+                idx_u = (k-1)*nx + 1;
+                lbx_local(idx_u) = u_min_local;
+            end
             for i = 1:nx
                 lbx_local(i) = x0(i);
                 ubx_local(i) = x0(i);
@@ -439,10 +481,20 @@ classdef NMPC_Container_final < handle
 
             % Solve
             try
-                sol = obj.solver('x0', x0_guess, ...
+                use_dual_warm_start = ~isempty(obj.prev_lam_x) && ~isempty(obj.prev_lam_g) && ...
+                    numel(obj.prev_lam_x) == numel(x0_guess) && ...
+                    numel(obj.prev_lam_g) == numel(obj.lbg_vec);
+
+                solver_args = {'x0', x0_guess, ...
                     'lbx', lbx_local, 'ubx', ubx_local, ...
                     'lbg', obj.lbg_vec, 'ubg', obj.ubg_vec, ...
-                    'p', p_val);
+                    'p', p_val};
+
+                if use_dual_warm_start
+                    solver_args = [solver_args, {'lam_x0', obj.prev_lam_x, 'lam_g0', obj.prev_lam_g}]; %#ok<AGROW>
+                end
+
+                sol = obj.solver(solver_args{:});
 
                 sol_x = full(sol.x);
                 X_sol = reshape(sol_x(1:nx*(N_h+1)), nx, N_h+1);
@@ -454,10 +506,15 @@ classdef NMPC_Container_final < handle
 
                 obj.prev_sol = sol_x;
                 obj.prev_u = u_opt;
+                if isfield(sol, 'lam_x') && isfield(sol, 'lam_g')
+                    obj.prev_lam_x = full(sol.lam_x);
+                    obj.prev_lam_g = full(sol.lam_g);
+                end
 
                 info.success = true;
                 info.cost = full(sol.f);
                 info.n_obs_real = n_real;
+                info.used_dual_warm_start = use_dual_warm_start;
                 obj.solve_ok = obj.solve_ok + 1;
 
             catch ME
@@ -467,7 +524,10 @@ classdef NMPC_Container_final < handle
                 info.success = false;
                 info.error = ME.message;
                 info.n_obs_real = n_real;
+                info.used_dual_warm_start = false;
                 obj.solve_fail = obj.solve_fail + 1;
+                obj.prev_lam_x = [];
+                obj.prev_lam_g = [];
 
                 if obj.solve_fail <= 5
                     fprintf('  [NMPC FAIL #%d] %s\n', obj.solve_fail, ME.message);

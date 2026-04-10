@@ -1,286 +1,321 @@
-## About the distinction between past work and my work
+﻿## About the distinction between past work and my work
 
-"This work presents an integrated motion planning and control framework for autonomous ship docking. Unlike traditional two-stage approaches where a global planner generates a fixed collision-free path that a separate controller blindly tracks, the proposed method employs a Nonlinear Model Predictive Controller that jointly performs trajectory generation and tracking by optimizing control inputs online while explicitly enforcing obstacle-avoidance constraints. A lightweight guidance layer provides high-level navigation directives (desired heading, speed, and waypoint sequencing), but the NMPC retains full authority to deviate from the reference trajectory when necessary to satisfy safety constraints or actuator limitations."
-Technical Arguments for Your Thesis
-1. The Reference is Soft, Constraints are Hard
-Table
-Copy
-Component	Traditional Decoupled	Your Integrated Approach
-Path/Reference	Hard requirement (must follow)	Soft guidance (can deviate)
-Obstacle avoidance	Planner's job (fixed)	NMPC's job (online)
-Actuator limits	Often ignored by planner	Enforced in NMPC
-Dynamic feasibility	Assumed	Guaranteed by dynamics model
+"This work presents an integrated motion planning and control framework for autonomous ship docking. Unlike traditional two-stage approaches where a global planner generates a fixed collision-free path that a separate controller blindly tracks, the proposed method employs a Nonlinear Model Predictive Controller that jointly performs trajectory generation and tracking by optimizing control inputs online while explicitly enforcing obstacle-avoidance constraints. A lightweight guidance layer provides high-level navigation directives (desired heading, speed, and waypoint sequencing), but the NMPC retains authority to deviate from the reference trajectory when necessary to satisfy safety constraints and actuator limitations."
 
-2. Trajectory is Generated Online, Not Pre-computed
-The NMPC's X_pred output IS a trajectory. Every timestep, it computes:
-Optimal state trajectory: 
-X∗={x0...xn}}
-Optimal control sequence: 
-U∗={u0...um}}
-This is trajectory generation, not just tracking!
-3. Guidance ≠ Planning
-Your guidance layer does not solve a planning problem. It:
-Selects waypoints (sequential logic)
-Computes heading toward waypoint (trigonometry)
-Builds a reference (linear propagation)
-It does not:
-Check collision feasibility
-Optimize paths
-Consider dynamics
-The NMPC does all of that.
+### Technical arguments for the thesis
 
-Literature Support
-From your available papers:
+1. The reference is soft, constraints are hard
 
-3
+| Component | Traditional decoupled architecture | Integrated architecture used here |
+|---|---|---|
+| Path/reference | Hard requirement (must be tracked) | Soft guidance (deviation is allowed) |
+| Obstacle avoidance | Planner responsibility (mostly fixed) | NMPC responsibility (online, receding horizon) |
+| Actuator limits | Often ignored in planning layer | Enforced in NMPC constraints |
+| Dynamic feasibility | Assumed | Enforced through model constraints |
 
- - 2022 Autonomous Docking MPC: Uses similar approach where MPC generates trajectory to reach waypoints, not just track a fixed path.
+2. Trajectory is generated online, not pre-computed
 
-4
+At each control step, NMPC computes:
 
- - Martinsen et al. 2020: Explicitly discusses that using NMPC directly (vs. planner + tracker) allows handling of drift and disturbances through optimization.
+- Optimal state trajectory: $X^* = \{x_0, \dots, x_N\}$
+- Optimal control sequence: $U^* = \{u_0, \dots, u_{N-1}\}$
 
-6
+Therefore, the controller is not only tracking; it is also generating a feasible local trajectory online.
 
- - CBF-MPC paper: States that "combining planning with control to find an ideal trajectory" is a key advantage of optimization-based methods.
+3. Guidance is not full planning
 
-5
+The guidance layer currently:
 
- - Former thesis: Discusses receding horizon trajectory optimization where the trajectory is generated online, segment by segment.
+- Selects and advances waypoints (sequential logic)
+- Computes desired heading toward the active segment
+- Builds a shaped reference for NMPC
 
+It does not solve a global constrained optimization problem. Collision-avoidance feasibility and dynamic feasibility are handled by NMPC.
 
-When your coworker's RRT* is added, you can frame it as:
-"The proposed system employs a hierarchical architecture where:
-RRT provides global path guidance and warm-start initialization*
-NMPC performs local trajectory optimization with safety guarantees
-Unlike purely hierarchical approaches, the NMPC layer retains authority to deviate from the RRT path when real-time obstacle constraints require it, making the overall system robust to dynamic obstacles and modeling errors."*
-This positions RRT* as an enhancement (warm-start, global guidance), not a replacement for the NMPC's trajectory generation capability.
+### Literature support
+
+From the available papers:
+
+- 2022 Autonomous Docking MPC: uses MPC to generate online trajectories to waypoints, not only to track a fixed offline path.
+- Martinsen et al. (2020): discusses advantages of direct NMPC in disturbance-rich docking conditions.
+- CBF-MPC paper: emphasizes the value of combining planning and control in one optimization framework.
+- Former thesis: presents receding-horizon trajectory optimization with online segment generation.
+
+If RRT* is later integrated, a consistent framing is:
+
+"The system follows a hierarchical architecture in which RRT* provides global route guidance and warm-start information, while NMPC performs local trajectory optimization with hard safety constraints. Unlike strictly decoupled hierarchies, the NMPC layer retains authority to deviate from the RRT* path when real-time constraints require it."
+
+This keeps RRT* as an enhancement, not a replacement for NMPC online trajectory generation.
 
 ## Thruster allocation
 
-specify that the truster allocation control is implemented in the NMPC by considering forces and 2 azimuth thrusters as can be seen in the MSS example, 
-not in RPM control or any further complication since that is not the scope of the thesis
+State clearly that thrust allocation is handled inside the NMPC problem through force/moment generation with two azimuth thrusters (as in the MSS-style vessel model abstraction). Detailed motor-drive/RPM-loop implementation is outside the thesis scope.
 
 ## Martinsen
 
-The Martinsen method is excellent for harbor docking when you have:
-A known map of the harbor layout
-Static obstacles (piers, walls, moored vessels)
-LIDAR/sensor fusion to augment the map
-But for dynamic circular obstacles (like in congested harbors with moving vessels), the slack variable formulation is more appropriate because it directly handles circular geometries without requiring complex polytope generation.
+The Martinsen method is strong for harbor docking when:
+
+- A known harbor map is available
+- Obstacles are mostly static (piers, walls, moored vessels)
+- Sensor fusion updates the local occupancy representation
+
+For dynamic circular obstacles (moving vessels in congested zones), the circular/slack-variable-friendly formulation remains practical because it avoids repeated polytope construction.
 
 ## Agile development
 
-The software development process initially followed a traditional, requirements-driven plan.
-After early prototyping, it became clear that fixing all requirements upfront was not practical for this project due to the iterative nature of tuning, solver behaviour, and scenario-dependent constraint handling.
-Therefore, the implementation was carried out using an agile, incremental workflow with frequent integration and testing.
+The software process started with a traditional requirements-driven plan. After early prototyping, it became clear that fixing all requirements upfront was not practical due to iterative solver tuning, model-controller coupling, and scenario-dependent constraint interactions. Implementation therefore followed an incremental agile workflow with frequent integration and testing.
 
-## How I made it more computationally efficient
+## How computational efficiency was improved
 
-The computational speed-up was achieved through a multi-layer strategy: reducing NMPC problem size, tuning the nonlinear solver for real-time operation, compressing obstacle geometry, and optimizing online data flow.
+The speed-up came from reducing NLP size and simplifying online workload while preserving closed-loop behavior.
 
-At the discretization level, a fast profile was adopted with a longer control period and an equivalent prediction horizon. This preserved long-horizon look-ahead while reducing the number of optimization decision variables.
+At discretization/problem-size level:
 
-At the solver level, IPOPT was retained for robustness, but configured with real-time-oriented stopping settings: reduced maximum iterations, relaxed acceptable tolerances, limited-memory Hessian approximation, and a CPU-time cap per solve.
+- Prediction horizon is currently $N=25$ with $\Delta t = 1.0$ s.
+- Active map-obstacle slots are capped at 3 (`max_map_obstacles = 3`).
 
-At the geometric level, the harbor map was converted into a compact set of circular obstacle primitives using merging and capping. This significantly reduced per-step obstacle handling cost while maintaining shoreline representation.
+At solver level (IPOPT):
 
-At the online execution level, nearest-obstacle selection was vectorized and cached, reducing non-optimization overhead at each control update.
+- Bounded iteration count (`max_iter = 120`)
+- Relaxed convergence settings (`tol = 2e-3`, `acceptable_tol = 2e-2`, `acceptable_iter = 3`)
+- Adaptive barrier strategy for robust real-time behavior
 
-To preserve safety under coarser temporal discretization, obstacle-distance constraints were enforced both at prediction nodes and at mid-interval points. This prevents trajectory segments from cutting through obstacles between two consecutive nodes.
+At geometric/environment level:
 
-Finally, local speed modulation was introduced as a function of obstacle clearance. Near tight obstacles, desired speed is reduced to improve yaw authority and turning feasibility; in open water, cruise speed is preserved.
+- Harbor map is represented through sampled circular keep-out primitives.
+- Dynamic obstacles are packed as circle obstacles, with optional latent-awareness virtual obstacles.
 
-Compact mathematical summary:
+At execution level:
 
-Decision variables: nvar=nx(N+1)+nuNnvar; =nx (N+1)+nu;  NObstacle inequalities with midpoint constraints enabled: nineq=nobs[(N+1)+N]nineq =nobs [(N+1)+N]; Real-time feasibility index:ρ=tplanTs,real-time feasible if ρ<1ρ=Tstplan real-time feasible if ρ<1
+- Obstacle packaging and selection are bounded and deterministic.
+- Runtime diagnostics report step time, solve time, and real-time ratio.
 
-## Hard constraints vs cbf
+Compact summary:
 
-In the current NMPC implementation, safety and feasibility are enforced primarily through hard constraints.
-A hard constraint is a condition that must be satisfied exactly by every optimizer iterate at every prediction step; if it cannot be satisfied, the nonlinear program becomes infeasible.
+- Decision variables: $n_{var} = n_x(N+1) + n_uN$
+- Obstacle inequalities (current formulation): $n_{obs}(N+1)$
+- Real-time index: $\rho = t_{plan}/T_s$, feasible when $\rho < 1$
 
-The present formulation includes the following hard constraints:
+Note on midpoint constraints:
 
-Initial-state equality constraint
-The first predicted state is constrained to coincide with the measured vessel state at the current sampling instant.
+- In the current active solver, obstacle constraints are enforced at prediction nodes.
+- Mid-interval obstacle constraints are not currently enabled in the NLP.
 
-Dynamic equality constraints
-The full prediction horizon is constrained by the discretized vessel model (Euler forward), so each predicted state transition must satisfy the model equations exactly.
+## Hard constraints vs CBF
 
-Obstacle-avoidance inequality constraints
-For each obstacle and each prediction step, the predicted vessel position must remain outside a safety radius:
-[
-\sqrt{(x_k-x_o)^2 + (y_k-y_o)^2 + \varepsilon} - r_o - r_{\text{safety}} \ge 0.
-]
-This is currently a strict, non-relaxable geometric separation condition.
+The active implementation is a hard-constrained NMPC formulation.
 
-State and input box constraints
-Physical and operational limits (e.g., speed, yaw rate, azimuth angles, shaft speeds) are imposed as upper/lower bounds and are also hard.
+Hard constraints currently include:
 
-Hence, the active controller is a hard-constrained NMPC with no slack variables in the optimization problem.
+1. Initial-state equality
+- The first predicted state is constrained to the measured state.
 
-A natural extension is to replace or complement geometric obstacle constraints with Control Barrier Function (CBF) constraints.
-Define a safety function (h(x)) such that (h(x)\ge 0) represents the safe set (for example, distance-to-obstacle minus safe distance). A discrete-time CBF condition can be imposed as:
-[
-h(x_{k+1}) - (1-\gamma)h(x_k) \ge 0,\quad \gamma\in(0,1].
-]
-This enforces forward invariance of the safe set, i.e., once the system is safe, the optimizer must keep it safe over time.
+2. Dynamic equalities
+- Euler-discretized model equations are enforced at every horizon step.
 
-Compared with purely geometric distance constraints, CBF constraints provide a more dynamic notion of safety because they constrain how safety evolves between consecutive steps, not only the instantaneous position. This is especially useful in tight harbor maneuvers where prediction timing and approach dynamics matter.
+3. Obstacle-avoidance inequalities
+- In the active mode (`oriented-rectangle`), obstacle clearance is enforced between circular obstacles and a yawed rectangular vessel footprint.
+- This supersedes a pure point-distance model in the default configuration.
 
-For practical development, three integration strategies are recommended:
+4. State/input bounds
+- Box constraints on surge/sway/yaw rates, azimuth angles, and shaft states/commands are hard.
 
-Substitution strategy
-Replace the current obstacle-distance inequalities with CBF inequalities based on the same obstacle geometry.
+5. Actuation-rate and braking constraints
+- First-step and consecutive azimuth-rate constraints are hard.
+- Deceleration-rate constraint is hard and active.
 
-Hybrid strategy
-Keep current hard geometric constraints as a conservative baseline and add CBF constraints to improve transient safety behavior.
+There are currently no slack variables in the active NLP.
 
-Soft-CBF strategy (recommended for robustness)
-Introduce nonnegative slack variables (s_k) in CBF constraints:
-[
-h(x_{k+1}) - (1-\gamma)h(x_k) + s_k \ge 0,\quad s_k\ge 0,
-]
-and penalize (\sum s_k^2) heavily in the objective.
-This preserves safety priority while reducing infeasibility risk in congested maps or near-degenerate situations.
+A natural extension remains CBF integration, for example:
 
-Additional features that can be added in the same framework include:
+$$
+h(x_{k+1}) - (1-\gamma) h(x_k) \ge 0, \quad \gamma \in (0,1]
+$$
 
-Hard input-rate constraints (not only rate penalties) for actuator smoothness guarantees.
-Polygon/shoreline CBFs to avoid approximating coastlines with circles.
-Time-varying CBFs for moving obstacles and COLREG-style directional rules.
-Hierarchical weighting between path tracking, energy use, and safety slack for controlled degradation under stress.
-In summary, the current controller is correctly formulated as hard-constrained NMPC. CBFs are fully compatible with this architecture and can be used either as a replacement for distance constraints or, more safely, as a hybrid/soft extension to improve robustness and future scalability.
+Practical options:
+
+- Substitution: replace geometric inequalities with CBF constraints.
+- Hybrid: keep geometric hard constraints and add CBF constraints.
+- Soft-CBF: introduce slacks $s_k \ge 0$ with strong penalty to improve robustness near infeasible bottlenecks.
 
 ## Moving and actuating limits
 
-For the high-level guidance layer, I use the same practical limits as the NMPC and the container + dual-azipod model, so both guidance and control are consistent.
+Guidance and NMPC are coordinated, but not identical in how limits are applied. NMPC and plant integration enforce the hard physical floors/ceilings, while guidance shapes requested speed/heading.
 
-Simple idea:
-- The guidance should not ask the vessel to do maneuvers that the low-level model cannot physically track.
-- So I pass speed, heading-rate, azimuth, and shaft limits directly from the control model.
+Main limits in the current setup:
 
-Main state and input limits used in my setup:
+1. Surge speed (NMPC hard bound)
+- $u_{min} = 0.5$ m/s
+- $u_{max} = 12$ m/s
 
-1) Surge speed limit
-- u_min = 0.1 m/s
-- u_max = 12 m/s (approximately 0.2 to 23 knots operational range)
+2. Sway speed
+- $v_{min} = -3$ m/s
+- $v_{max} = +3$ m/s
 
-2) Sway speed limit
-- v_min = -3 m/s
-- v_max = +3 m/s (realistic lateral drift bounds)
+3. Yaw rate
+- $r_{min} = -0.15$ rad/s
+- $r_{max} = +0.15$ rad/s
 
-3) Yaw rate limit
-- r_min = -0.15 rad/s
-- r_max = +0.15 rad/s (approximately ±8.6 deg/s, realistic for large vessel)
+4. Shaft speeds (both azipods)
+- $n_{min} = -80$ rpm
+- $n_{max} = 160$ rpm
 
-4) Shaft speed limits (both azipods)
-- n_min = -80 rpm
-- n_max = 160 rpm
+5. Azimuth angles
+- $\alpha_{min} = -\pi$
+- $\alpha_{max} = +\pi$
 
-5) Azimuth angle limits (both azipods)
-- alpha_min = -pi rad
-- alpha_max = +pi rad (full rotation capability)
+6. Shaft commands
+- Same bounds as shaft states: $[-80,160]$ rpm
 
-6) Commanded shaft limits (both commands n1_c and n2_c)
-- same as shaft state limits: [-80, 160] rpm
+Moving/actuation-rate constraints:
 
-Moving (state-dependent) actuation limits that are very important:
+1. Azimuth steering rate limit
+- $\dot{\alpha}$ limited to $\pm 0.21$ rad/s in NMPC.
 
-1) Azimuth steering rate limit
-- alpha_dot is limited to ±0.21 rad/s (approximately 12 deg/s)
-- This is a mechanical constraint on how fast the azipod can rotate.
-- In the NMPC, this is enforced as: |alpha(k+1) - alpha(k)| <= alpha_rate_max * dt
+2. First-step azimuth continuity
+- First control step constrained against previous applied command.
 
-2) First-step azimuth rate constraint
-- The first control step must also respect the rate limit relative to the previous applied control.
-- Enforced as: |alpha(1) - alpha_prev| <= alpha_rate_max * dt
-- Without this, the NMPC may command azimuth angles that are physically unreachable in one timestep.
-- Missing this constraint causes trajectory mismatch and oscillatory behavior (spiral instability).
+3. Shaft first-order dynamics
+- $\dot{n} = (n_{cmd} - n)/T_m$
 
-3) Shaft first-order dynamics
-- n_dot = (n_command - n_actual) / Tm
-- This means shaft speed cannot jump instantly.
+4. Shaft acceleration hard clipping
+- $\dot{n}$ clipped to $[-10, +10]$ rpm/s.
 
-4) Shaft acceleration hard limit
-- n_dot is clipped to [-10, +10] rpm/s
-- So even if command changes a lot, actual shaft speed changes gradually.
+5. Shaft time constant scheduling
+- $T_m = 5.65/(|n|/60)$ for $|n| > 18$ rpm, else $T_m = 18.83$ s, bounded to $[1,20]$ s.
 
-5) Time constant Tm depends on current shaft speed
-- Tm = 5.65 / (|n|/60) when |n| > 18 rpm, otherwise Tm = 18.83
-- Tm is bounded to [1, 20] seconds for numerical stability.
-- This gives slower response at low shaft speeds and faster response at high speeds.
+6. Heading kinematics
+- $\dot{\psi} = r$
 
-6) Heading kinematics
-- psi_dot = r
-- So heading change rate is directly limited by yaw-rate feasibility.
+Guidance implications:
 
-What this means for high-level guidance:
+- Guidance should avoid demanding curvature that conflicts with azimuth-rate limits.
+- Near constrained zones, speed reduction supports feasible turning.
+- Consistent obstacle-clearance policy across guidance and NMPC remains important.
 
-- The guidance layer should generate references that respect realistic turn capability at the current speed.
-- In narrow areas, it should avoid aggressive curvature requests because azipod steering rate may not track them in time.
-- The azimuth rate constraint is particularly important for azipod vessels since they can rotate fully, but the steering rate is mechanically limited.
-- The first-step constraint connects the NMPC prediction to the real actuator state, ensuring continuity between planned and executed motion.
-- Guidance and NMPC should use the same obstacle clearance policy, otherwise guidance says "feasible" and NMPC says "not feasible."
+## Practical run observation (2026-04-10)
 
+In the tested dynamic-obstacle scenario, the vessel did not execute a strict turn-then-translate maneuver. Heading changed while forward translation was already active, allowing residual lateral drift after bypass.
+
+Observed failure mode:
+
+- Obstacle avoidance succeeded, but corridor recapture failed.
+- Waypoint progression and reference recapture became misaligned; cross-track error grew and map collision occurred.
+
+Validation outcome:
+
+- The deceleration-rate constraint was active and numerically respected.
+- Logged brake-rate margin remained nonnegative in that run.
+
+Interpretation:
+
+- Remaining issue is mainly guidance/reference recapture robustness, not braking-constraint correctness.
 
 ## About the actuation motors mounted
 
-Even if with the current limits it still works, the high volatile changing yaw now actuated by the control of the azipod would be best suited rather by ABB DynaFin, which could prove useful for this case
+Even though the present azipod-based setup works under the current limits, high-variability yaw-demand scenarios may be better matched by alternative propulsion concepts (for example, ABB Dynafin-class solutions). This can be discussed as a forward-looking engineering observation rather than a core thesis claim.
 
-## Realism-oriented modifications (model and controller): from a point-based model to a 4-angle-all-obstacle-aware one and other modifications
+## Realism-oriented modifications (model and controller)
 
-The following changes were introduced to increase physical realism and operational plausibility of the docking controller. These points refer to model/controller behavior, not to scenario-specific waypoint edits.
+The following updates improved physical realism and operational plausibility in the controller/model stack.
 
-1) Vessel collision geometry upgraded from point-mass to oriented rectangular footprint
-- Collision checking now uses a yawed rectangle aligned with vessel heading rather than a point approximation.
-- This reflects the actual occupied area and orientation dependence of clearance.
-- Active dimensions in the current setup are based on nominal vessel geometry (175 m x 25.4 m) with a scaled operational hitbox and explicit clearance margin.
-- Implemented in: run_nmpc.m, NMPC_Container_final.m.
+1. Vessel collision geometry upgraded from point model to oriented rectangular footprint
+- Collision checking uses a yawed rectangle aligned with vessel heading.
+- Active footprint is a scaled operational hitbox based on nominal $175 \times 25.4$ m geometry (currently 50% scale).
+- Implemented in: `run_nmpc.m`, `NMPC_Container_final.m`.
 
-2) Forward-motion realism enforced through hard constraints
-- A hard lower bound on surge speed is imposed in NMPC (u >= 0.5 m/s in nominal mode), preventing unrealistic optimization solutions that rely on persistent reverse drift.
-- Guidance and integration logic were aligned with this forward-motion assumption so planning and execution remain consistent.
-- Implemented in: run_nmpc.m, NMPC_Container_final.m.
+2. Forward-motion realism enforced through hard constraints
+- NMPC imposes a hard lower bound on surge speed ($u \ge 0.5$ m/s in current active settings).
+- The RK4 plant integration step also enforces a matching floor.
+- Implemented in: `run_nmpc.m`, `NMPC_Container_final.m`.
 
-3) Actuation realism improved with effort and reverse-motion penalties
-- A dedicated actuator-effort term penalizes excessive shaft activity to reduce high-frequency RPM thrashing and nonphysical sway-inducing behavior.
-- A backward-motion penalty discourages unnecessary reverse operation while preserving feasibility when reverse action is genuinely needed.
-- Implemented in: NMPC_Container_final.m.
+3. Actuation realism via effort and reverse-motion penalties
+- Actuator effort term penalizes excessive shaft activity.
+- Backward-motion penalty discourages reverse bias while retaining feasibility when needed.
+- Implemented in: `NMPC_Container_final.m`.
 
-4) Azimuth continuity and mechanical rate realism at first step
-- Azimuth rate limits are enforced both across the horizon and between the previously applied control and the first predicted control move.
-- This closes a common realism gap where the optimizer can otherwise issue nonphysical first-step jumps.
-- Implemented in: NMPC_Container_final.m.
+4. Azimuth continuity at first step
+- Azimuth-rate limits are enforced both across horizon steps and from previous applied input to first predicted move.
+- Implemented in: `NMPC_Container_final.m`.
 
-5) Terminal maneuvering behavior aligned with large-vessel practice
-- A terminal-precision regime is activated near final approach to favor controlled low-speed recapture over aggressive late corrections.
-- Heading handling near low speed is stabilized using hold/switch logic (position-heading vs velocity-heading usage).
-- Success detection includes a soft capture gate (distance + speed + dwell time), which better reflects practical docking acceptance than a strict instantaneous point hit.
-- Implemented in: run_nmpc.m.
+5. Terminal behavior aligned with large-vessel practice
+- Terminal precision behavior, low-speed heading handling, and soft capture gate are implemented.
+- Implemented in: `run_nmpc.m`.
 
-6) Harbor-environment coupling strengthened
-- Map-aware obstacle sampling and dynamic-obstacle packaging were retained and validated with determinism checks.
-- This maintains realistic interaction with constrained harbor geometry and moving traffic rather than evaluating tracking in open-water-only assumptions.
-- Implemented in: run_nmpc.m.
+6. Harbor-environment coupling retained
+- Map-aware sampling and dynamic-obstacle packaging/replay checks are integrated.
+- Implemented in: `run_nmpc.m`.
 
-### Explicitly excluded from this realism changelog
-- Waypoint coordinate changes.
-- Test-specific dynamic obstacle placements/headings/speeds.
-- Any scenario reshaping done only for validation experiments.
+Explicitly excluded from this realism changelog:
 
-Those are scenario-definition edits, not model/controller realism upgrades.
+- Waypoint coordinate edits
+- Test-specific obstacle placements/headings/speeds
+- Scenario reshaping performed only for isolated experiments
 
+## Tight corridor mode
 
-## Tight corridor mode 
+The architecture contains tight-corridor detection and corridor-specific behavior (speed capping and reference-shaping adjustments). In the current default run configuration, this mode is present but disabled (`enable_tight_corridor_mode = false`).
 
-The adoption of a tight-corridor adaptive control mode is justified provided that mode transitions are implemented with continuous command authority and certified fallback behavior. Specifically, both nominal and corridor-optimized controllers shall preserve identical hard safety constraints, while transition logic shall use hysteresis, bounded dwell time, and deterministic backup commands to eliminate unsafe control gaps. Under these conditions, adaptive mode switching improves maneuverability in constrained waterways without introducing unacceptable operational risk, and is therefore an appropriate safety-performance tradeoff for autonomous harbor navigation.
+This can still be justified as a safety-performance extension provided transitions preserve deterministic behavior and identical hard safety constraints.
 
 ## About what I tried with Test 20
 
-The observed collision in the narrow-passage scenario is attributed to a feasibility limitation rather than a lack of controller aggressiveness. Even with adaptive tight-corridor tuning, the NMPC must satisfy strict geometric and safety constraints, which can reduce the effective navigable width below the required maneuvering envelope. Therefore, this case is classified as constraint-infeasible under the current safety policy, and it justifies the inclusion of supervisory logic that detects infeasible passages and triggers alternative behaviors (speed reduction, holding, or route replanning) instead of forcing unsafe traversal.
+The narrow-passage collision is interpreted as a feasibility limitation rather than insufficient aggressiveness. Even with tighter behavior, hard geometric and safety constraints can reduce effective navigable width below required maneuvering envelope. This supports adding supervisory infeasibility handling (slowdown, hold, or replanning) instead of forcing unsafe traversal.
 
-## Reducing the solve time and the computational complexity
+## Reducing solve time and computational complexity
 
-The reduction in solve time was primarily achieved by decreasing the size and complexity of the nonlinear program. The prediction horizon was shortened from 70 to 25 steps, the number of active map obstacle slots was reduced to 3, and the map sampling density was lowered. Together, these changes significantly reduced the number of decision variables and constraints that the solver had to handle at each control step. In addition, the IPOPT configuration was relaxed by limiting the maximum number of iterations and allowing a higher acceptable tolerance, which enabled the solver to terminate earlier once a sufficiently good solution had been found. Finally, several sources of unnecessary control churn were removed from the final-leg logic, including overly early terminal-precision activation and unstable mode-switch behavior. The combined effect of these adjustments was a substantial improvement in computational efficiency without sacrificing closed-loop functionality.
+Solve-time reduction was mainly achieved by reducing NLP size and online obstacle-load complexity:
+
+- Horizon reduced to 25 steps.
+- Active map-obstacle slots reduced to 3.
+- Map sampling density reduced.
+- IPOPT stopping relaxed for real-time use.
+- Final-leg logic stabilized to reduce control churn.
+
+Combined effect: substantial runtime improvement while preserving closed-loop operation.
+
+### Optimization checklist and implementation status
+
+The following runtime-oriented ideas were tracked and should be stated explicitly with implementation status:
+
+1. Horizon/constraint-size reduction (implemented)
+- Horizon reduced from larger experimental values to $N=25$ in active runs.
+- Active map obstacle slots are capped (`max_map_obstacles = 3`), and total obstacle slots are bounded before NLP build.
+
+2. Persistent solver object (implemented)
+- The CasADi/IPOPT solver is built once per run and reused at each control step.
+- Rebuilds are avoided unless solver configuration changes; this removes repeated symbolic/NLP construction overhead during the loop.
+
+3. MATLAB preallocation and bounded online packaging (implemented)
+- Main trajectory, control, diagnostics, and timing arrays are preallocated.
+- Obstacle packaging/selection is bounded and deterministic, reducing dynamic memory churn.
+
+4. Warm start, primal and dual (implemented)
+- Primal warm start: previous solution is shifted and reused as next initial guess (`x0`).
+- Dual warm start: previous IPOPT multipliers (`lam_x`, `lam_g`) are reused through (`lam_x0`, `lam_g0`) when dimensions match.
+- This decreases average iterations when consecutive NMPC problems are similar.
+
+5. Tolerance relaxation for real-time behavior (implemented)
+- IPOPT convergence settings are relaxed relative to strict offline optimization (`tol = 2e-3`, `acceptable_tol = 2e-2`, bounded iterations).
+- Control quality remained acceptable for tested harbor scenarios.
+
+6. Practical lower bound on runtime (partially addressed, still relevant)
+- Even with the above improvements, very low-latency operation (<1 s/step) is generally unlikely without further simplification.
+- Remaining levers are mainly algorithmic/model-level: shorter horizon, fewer obstacle constraints, reduced model complexity, or stronger hardware.
+
+## Braking constraint for fuel-cost optimization
+
+A hard deceleration-rate constraint is included to discourage aggressive brake-then-accelerate behavior and improve operational realism/fuel efficiency:
+
+$$
+u_k \ge u_{k-1} - \Delta t \, a_{\max,brake}
+$$
+
+where $a_{\max,brake}$ is currently set to 0.3 m/s$^2$ by default.
+
+The constraint is applied:
+
+- At the first effective transition relative to the current measured state
+- Between consecutive horizon states
+
+This supports smoother longitudinal speed transitions during obstacle avoidance and final approach.

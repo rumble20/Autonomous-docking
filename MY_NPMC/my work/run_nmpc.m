@@ -1,7 +1,7 @@
 ﻿%% run_nmpc.m
 % NMPC harbor navigation with 8-state azipod container ship model
 %
-% UNIFIED TEST ΓÇö Single configurable test with:
+% UNIFIED TEST — Single configurable test with:
 %   - Multi-waypoint path following
 %   - Optional static obstacles
 %   - Red-zone map obstacle awareness
@@ -15,7 +15,7 @@
 %   HarborAnimHelper.m      - Harbor animation helper
 %
 % Author: Riccardo Legnini 
-% Date:   2026-03-18
+% Date:   2026-02 to 2026-06
 
 clear; close all; clc;
 clear animateSimResult   
@@ -26,7 +26,7 @@ fprintf('═══════════════════════�
 %  USER CONFIGURATION — EDIT THIS SECTION
 
 % ---- WAYPOINTS (rows = [x, y] in meters, NED frame) ----
-waypoints = [-3500, -1600; -3100, -1500; -2850, -1700; -2500, -1500];
+waypoints = [-3000 -2600; -2400 -2800; -1900 -2450];
 
 % ---- CRUISE SPEED TARGET (m/s) ----
 % Guidance now uses one global cruise speed and lets the speed governor +
@@ -43,13 +43,13 @@ static_obstacles = [];
 % - Positions are rows [x y] in meters.
 % - Headings are in degrees (0=+x/North, 90=+y/East).
 % - Speeds are in m/s (scalar or one per obstacle).
-dynamic_obs_positions_xy = [-3100 -1700; -2800 -1800];  % Example: [-3000 -1700; -2920 -1740]
-dynamic_obs_headings_deg = [90; 45];           % Example: [90; 110]
-dynamic_obs_speeds_mps   = [4; 4];             % [] uses dynamic_obs_speed_mps for all
+dynamic_obs_positions_xy = [-2400, -2500];  % Example: [-3000 -1700; -2920 -1740]
+dynamic_obs_headings_deg = [270];           % Example: [90; 110]
+dynamic_obs_speeds_mps   = [3];             % [] uses dynamic_obs_speed_mps for all
 
 % ---- SIMULATION PARAMETERS ----
-T_final     = 600;      % Total simulation time [s]
-R_accept    = 70;       % Intermediate waypoint acceptance radius [m] (less premature segment switching)
+T_final     = 1000;      % Total simulation time [s]
+R_accept    = 90;       % Intermediate waypoint acceptance radius [m] (keeps waypoint switching honest)
 R_accept_final = 25;    % Final waypoint acceptance radius [m]
 R_accept_final_soft = 65;      % Soft terminal capture radius [m] (used with low-speed hold)
 final_capture_speed_mps = 2.5; % Max speed for soft terminal capture [m/s]
@@ -79,10 +79,11 @@ terminal_log_output_dir = log_output_dir;
 % ---- TERMINAL CONSTRAINT RELAXATION ----
 % These only apply near the final waypoint to avoid local minima/circling.
 enable_terminal_map_relax = true;
-terminal_relax_dist_m = 260;
-terminal_map_exclusion_m = 120;
-terminal_min_avoid_scale = 0.55;
-terminal_disable_map_samples = true;  % disable virtual map sample obstacles near final approach
+terminal_relax_dist_m = 420;
+terminal_relax_activation_dist_m = 220;  % activate map-relax only when actually near final corridor
+terminal_map_exclusion_m = 110;
+terminal_min_avoid_scale = 0.90;
+terminal_disable_map_samples = false; % keep map samples in terminal corridor to preserve map-awareness
 
 % ---- TERMINAL PRECISION MODE ----
 % Keep strong forward-bias during normal transit, but allow near-stop
@@ -94,6 +95,7 @@ terminal_precision_guidance_min_mps = 0.35;   % Guidance speed floor during term
 terminal_precision_guidance_max_mps = 1.4;    % Guidance cap during terminal precision mode [m/s]
 terminal_precision_close_dist_m = 20;         % Extra-slow zone for tight final recapture [m]
 terminal_precision_close_speed_mps = 0.50;    % Max speed in extra-slow zone [m/s]
+final_leg_cruise_floor_mps = 1.0;             % keep sufficient forward pace before terminal precision mode
 terminal_heading_hold_radius_m = 12;          % Freeze noisy dp-heading when very close to target [m]
 terminal_heading_velocity_switch_mps = 0.35;  % If moving enough, align with velocity heading [m/s]
 
@@ -194,10 +196,16 @@ tight_corridor_avoid_scale = 0.78;      % Reduce reference keep-out inflation in
 tight_corridor_r_ref_max = 0.18;        % Allow stronger heading correction when corridor is tight
 
 % NEW: Actuator and forward motion penalties (ADDRESSING BACKWARD MOTION ISSUE)
-actuator_force_weight = 0.05;        % Penalty on RPM magnitude (increased 25x ΓÇö reduces excessive swaying)
-forward_incentive_weight = 2.5;      % Penalty on backward motion (increased 5x ΓÇö strongly discourages backward)
+actuator_force_weight = 0.015;       % Penalty on RPM magnitude (kept lower to preserve recoverability)
+forward_incentive_weight = 2.5;      % Penalty on backward motion (increased 5x - strongly discourages backward)
 waypoint_heading_weight = 0.0;       % Extra heading penalty at waypoints (0=disabled)
 u_min_forward = 0.5;                 % HARD CONSTRAINT: Minimum forward speed [m/s]
+
+% ---- BRAKING CONSTRAINT (fuel cost optimization) ----
+% Limits the rate of deceleration (surge acceleration) to minimize braking fuel costs.
+% In real operations, rapid deceleration followed by re-acceleration burns excessive fuel.
+% This constraint enforces a maximum deceleration rate (soft limit on negative surge acceleration).
+max_brake_rate = 0.3;                % Max deceleration rate [m/s^2] (~0.03g for a large vessel)
 u_min_forward_nav = u_min_forward;   % Keep nominal forward-only behavior in normal navigation
 
 terminal_precision_cfg = struct();
@@ -225,12 +233,27 @@ avoid_ref_cfg.include_map_samples = false; % avoid map-point-induced global drif
 % yaw-rate authority in the reference so the vessel recenters faster.
 xte_recovery_cfg = struct();
 xte_recovery_cfg.enabled = true;
-xte_recovery_cfg.trigger_m = 42;                 % start recovery shaping above this |XTE|
-xte_recovery_cfg.full_m = 95;                    % full recovery gain at/above this |XTE|
-xte_recovery_cfg.min_avoid_scale = 0.62;         % minimum scale on avoid_ref base margin
-xte_recovery_cfg.min_speed_gain_scale = 0.58;    % minimum scale on avoid_ref speed gain
-xte_recovery_cfg.recapture_r_ref_max = 0.24;     % stronger heading-rate authority during recapture
-xte_recovery_cfg.speed_cap_full_mps = 2.8;       % speed cap when recovery is fully engaged
+xte_recovery_cfg.trigger_m = 30;                 % start recovery shaping earlier when off-track
+xte_recovery_cfg.full_m = 70;                    % full recovery gain at/above this |XTE|
+xte_recovery_cfg.min_avoid_scale = 0.50;         % minimum scale on avoid_ref base margin
+xte_recovery_cfg.min_speed_gain_scale = 0.50;    % minimum scale on avoid_ref speed gain
+xte_recovery_cfg.recapture_r_ref_max = 0.30;     % stronger heading-rate authority during recapture
+xte_recovery_cfg.speed_cap_full_mps = cruise_speed_mps; % do not slow the vessel during recapture
+xte_recovery_cfg.force_wp_mode_enabled = false;  % disabled by default: prioritize proven dynamic-obstacle safety
+xte_recovery_cfg.force_wp_xte_m = 85;            % activate emergency recapture above this |XTE|
+xte_recovery_cfg.force_wp_clearance_m = 140;     % require this obstacle clearance before forcing waypoint recapture
+xte_recovery_cfg.force_wp_speed_cap_mps = 1.6;   % speed cap while emergency recapture is active
+xte_recovery_cfg.force_wp_avoid_scale = 1.00;    % keep nominal avoidance inflation in safety-critical runs
+xte_recovery_cfg.force_wp_r_ref_max = 0.30;      % stronger yaw-rate reference cap during emergency recapture
+xte_recovery_cfg.force_wp_disable_with_dynamic = true; % do not force recapture when active dynamic obstacle is nearby
+xte_recovery_cfg.force_wp_dynamic_clearance_m = 260;   % minimum dynamic-obstacle clearance to allow forced recapture
+
+% Dynamic-threat safety override (active moving obstacles)
+dynamic_threat_cfg = struct();
+dynamic_threat_cfg.enabled = true;
+dynamic_threat_cfg.clearance_m = 300;         % trigger when ship-to-dynamic clearance below this
+dynamic_threat_cfg.speed_cap_mps = 1.2;       % cap surge command under dynamic threat
+dynamic_threat_cfg.avoid_margin_scale = 1.15; % inflate ref keep-out under dynamic threat
 
 % ---- PID FALLBACK GAINS (used when NMPC fails) ----
 pid_Kp = 0.8;
@@ -239,6 +262,11 @@ pid_Kd = 5.0;
 
 % ---- REAL-TIME DIAGNOSTICS ----
 enable_rt_terminal_plots = true;
+enable_final_leg_debug = false;  % Set true for per-step final-leg debug prints
+env_final_dbg = getenv('NMPC_FINAL_LEG_DEBUG');
+if ~isempty(env_final_dbg)
+    enable_final_leg_debug = strcmpi(strtrim(env_final_dbg), '1') || strcmpi(strtrim(env_final_dbg), 'true');
+end
 
 % ---- OPTIONAL ENV OVERRIDES (for batch verification) ----
 env_dyn = getenv('NMPC_ENABLE_DYNAMIC_OBS');
@@ -395,6 +423,7 @@ nmpc_cfg.actuator_force_weight = actuator_force_weight;
 nmpc_cfg.forward_incentive_weight = forward_incentive_weight;
 nmpc_cfg.waypoint_heading_weight = waypoint_heading_weight;
 nmpc_cfg.u_min_forward = u_min_forward;
+nmpc_cfg.max_brake_rate = max_brake_rate;
 
 fprintf('\n--- Building NMPC solver (%d obstacle slots) ---\n', nmpc_cfg.max_obs);
 fprintf('  Hull footprint: oriented rectangle %.1f m x %.1f m (clearance %.1f m)\n', ...
@@ -436,6 +465,7 @@ n_obs_log         = nan(1, length(t));
 cost_log          = nan(1, length(t));
 obs_pack_drift_log = nan(1, length(t));
 collision_log     = false(1, length(t));
+brake_margin_log  = nan(1, length(t));
 traj(:,1) = x;
 steps = 0;
 
@@ -457,10 +487,12 @@ u_prev = [0; 0; n1_cruise; n2_cruise];
 % Tight corridor mode state tracking
 loose_prev_was_tight = false;
 terminal_precision_was_active = false;
+force_wp_recap_prev = false;
 
 % Missed-approach detector state (script-scope, persists across loop iterations)
 d_final_prev = inf;
 d_final_increasing_count = 0;
+u_prev_ship = x(1);
 
 fprintf('\n  Waypoints: ');
 for i = 1:size(waypoints, 1)
@@ -469,11 +501,7 @@ end
 
 %  MAIN SIMULATION LOOP
 
-% Wrap simulation in try-catch to ensure outputs are generated even if interrupted
-sim_error_occurred = false;
-sim_error_msg = '';
-
-try
+% Main simulation loop
 for i = 1:length(t)
     t_step = tic;
 
@@ -521,7 +549,7 @@ for i = 1:length(t)
         half_width_now = min(map_half_width_max_m, max(map_half_width_min_m, 0.45 * lookahead_now));
 
         on_final_leg = wp_idx >= max(1, size(waypoints,1)-1);
-        terminal_mode_active = enable_terminal_map_relax && on_final_leg && (d_final_now < terminal_relax_dist_m);
+        terminal_mode_active = enable_terminal_map_relax && on_final_leg && (d_final_now < terminal_relax_activation_dist_m);
         if terminal_mode_active && ~terminal_mode_announced
             fprintf('  [terminal-mode] final-leg map-sample relaxation active (d_final=%.1f m)\n', d_final_now);
             terminal_mode_announced = true;
@@ -529,7 +557,7 @@ for i = 1:length(t)
 
         % Near the terminal waypoint, reduce virtual-map corridor aggressiveness.
         if terminal_mode_active
-            relax_ratio = max(0.25, d_final_now / max(terminal_relax_dist_m, 1));
+            relax_ratio = max(0.45, d_final_now / max(terminal_relax_dist_m, 1));
             lookahead_now = max(120, relax_ratio * lookahead_now);
             half_width_now = max(80, relax_ratio * half_width_now);
         end
@@ -538,12 +566,8 @@ for i = 1:length(t)
             map_sample_pts, x(4:5), chi_d, max_map_obstacles, ...
             lookahead_now, half_width_now, map_sample_radius_m);
 
-        % Deterministic terminal fix:
-        % remove virtual map sample obstacles on final approach to avoid
-        % artificial local minima around a valid final waypoint.
-        if terminal_mode_active && terminal_disable_map_samples
-            obs_map = struct('position', {}, 'radius', {});
-        end
+        % Keep map sample obstacles during terminal approach to preserve
+        % corridor awareness in constrained final segments.
 
         % Avoid building an artificial obstacle wall around the terminal point.
         if terminal_mode_active && ~isempty(obs_map)
@@ -562,6 +586,7 @@ for i = 1:length(t)
     
     obs_dyn = struct('position', {}, 'radius', {});
     obs_dyn_latent = struct('position', {}, 'radius', {});
+    dyn_threat_active = false;
     if enable_dynamic_obstacles && ~isempty(dynamic_obstacles)
         obs_dyn = dynamicToCircleObstacles(dynamic_obstacles);
         if isfield(dynamic_latent_awareness, 'enabled') && dynamic_latent_awareness.enabled
@@ -569,6 +594,16 @@ for i = 1:length(t)
         end
         obs_local = [obs_local, obs_dyn_latent, obs_dyn];
         obs_pack_drift_log(i) = computeDynamicPackagingDrift(dynamic_obstacles, obs_local);
+
+        if dynamic_threat_cfg.enabled && ~isempty(obs_dyn)
+            min_dyn_clear = inf;
+            for kk = 1:length(obs_dyn)
+                d_cent = norm(x(4:5) - obs_dyn(kk).position(1:2));
+                d_clear = d_cent - obs_dyn(kk).radius;
+                min_dyn_clear = min(min_dyn_clear, d_clear);
+            end
+            dyn_threat_active = min_dyn_clear < dynamic_threat_cfg.clearance_m;
+        end
     end
 
     % Speed governor: cap U_d using local obstacle distance risk and
@@ -588,6 +623,10 @@ for i = 1:length(t)
 
     if tight_corridor_mode_active
         U_d = min(U_d, tight_corridor_speed_cap_mps);
+    end
+
+    if dyn_threat_active
+        U_d = min(U_d, dynamic_threat_cfg.speed_cap_mps);
     end
 
     if on_final_leg
@@ -623,24 +662,27 @@ for i = 1:length(t)
         %     end
         % end
         
-        fprintf('  [FINAL-LEG DEBUG] d_final=%.1f m, U_ship=%.2f m/s, U_d=%.2f m/s, XTE=%.1f m\n', ...
-            d_final_now, U_now_ship, U_d, xte);
+        if enable_final_leg_debug
+            fprintf('  [FINAL-LEG DEBUG] d_final=%.1f m, U_ship=%.2f m/s, U_d=%.2f m/s, XTE=%.1f m\n', ...
+                d_final_now, U_now_ship, U_d, xte);
+        end
         
-        % ----- MISSED APPROACH DETECTION -----
         if d_final_now < 250  % Only check when close to target
-            if d_final_now > d_final_prev + 0.5  % Distance is increasing
-                d_final_increasing_count = d_final_increasing_count + 1;
-                if d_final_increasing_count >= 5
-                    fprintf('  [MISSED APPROACH WARNING] d_final increasing for %d consecutive steps!\n', ...
-                        d_final_increasing_count);
-                end
-            else
-                d_final_increasing_count = 0;  % Reset counter
+            d_final_increasing_count = d_final_increasing_count + 1;
+            if d_final_increasing_count >= 5
+                fprintf('  [MISSED APPROACH WARNING] d_final increasing for %d consecutive steps!\n', ...
+                    d_final_increasing_count);
             end
+        else
+            d_final_increasing_count = 0;  % Reset counter
         end
         d_final_prev = d_final_now;
     
     end  % end if on_final_leg
+
+    if on_final_leg && ~terminal_precision_mode_active && ~dyn_threat_active
+        U_d = max(U_d, final_leg_cruise_floor_mps);
+    end
 
     obs_time_log(i) = toc(t_seg);
 
@@ -664,18 +706,24 @@ for i = 1:length(t)
     end
 
     desired_u_min_forward = u_min_forward_nav;
+    if terminal_precision_mode_active
+        desired_u_min_forward = min(desired_u_min_forward, terminal_precision_u_min_forward_mps);
+    end
     loose_prev_was_tight = tight_corridor_mode_active;
 
     % ---- 3) Build reference trajectory ----------------------------------
     t_seg = tic;
     avoid_ref_step = avoid_ref_cfg;
+    if dyn_threat_active
+        avoid_ref_step.base_margin_m = dynamic_threat_cfg.avoid_margin_scale * avoid_ref_step.base_margin_m;
+    end
     if tight_corridor_mode_active
         avoid_ref_step.base_margin_m = tight_corridor_avoid_scale * avoid_ref_step.base_margin_m;
         avoid_ref_step.speed_gain_s = tight_corridor_avoid_scale * avoid_ref_step.speed_gain_s;
         avoid_ref_step.deflect_sigma = 0.90 * avoid_ref_step.deflect_sigma;
         avoid_ref_step.r_ref_max = max(avoid_ref_step.r_ref_max, tight_corridor_r_ref_max);
     end
-    if enable_terminal_map_relax && wp_idx >= max(1, size(waypoints,1)-1) && d_final_now < terminal_relax_dist_m
+    if enable_terminal_map_relax && wp_idx >= max(1, size(waypoints,1)-1) && d_final_now < terminal_relax_activation_dist_m
         avoid_scale = max(terminal_min_avoid_scale, d_final_now / max(terminal_relax_dist_m, 1));
         avoid_ref_step.base_margin_m = avoid_ref_cfg.base_margin_m * avoid_scale;
         avoid_ref_step.speed_gain_s = avoid_ref_cfg.speed_gain_s * avoid_scale;
@@ -703,6 +751,59 @@ for i = 1:length(t)
         end
     end
 
+    % Emergency non-terminal recapture mode:
+    % if the vessel drifts far from the active segment and nearest obstacle
+    % clearance is already comfortable, steer directly toward the active
+    % waypoint and reduce reference-deflection inflation to avoid large loops.
+    force_wp_recap = false;
+    if getOr(xte_recovery_cfg, 'force_wp_mode_enabled', false) && wp_idx < size(waypoints, 1)
+        nearest_clear = inf;
+        for kk = 1:length(obs_local)
+            d_cent = norm(x(4:5) - obs_local(kk).position(1:2));
+            d_clear = d_cent - obs_local(kk).radius;
+            nearest_clear = min(nearest_clear, d_clear);
+        end
+
+        dyn_blocked = false;
+        if getOr(xte_recovery_cfg, 'force_wp_disable_with_dynamic', true)
+            min_dyn_clear = inf;
+            any_dyn_active = false;
+            for kk = 1:length(dynamic_obstacles)
+                if ~isfield(dynamic_obstacles(kk), 'enabled') || ~dynamic_obstacles(kk).enabled
+                    continue;
+                end
+                if ~isfield(dynamic_obstacles(kk), 'active') || ~dynamic_obstacles(kk).active
+                    continue;
+                end
+                any_dyn_active = true;
+                d_dyn = norm(x(4:5) - dynamic_obstacles(kk).position(1:2)) - dynamic_obstacles(kk).radius;
+                min_dyn_clear = min(min_dyn_clear, d_dyn);
+            end
+            dyn_clear_req = getOr(xte_recovery_cfg, 'force_wp_dynamic_clearance_m', 260);
+            dyn_blocked = any_dyn_active && (min_dyn_clear < dyn_clear_req);
+        end
+
+        if abs(xte) > getOr(xte_recovery_cfg, 'force_wp_xte_m', 120) && ...
+                nearest_clear > getOr(xte_recovery_cfg, 'force_wp_clearance_m', 170) && ...
+                ~dyn_blocked
+            p_wp = waypoints(min(wp_idx + 1, size(waypoints, 1)), :)';
+            chi_d = atan2(p_wp(2) - x(5), p_wp(1) - x(4));
+            U_d = min(U_d, getOr(xte_recovery_cfg, 'force_wp_speed_cap_mps', 2.1));
+            avoid_scale_force = getOr(xte_recovery_cfg, 'force_wp_avoid_scale', 0.55);
+            avoid_ref_step.base_margin_m = avoid_ref_step.base_margin_m * avoid_scale_force;
+            avoid_ref_step.speed_gain_s = avoid_ref_step.speed_gain_s * avoid_scale_force;
+            avoid_ref_step.r_ref_max = max(avoid_ref_step.r_ref_max, getOr(xte_recovery_cfg, 'force_wp_r_ref_max', 0.30));
+            force_wp_recap = true;
+        end
+    end
+
+    if force_wp_recap && ~force_wp_recap_prev
+        fprintf('  [xte-recapture] emergency waypoint recapture ON (xte=%.1f m)\n', xte);
+    elseif ~force_wp_recap && force_wp_recap_prev
+        fprintf('  [xte-recapture] emergency waypoint recapture OFF\n');
+    end
+    force_wp_recap_prev = force_wp_recap;
+
     if getOr(avoid_ref_step, 'include_map_samples', false)
         obs_for_ref = obs_local;
     else
@@ -715,7 +816,7 @@ for i = 1:length(t)
 
     % ---- 4) Solve NMPC (MODIFIED - now passes u_prev) -------------------
     t_seg = tic;
-    [u_opt, ~, info] = nmpc.solve(x, x_ref, obs_local, u_prev);
+    [u_opt, ~, info] = nmpc.solve(x, x_ref, obs_local, u_prev, desired_u_min_forward);
     solve_call_log(i) = toc(t_seg);
     if isfield(info, 'solve_time')
         solve_time_log(i) = info.solve_time;
@@ -757,15 +858,24 @@ for i = 1:length(t)
     t_seg = tic;
     x = rk4Step8(x, u_opt, dt, desired_u_min_forward);
     integr_time_log(i) = toc(t_seg);
+    du_surge = x(1) - u_prev_ship;
+    brake_margin_log(i) = du_surge + max_brake_rate * dt;
+    u_prev_ship = x(1);
     step_time_log(i) = toc(t_step);
     rt_ratio_log(i) = step_time_log(i) / max(dt, 1e-9);
 
-    % ---- 7) Collision checks (map + circle obstacles) ------------------
-    [hit_obs, ~, ~] = detectHullCircleHit(x, obs_local, hull_cfg, 0.0);
+    % ---- 7) Collision checks (map + obstacle sources) ------------------
+    [hit_static, ~, ~] = detectHullCircleHit(x, static_obstacles, hull_cfg, 0.0);
+    [hit_map_samples, ~, ~] = detectHullCircleHit(x, obs_map, hull_cfg, 0.0);
+    [hit_dyn_latent, ~, ~] = detectHullCircleHit(x, obs_dyn_latent, hull_cfg, 0.0);
+    [hit_dyn_real, ~, ~] = detectHullCircleHit(x, obs_dyn, hull_cfg, 0.0);
+    hit_obs = hit_static || hit_map_samples || hit_dyn_latent || hit_dyn_real;
     [hit_map, ~, ~] = detectHullMapHit(x, hull_cfg, map);
     if hit_obs || hit_map
         collision_log(i) = true;
-        fprintf('  [COLLISION] t=%.1f s hit_obs=%d hit_map=%d\n', t(i), hit_obs, hit_map);
+        fprintf(['  [COLLISION] t=%.1f s hit_obs=%d hit_map=%d ', ...
+                 '(static=%d map_samples=%d dyn_latent=%d dyn_real=%d)\n'], ...
+            t(i), hit_obs, hit_map, hit_static, hit_map_samples, hit_dyn_latent, hit_dyn_real);
         steps = i;
         traj(:, i+1)  = x;
         ctrl(:, i)    = u_opt;
@@ -833,13 +943,6 @@ for i = 1:length(t)
         break;
     end
 end
-catch ME
-    % Capture error but continue to output generation
-    sim_error_occurred = true;
-    sim_error_msg = sprintf('%s (line %d)', ME.message, ME.stack(1).line);
-    fprintf('\n⚠ SIMULATION INTERRUPTED: %s\n', sim_error_msg);
-    fprintf('⚠ Continuing to generate animation and logs from partial results...\n\n');
-end
 
 % Trim logs
 if ~exist('steps', 'var') || isempty(steps) || steps < 1
@@ -871,6 +974,7 @@ n_obs_log       = n_obs_log(1:steps);
 cost_log        = cost_log(1:steps);
 obs_pack_drift_log = obs_pack_drift_log(1:steps);
 collision_log   = collision_log(1:steps);
+brake_margin_log = brake_margin_log(1:steps);
 
 % Wrap all output generation in try-catch to ensure it runs even if errors occur
 output_gen_error = false;
@@ -888,6 +992,11 @@ if any(isfinite(obs_pack_drift_log))
     fprintf('  Dynamic packaging drift [m]: max=%.3f\n', max(obs_pack_drift_log(isfinite(obs_pack_drift_log))));
 end
 fprintf('  Collisions detected: %d\n', sum(collision_log));
+if any(isfinite(brake_margin_log))
+    n_brake_viol = sum(brake_margin_log < -1e-6);
+    fprintf('  Brake-rate margin [m/s]: min=%.4f, violations=%d\n', ...
+        min(brake_margin_log(isfinite(brake_margin_log))), n_brake_viol);
+end
 
 valid_step = isfinite(step_time_log);
 valid_solve = isfinite(solve_time_log);
@@ -1080,19 +1189,10 @@ catch ME
     fprintf('⚠ Attempting to still save logs and partial outputs...\n\n');
 end
 
-% Report any errors that occurred
-if sim_error_occurred
-    fprintf('\n⚠ SUMMARY: Simulation was interrupted (%s)\n', sim_error_msg);
-    fprintf('⚠ Animation, recording, and logs generated from partial data (%d/%d steps)\n', ...
-        steps, length(t)-1);
-end
-if output_gen_error
-    fprintf('\n⚠ Some output generation failed, but logs were saved\n');
-end
 
-fprintf('\nΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ\n');
+fprintf('==============================================================\n');
 fprintf('  Simulation and output generation complete\n');
-fprintf('ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ\n');
+fprintf('==============================================================\n');
 
 
 %  LOCAL FUNCTIONS
@@ -1141,10 +1241,10 @@ function [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, wp, cruise_speed_mps, 
 
         % Keep skipping flexible in long routes, but lock progression near
         % terminal segments to prevent premature wp jumps.
-        terminal_lock_last_n = 2;                  % Last N segments are stricter
+        terminal_lock_last_n = 1;                  % Only final segment is stricter
         prefinal_accept_scale = 0.45;              % Fraction of R_accept for pre-final gate
         prefinal_accept_m = max(25, prefinal_accept_scale * R_accept);
-        in_terminal_lock_window = wp_idx >= max(1, n_wps - terminal_lock_last_n);
+        in_terminal_lock_window = wp_idx >= max(2, n_wps - terminal_lock_last_n);
         
         p_next = wp(min(wp_idx + 2, n_wps), :)';
         d_to_next_waypoint = norm(pos - p_next);
@@ -1154,6 +1254,14 @@ function [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, wp, cruise_speed_mps, 
         % Intermediate checkpoints are intentionally skippable when
         % obstacle/dynamic constraints push the vessel off the nominal line.
         skip_due_to_progress = (proj >= 0.99) && near_segment;
+        % Robust progression for non-terminal legs: once well past the gate,
+        % advance even if obstacle avoidance temporarily pushed us off-segment.
+        skip_due_to_overshoot = (proj >= 1.05);
+        % Missed-gate recovery for non-terminal waypoints: if we are close to
+        % the gate neighborhood and largely past it in projection, advance to
+        % avoid getting trapped on the previous leg after obstacle bypass.
+        skip_due_to_missed_gate = (proj >= 0.92) && ...
+            (d_to_waypoint <= max(2.5 * R_accept, 180));
         skip_due_to_better_next = (proj >= 0.90) && near_segment && (d_to_next_waypoint < d_to_waypoint);
 
         if in_terminal_lock_window
@@ -1174,12 +1282,17 @@ function [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, wp, cruise_speed_mps, 
                        ((proj >= 1.0) && near_segment && (d_to_waypoint <= 1.1 * R_accept));
         else
             can_skip = (d_to_waypoint <= R_accept || skip_due_to_progress || ...
-                        skip_due_to_better_next || (proj >= 1.0 && near_segment));
+                        skip_due_to_better_next || skip_due_to_overshoot || ...
+                        skip_due_to_missed_gate || ...
+                        (proj >= 1.0 && near_segment));
         end
         
         if can_skip
+            prev_wp_idx = wp_idx;
             wp_idx = wp_idx + 1;
             advanced_this_step = true;  % avoid wp2->wp4 jumps in one solver step
+            fprintf('  [wp-advance] %d -> %d (proj=%.2f, d_wp=%.1f m, xte=%.1f m)\n', ...
+                prev_wp_idx, wp_idx, proj, d_to_waypoint, xte_seg);
         else
             break;
         end
@@ -1193,6 +1306,7 @@ function [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, wp, cruise_speed_mps, 
     seg = p2 - p1;
     seg_len = norm(seg);
     xte_active = 0;
+    xte_signed = 0;
 
     if seg_len < 1e-6
         target = p2;
@@ -1201,15 +1315,16 @@ function [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, wp, cruise_speed_mps, 
         s_proj = max(0, min(seg_len, s_proj));
 
         % Cross-track relative to currently active segment.
-        xte_active = abs(((pos(1)-p1(1))*seg(2) - (pos(2)-p1(2))*seg(1)) / max(seg_len, 1e-6));
+        xte_signed = ((pos(1)-p1(1))*seg(2) - (pos(2)-p1(2))*seg(1)) / max(seg_len, 1e-6);
+        xte_active = abs(xte_signed);
 
         U_now = max(1.0, sqrt(x(1)^2 + x(2)^2));
         lookahead_nominal = max(45, 7 * U_now);
-        lookahead_terminal = 30 + 0.25 * min(d_final, 250);
+        lookahead_terminal = 12 + 0.10 * min(d_final, 200);
 
         % Recapture logic: if too far from corridor centerline, prioritize rejoining
         % the segment before advancing deeply ahead.
-        xte_rejoin_thr = max(0.6 * R_accept, 35);
+        xte_rejoin_thr = max(45, 0.35 * R_accept);
         if xte_active > xte_rejoin_thr
             s_target = s_proj;
         else
@@ -1227,6 +1342,15 @@ function [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, wp, cruise_speed_mps, 
     d_target = norm(dp);
     chi_d = atan2(dp(2), dp(1));
 
+    % Final corridor centerline correction: bias heading toward the active
+    % segment direction with a bounded cross-track correction term.
+    if on_final_leg && seg_len > 1e-6 && xte_active > 10
+        chi_seg = atan2(seg(2), seg(1));
+        chi_corr = -0.012 * xte_signed;
+        chi_corr = max(-deg2rad(24), min(deg2rad(24), chi_corr));
+        chi_d = wrapToPi(chi_seg + chi_corr);
+    end
+
     % Close to terminal target, dp can become tiny/noisy. Stabilize heading
     % to avoid lateral pass-through and improve tight recapture behavior.
     if on_final_leg && d_target < terminal_cfg.heading_hold_radius_m
@@ -1243,10 +1367,13 @@ function [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, wp, cruise_speed_mps, 
             chi_final_leg = x(6);
         end
 
-        if U_ground > terminal_cfg.velocity_heading_switch_mps
-            chi_d = atan2(v_e, v_n);
-        else
-            chi_d = chi_final_leg;
+        % Prefer the final-segment heading unless we are already well aligned.
+        chi_d = chi_final_leg;
+        if U_ground > terminal_cfg.velocity_heading_switch_mps && xte_active < 12
+            blend = max(0.0, min(1.0, 1.0 - xte_active / 12));
+            chi_vel = atan2(v_e, v_n);
+            chi_d = atan2((1 - blend) * sin(chi_final_leg) + blend * sin(chi_vel), ...
+                (1 - blend) * cos(chi_final_leg) + blend * cos(chi_vel));
         end
     end
 
@@ -1259,12 +1386,23 @@ function [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, wp, cruise_speed_mps, 
     psi_err_full  = deg2rad(48);
     turn_alpha = (psi_err_abs - psi_err_enter) / max(psi_err_full - psi_err_enter, 1e-6);
     turn_alpha = max(0, min(1, turn_alpha));
-    U_turn_cap = 3.2 + (cruise_speed_mps - 3.2) * (1 - turn_alpha);
+    U_turn_cap = 4.2 + (cruise_speed_mps - 4.2) * (1 - turn_alpha);
     U_d = min(U_d, U_turn_cap);
 
-    % Extra recapture slowdown when far off-track.
-    if xte_active > max(1.2 * R_accept, 55)
-        U_d = min(U_d, 4.2);
+    % Turn-first gate on final leg: enforce heading alignment before translation.
+    if on_final_leg
+        psi_turn_gate = deg2rad(22);
+        if psi_err_abs > psi_turn_gate
+            turn_gate_alpha = (psi_err_abs - psi_turn_gate) / deg2rad(35);
+            turn_gate_alpha = max(0, min(1, turn_gate_alpha));
+            U_turn_first_cap = 1.6 - 0.9 * turn_gate_alpha;  % 1.6 -> 0.7 m/s as heading error grows
+            U_d = min(U_d, U_turn_first_cap);
+        end
+
+        % If lateral body speed is still high, keep surge modest until recentered.
+        if abs(x(2)) > 0.35
+            U_d = min(U_d, 1.6);
+        end
     end
 
     if d_final < 350
@@ -1272,6 +1410,12 @@ function [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, wp, cruise_speed_mps, 
     end
     if d_final < 100
         U_d = min(U_d, 0.6);
+    end
+
+    % Final-leg re-centering: if the vessel is still off the tunnel centerline,
+    % keep some speed but do not let it carry lateral motion unchecked.
+    if on_final_leg && xte_active > 12
+        U_d = min(U_d, 2.2);
     end
 
     if terminal_cfg.enabled && on_final_leg && d_final < terminal_cfg.activation_dist_m
@@ -1434,21 +1578,27 @@ function xte = computeXTE(x, wp, wp_idx)
     xte = ((pos(1)-p1(1))*seg(2) - (pos(2)-p1(2))*seg(1)) / seg_len;
 end
 
-function x_ref = buildSimpleRef8(x0, chi_d, U_d, N, dt, n1_ref, n2_ref)
+function x_ref = buildSimpleRef8(x0, chi_d, U_d, N, dt, n1_ref, n2_ref, turn_cfg)
 % Build 8-state reference trajectory
+    if nargin < 8 || isempty(turn_cfg)
+        turn_cfg = struct();
+    end
+    r_gain = getOr(turn_cfg, 'r_gain', 0.35);
+    r_ref_max = getOr(turn_cfg, 'r_ref_max', 0.10);
+    ramp_r_scale = getOr(turn_cfg, 'ramp_r_scale', 0.15);
+
     x_ref = zeros(8, N+1);
     x_ref(:, 1) = x0;
     
     psi_err = atan2(sin(chi_d - x0(6)), cos(chi_d - x0(6)));
-    r_d = 0.35 * psi_err;
-    r_d = max(-0.10, min(0.10, r_d));
+    r_d = r_gain * psi_err;
+    r_d = max(-r_ref_max, min(r_ref_max, r_d));
     
-    % NEW: Smooth heading ramp to avoid spawning sideways
-    % First 5 steps: gradually increase heading command to chi_d
-    n_ramp = min(5, N);
+    % Smooth heading ramp to avoid spawning sideways.
+    % Large heading changes get a longer turn-first window.
+    n_ramp = min(N, max(5, round(5 + 8 * min(1, abs(psi_err) / deg2rad(60)))));
     
     for k = 2:(N+1)
-        x_ref(1, k) = U_d;
         x_ref(2, k) = 0;
         x_ref(7, k) = n1_ref;
         x_ref(8, k) = n2_ref;
@@ -1459,15 +1609,24 @@ function x_ref = buildSimpleRef8(x0, chi_d, U_d, N, dt, n1_ref, n2_ref)
             ramp_factor = (k - 1) / (n_ramp + 1);
             x_ref(6, k) = x0(6) + ramp_factor * psi_err;
             % Reduce rotation rate during ramp
-            x_ref(3, k) = 0.15 * r_d * sin((k-1) / (n_ramp + 1) * pi);
+            x_ref(3, k) = ramp_r_scale * r_d * sin((k-1) / (n_ramp + 1) * pi);
+
+            % Turn-first progress: keep translational progress modest during early heading capture.
+            U_prog = U_d * max(0.18, ramp_factor^1.5);
+            if abs(psi_err) > deg2rad(25)
+                U_prog = min(U_prog, 1.2);
+            end
         else
             % After ramp, use full heading and rotation rate
             x_ref(6, k) = chi_d;
             x_ref(3, k) = r_d;
+            U_prog = U_d;
         end
+
+        x_ref(1, k) = U_prog;
         
-        dx = U_d * dt * cos(x_ref(6, k));
-        dy = U_d * dt * sin(x_ref(6, k));
+        dx = U_prog * dt * cos(x_ref(6, k));
+        dy = U_prog * dt * sin(x_ref(6, k));
         x_ref(4, k) = x_ref(4, k-1) + dx;
         x_ref(5, k) = x_ref(5, k-1) + dy;
     end
@@ -1480,7 +1639,8 @@ function x_ref = buildObstacleAwareRef8(x0, chi_d, U_d, N, dt, n1_ref, n2_ref, o
             'obs_radius_gain', 0.5, 'deflect_sigma', 0.22, 'r_ref_max', 0.10);
     end
     safety_margin = avoid_cfg.base_margin_m + avoid_cfg.speed_gain_s * max(0, U_d);
-    x_ref = buildSimpleRef8(x0, chi_d, U_d, N, dt, n1_ref, n2_ref);
+    turn_cfg = struct('r_gain', 0.35, 'r_ref_max', 0.10, 'ramp_r_scale', 0.15);
+    x_ref = buildSimpleRef8(x0, chi_d, U_d, N, dt, n1_ref, n2_ref, turn_cfg);
 
     if nargin < 8 || isempty(obstacles)
         return;

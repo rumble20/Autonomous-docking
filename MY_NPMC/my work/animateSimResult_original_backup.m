@@ -1,7 +1,6 @@
 function animateSimResult(traj, waypoints, t_vec, harbor, cfg)
-% animateSimResult  Generalised post-simulation ship animation WITH SPEED VISUALIZATION
+% animateSimResult  Generalised post-simulation ship animation
 %   Replays a recorded 6-DOF container-ship trajectory on a 2-D map.
-%   Includes a live speed plot subplot for fuel consumption analysis.
 %   Call this AFTER the simulation loop, on already-collected trajectory data.
 %
 %
@@ -43,7 +42,6 @@ function animateSimResult(traj, waypoints, t_vec, harbor, cfg)
 %       the persistent cache when you change the image file.
 %
 % Author: Riccardo Legnini (2026)
-% Updated: 2026-04-09 - Added speed visualization subplot
 
 
 %  Persistent image cache (loaded once, fixed orientation)
@@ -141,7 +139,6 @@ if size(traj, 1) ~= 6
 end
 
 N     = size(traj, 2);
-u_vel = traj(1, :);   % Surge velocity [m/s] - NEW: for speed visualization
 xPath = traj(4, :);   % North
 yPath = traj(5, :);   % East
 psi   = traj(6, :);   % heading [rad]
@@ -152,32 +149,15 @@ idx  = 1 : skip : N;
 
 if isempty(t_vec), t_vec = (0:N-1); end
 
-%  3. Set up figure & static elements — create styled figure with SUBPLOT layout
+%  3. Set up figure & static elements — create styled figure, draw harbor map, obstacles, ghost path and waypoints
 hFig = figure(figNo);
 clf(hFig);
 set(hFig, 'Name',        sprintf('NMPC Animation — %s', testName), ...
           'NumberTitle', 'off', ...
           'Color',       [0.09 0.09 0.13]);
 
-% Make animation window larger for better readability in live view and recordings.
-scr = get(0, 'ScreenSize');
-figW = min(1600, max(1200, round(0.85 * scr(3))));
-figH = min(980,  max(760,  round(0.85 * scr(4))));
-figX = max(20, round((scr(3) - figW) / 2));
-figY = max(20, round((scr(4) - figH) / 2));
-set(hFig, 'Position', [figX, figY, figW, figH]);
-
-% Create subplots and assign custom proportions for clearer composition.
-ax = subplot(2, 1, 1, 'Parent', hFig);
-ax_speed = subplot(2, 1, 2, 'Parent', hFig);
+ax = axes('Parent', hFig);
 hold(ax, 'on');
-hold(ax_speed, 'on');
-
-% [left bottom width height] in normalized units
-set(ax,       'Position', [0.06, 0.36, 0.91, 0.60]);
-set(ax_speed, 'Position', [0.06, 0.08, 0.91, 0.22]);
-
-% Map axes styling
 axis(ax, 'equal');
 grid(ax, 'on');
 ax.Color     = [0.11 0.11 0.16];
@@ -185,27 +165,10 @@ ax.XColor    = [0.75 0.75 0.80];
 ax.YColor    = [0.75 0.75 0.80];
 ax.GridColor = [0.28 0.28 0.38];
 ax.GridAlpha = 0.5;
-xlabel(ax, 'East / y  [m]',  'Color', [0.90 0.90 0.95], 'FontSize', 11);
-ylabel(ax, 'North / x  [m]', 'Color', [0.90 0.90 0.95], 'FontSize', 11);
-title(ax, sprintf('Ship Simulation — %s', testName), ...
-    'Color', [1 1 1], 'FontSize', 13, 'FontWeight', 'bold');
-
-% NEW: Speed plot axes styling
-ax_speed.Color = [0.11 0.11 0.16];
-ax_speed.XColor = [0.75 0.75 0.80];
-ax_speed.YColor = [0.75 0.75 0.80];
-ax_speed.GridColor = [0.28 0.28 0.38];
-ax_speed.GridAlpha = 0.5;
-grid(ax_speed, 'on');
-xlabel(ax_speed, 'Time [s]', 'Color', [0.90 0.90 0.95], 'FontSize', 11);
-ylabel(ax_speed, 'Surge velocity [m/s]', 'Color', [0.90 0.90 0.95], 'FontSize', 11);
-title(ax_speed, 'Forward Speed Profile', 'Color', [1 1 1], 'FontSize', 12, 'FontWeight', 'bold');
-set(ax_speed, 'XLim', [t_vec(1), t_vec(end)]);
-set(ax_speed, 'YLim', [min(u_vel)*0.95, max(u_vel)*1.05]);
-
-% NEW: Ghost profile (full trajectory at low opacity)
-plot(ax_speed, t_vec, u_vel, '-', 'Color', [0.35 0.55 1.00], 'LineWidth', 1.2, ...
-    'DisplayName', 'Full profile (ghost)', 'HandleVisibility', 'on');
+xlabel(ax, 'East / y  [m]',  'Color', [0.90 0.90 0.95], 'FontSize', 12);
+ylabel(ax, 'North / x  [m]', 'Color', [0.90 0.90 0.95], 'FontSize', 12);
+title( ax, sprintf('Ship Simulation — %s', testName), ...
+       'Color', [1 1 1], 'FontSize', 13, 'FontWeight', 'bold');
 
 % plotMap() creates many patch objects; we capture them and clear them from
 % the legend (HandleVisibility='off') so they don't appear as 'data1...dataN'.
@@ -380,17 +343,12 @@ hTime = text(ax, xlims(1) + 0.02*diff(xlims), ...
                  't = 0 s', ...
                  'Color', [1 1 1], 'FontSize', 11, 'FontWeight', 'bold');
 
-% Legend for map
+% Legend
 if showLegend
     legend(ax, 'show', 'Location', 'best', ...
         'TextColor', [0.90 0.90 0.95], 'Color', [0.09 0.09 0.13], ...
         'EdgeColor', [0.35 0.35 0.45]);
 end
-
-% NEW: Speed plot legend
-legend(ax_speed, 'show', 'Location', 'best', ...
-    'TextColor', [0.90 0.90 0.95], 'Color', [0.09 0.09 0.13], ...
-    'EdgeColor', [0.35 0.35 0.45], 'FontSize', 9);
 
 drawnow;
 
@@ -444,16 +402,6 @@ if recordGif
 end
 
 %  4. Animate — step through downsampled frames, update ship icon position and live trail
-% NEW: Initialize live speed visualization
-speedX_live = [t_vec(1)];                    % Time points for live speed
-speedY_live = [u_vel(1)];                    % Speed values for live line
-hSpeedLine = plot(ax_speed, speedX_live, speedY_live, '-', ...
-    'Color', [0.20 0.85 0.45], 'LineWidth', 2.2, ...
-    'DisplayName', 'Live speed', 'HandleVisibility', 'on');
-hSpeedMarker = plot(ax_speed, t_vec(1), u_vel(1), 'o', ...
-    'Color', [1.0 0.95 0.10], 'MarkerSize', 7, 'MarkerFaceColor', [1.0 0.95 0.10], ...
-    'HandleVisibility', 'off');
-
 trailX = yPath(1);
 trailY = xPath(1);
 
@@ -505,12 +453,6 @@ for k = 1:length(idx)
             end
         end
     end
-
-    % NEW: Update live speed plot - append current point to live line and marker
-    speedX_live(end+1) = t_vec(i);
-    speedY_live(end+1) = u_vel(i);
-    set(hSpeedLine, 'XData', speedX_live, 'YData', speedY_live);
-    set(hSpeedMarker, 'XData', t_vec(i), 'YData', u_vel(i));
 
     drawnow;          % flush every frame so the animation is actually visible
 
@@ -646,3 +588,4 @@ function [xq, yq] = computeShipImageQuad(cx, cy, half_len, half_beam, psi)
     xq = [world_x(1), world_x(2); world_x(4), world_x(3)];
     yq = [world_y(1), world_y(2); world_y(4), world_y(3)];
 end
+
