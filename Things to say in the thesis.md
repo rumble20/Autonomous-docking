@@ -222,6 +222,7 @@ The following updates improved physical realism and operational plausibility in 
 1. Vessel collision geometry upgraded from point model to oriented rectangular footprint
 - Collision checking uses a yawed rectangle aligned with vessel heading.
 - Active footprint is a scaled operational hitbox based on nominal $175 \times 25.4$ m geometry (currently 50% scale).
+- This switch is a clear runtime breakpoint: the point model used one distance test per obstacle, while the rectangle model adds heading-dependent rotation and nonlinear footprint math at every prediction node, so solve time increases consistently before any later tuning.
 - Implemented in: `run_nmpc.m`, `NMPC_Container_final.m`.
 
 2. Forward-motion realism enforced through hard constraints
@@ -274,6 +275,13 @@ Solve-time reduction was mainly achieved by reducing NLP size and online obstacl
 
 Combined effect: substantial runtime improvement while preserving closed-loop operation.
 
+### Runtime breakpoint from point to rectangle model
+
+- The earlier point-ship formulation was cheaper because each obstacle only needed a single Euclidean clearance inequality per prediction node.
+- The current yawed-rectangle formulation rotates each obstacle into the vessel frame and evaluates a footprint-aware clearance, which adds trigonometric and piecewise nonlinear work to every NLP solve.
+- That means the big runtime jump happens at the formulation switch itself; the optimization fixes below were applied afterward and mainly recover time from that heavier baseline.
+- After the switch, runtime sensitivity is dominated by horizon length, obstacle count, and hull/clearance size. Increasing any of them compounds the rectangle-model cost.
+
 ### Optimization checklist and implementation status
 
 The following runtime-oriented ideas were tracked and should be stated explicitly with implementation status:
@@ -319,3 +327,82 @@ The constraint is applied:
 - Between consecutive horizon states
 
 This supports smoother longitudinal speed transitions during obstacle avoidance and final approach.
+
+## Explicit two-phase berthing control (implemented)
+
+The controller now uses an explicit two-phase maneuver policy:
+
+1. Phase A: transit
+- Objective: efficient progression along route segments.
+- NMPC model: lighter obstacle formulation (point-collision constraints) with lower map-obstacle slot count.
+- Role: keep compute time low while preserving obstacle-aware behavior.
+
+2. Phase B: precision berth
+- Objective: accurate terminal convergence (position and heading) with smooth low-speed control.
+- NMPC model: strongest obstacle geometry (oriented rectangular hull) and increased map-obstacle slot count.
+- Cost shaping: increased terminal position/heading importance and stronger yaw/control-rate smoothing.
+
+The phase switch is explicit and logged online using a speed-authority radius:
+
+$$
+R_s = T_{hor}\sqrt{u_{max}^2 + v_{max}^2}
+$$
+
+where $T_{hor}=N\Delta t$.
+
+This switch also includes hysteresis to avoid phase-chattering near the boundary.
+
+### Why this improves berthing
+
+1. Better real-time tradeoff
+- Transit keeps a lighter NLP where strict berth-level geometry is not yet required.
+- Precision phase spends computation where it matters most: close to terminal constraints.
+
+2. Better terminal precision
+- Increasing terminal position/heading priority in Phase B improves final alignment quality.
+- Stronger rate smoothing reduces aggressive late-stage heading oscillations.
+
+3. Better safety in confined final approach
+- Phase B enforces full-hull-aware obstacle constraints against map and dynamic obstacle packaging.
+- This is more realistic than center-point clearance near quays and narrow corridors.
+
+4. Reduced low-speed dithering
+- A dedicated Phase B surge floor avoids ultra-slow creeping and repeated stop-go recapture behavior.
+
+## Selective soft obstacle constraints near berth (implemented)
+
+To mitigate local infeasibility events near dock walls and cluttered terminal geometry, obstacle constraints support selective softening via nonnegative slack variables:
+
+$$
+h_{obs}(x_k) + s_k \ge 0, \quad s_k \ge 0
+$$
+
+with a large quadratic penalty:
+
+$$
+J \leftarrow J + w_s \sum_k s_k^2, \quad w_s \gg 1
+$$
+
+Activation policy (runtime):
+
+- Enabled only in Phase B and near berth radius, or after a short NMPC failure streak.
+- Disabled elsewhere by clamping slack upper bounds to zero.
+
+Safety diagnostics now log:
+
+- Maximum slack used per step
+- Cumulative slack usage over run
+
+Interpretation in thesis:
+
+- Near-zero slack over most runs indicates hard-constraint feasibility is retained.
+- Nonzero slack bursts indicate localized infeasibility pressure (useful for scenario diagnosis, not for routine operation).
+
+## Validation status for this update
+
+The updated implementation was checked with MATLAB Code Analyzer and executed through MCP in a shortened run configuration. The run confirmed:
+
+- Dual solver build (Phase A and Phase B configurations)
+- Explicit phase-switch radius reporting
+- Runtime phase labeling in progress logs
+- Soft-slack metrics available in summary output

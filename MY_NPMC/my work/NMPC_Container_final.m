@@ -50,6 +50,8 @@ classdef NMPC_Container_final < handle
         waypoint_heading_weight = 0.0    % Extra heading penalty at waypoints (0=disabled)
         u_min_forward = 0.5              % Minimum forward speed constraint [m/s] (hard constraint)
         max_brake_rate = 0.3             % Max deceleration rate [m/s²] to minimize braking fuel costs
+        soft_obs_weight = 2e5            % Large penalty when soft obstacle slack is enabled
+        soft_obs_default_max_m = 0.0     % Default obstacle slack cap [m] (0 disables softening)
 
         % Solver internals
         solver
@@ -93,6 +95,8 @@ classdef NMPC_Container_final < handle
             obj.waypoint_heading_weight = getOr(cfg, 'waypoint_heading_weight', 0.0);
             obj.u_min_forward = getOr(cfg, 'u_min_forward', 0.5);
             obj.max_brake_rate = getOr(cfg, 'max_brake_rate', 0.3);
+            obj.soft_obs_weight = getOr(cfg, 'soft_obs_weight', 2e5);
+            obj.soft_obs_default_max_m = getOr(cfg, 'soft_obs_default_max_m', 0.0);
 
             obj.hull_length_m = getOr(cfg, 'hull_length_m', 36);
             obj.hull_beam_m = getOr(cfg, 'hull_beam_m', 12);
@@ -108,6 +112,8 @@ classdef NMPC_Container_final < handle
             fprintf('  4 controls: [alpha1 alpha2 n1_c n2_c]\n');
             fprintf('  forward speed constraint: u >= %.2f m/s\n', obj.u_min_forward);
             fprintf('  max brake rate: %.2f m/s²\n', obj.max_brake_rate);
+            fprintf('  soft obstacle slack: weight=%.1f, default_max=%.2f m\n', ...
+                obj.soft_obs_weight, obj.soft_obs_default_max_m);
             fprintf('  actuator penalty: %.4f | forward incentive: %.2f\n', ...
                 obj.actuator_force_weight, obj.forward_incentive_weight);
             if strcmpi(obj.collision_model, 'oriented-rectangle')
@@ -129,6 +135,7 @@ classdef NMPC_Container_final < handle
             %  DECISION VARIABLES
             X = SX.sym('X', nx, N_h+1);
             U = SX.sym('U', nu, N_h);
+            S_obs = SX.sym('S_obs', n_obs, N_h+1); % Soft obstacle slack [m]
 
             %  PARAMETERS
             P_x0       = SX.sym('P_x0', nx, 1);
@@ -176,6 +183,11 @@ classdef NMPC_Container_final < handle
 
                 du = U(:,k) - P_uref(:,k);
                 J = J + du' * obj.R * du;
+
+                % Obstacle-softening penalty (active only if slack bounds permit >0 values).
+                for j = 1:n_obs
+                    J = J + obj.soft_obs_weight * S_obs(j,k)^2;
+                end
             end
 
             % Control rate cost
@@ -195,6 +207,9 @@ classdef NMPC_Container_final < handle
             J = J + 2 * obj.actuator_force_weight * (X(7,N_h+1)^2 + X(8,N_h+1)^2);
             u_back_N = min(0, X(1,N_h+1));
             J = J + 2 * obj.forward_incentive_weight * u_back_N^2;
+            for j = 1:n_obs
+                J = J + obj.soft_obs_weight * S_obs(j,N_h+1)^2;
+            end
 
             %  CONSTRAINTS
             g = [];
@@ -227,12 +242,12 @@ classdef NMPC_Container_final < handle
                         dx = if_else(ax > 0, ax, 0);
                         dy = if_else(ay > 0, ay, 0);
                         dist = sqrt(dx^2 + dy^2 + obj.hull_smooth_eps);
-                        g = vertcat(g, dist - P_obs_rad(j) - obj.hull_clearance_m);
+                        g = vertcat(g, dist - P_obs_rad(j) - obj.hull_clearance_m + S_obs(j,k));
                     else
                         dx = X(4,k) - P_obs_pos(1,j);
                         dy = X(5,k) - P_obs_pos(2,j);
                         dist = sqrt(dx^2 + dy^2 + 1e-3);
-                        g = vertcat(g, dist - P_obs_rad(j) - obj.r_safety);
+                        g = vertcat(g, dist - P_obs_rad(j) - obj.r_safety + S_obs(j,k));
                     end
                 end
             end
@@ -273,7 +288,7 @@ classdef NMPC_Container_final < handle
             end
 
             %  VARIABLE BOUNDS
-            OPT = vertcat(X(:), U(:));
+            OPT = vertcat(X(:), U(:), S_obs(:));
             n_vars = size(OPT, 1);
 
             lbx = -inf(n_vars, 1);
@@ -300,6 +315,16 @@ classdef NMPC_Container_final < handle
                 lbx(base+2) = -obj.alpha_max;  ubx(base+2) = obj.alpha_max;
                 lbx(base+3) = obj.n_min;       ubx(base+3) = obj.n_max;
                 lbx(base+4) = obj.n_min;       ubx(base+4) = obj.n_max;
+            end
+
+            % Obstacle slack bounds (can be tightened to zero per solve call).
+            s_off = nx * (N_h+1) + nu * N_h;
+            for k = 1:(N_h+1)
+                for j = 1:n_obs
+                    idx_s = s_off + (k-1)*n_obs + j;
+                    lbx(idx_s) = 0;
+                    ubx(idx_s) = obj.soft_obs_default_max_m;
+                end
             end
 
             %  CONSTRAINT BOUNDS
@@ -370,10 +395,10 @@ classdef NMPC_Container_final < handle
         end
 
 
-        function [u_opt, X_pred, info] = solve(obj, x0, x_ref, obstacles, u_prev, u_min_forward_override)
+        function [u_opt, X_pred, info] = solve(obj, x0, x_ref, obstacles, u_prev, u_min_forward_override, solve_opts)
             % solve  Solve NMPC problem
             %
-            %   [u_opt, X_pred, info] = solve(obj, x0, x_ref, obstacles, u_prev, u_min_forward_override)
+            %   [u_opt, X_pred, info] = solve(obj, x0, x_ref, obstacles, u_prev, u_min_forward_override, solve_opts)
             %
             %   Inputs:
             %       x0        - Current state (8x1)
@@ -381,6 +406,9 @@ classdef NMPC_Container_final < handle
             %       obstacles - Array of obstacles (optional)
             %       u_prev    - Previous applied control (4x1) - NEW!
             %       u_min_forward_override - Optional per-step lower bound for surge state u
+            %       solve_opts - Optional struct:
+            %                    .enable_soft_obstacles (logical)
+            %                    .soft_obs_max_m (nonnegative scalar)
             %
             %   Outputs:
             %       u_opt  - Optimal control for current step (4x1)
@@ -402,6 +430,16 @@ classdef NMPC_Container_final < handle
                 u_min_local = obj.u_min_forward;
             else
                 u_min_local = max(0.0, min(12.0, u_min_forward_override));
+            end
+
+            if nargin < 7 || isempty(solve_opts)
+                solve_opts = struct();
+            end
+            soft_enable = logical(getOr(solve_opts, 'enable_soft_obstacles', false));
+            if soft_enable
+                soft_obs_max_m = max(0.0, getOr(solve_opts, 'soft_obs_max_m', 0.0));
+            else
+                soft_obs_max_m = 0.0;
             end
 
             % Handle previous control
@@ -439,15 +477,19 @@ classdef NMPC_Container_final < handle
                 X_prev = reshape(obj.prev_sol(1:nx*(N_h+1)), nx, N_h+1);
                 u_s = nx*(N_h+1) + 1;
                 U_prev = reshape(obj.prev_sol(u_s:u_s+nu*N_h-1), nu, N_h);
+                s_s = nx*(N_h+1) + nu*N_h + 1;
+                S_prev = reshape(obj.prev_sol(s_s:s_s+n_obs*(N_h+1)-1), n_obs, N_h+1);
 
                 X_init = [X_prev(:,2:end), X_prev(:,end)];
                 X_init(:,1) = x0;
                 U_init = [U_prev(:,2:end), U_prev(:,end)];
+                S_init = [S_prev(:,2:end), S_prev(:,end)];
 
-                x0_guess = [X_init(:); U_init(:)];
+                x0_guess = [X_init(:); U_init(:); S_init(:)];
             else
                 X_init = repmat(x0, 1, N_h+1);
                 U_init = u_ref;
+                S_init = zeros(n_obs, N_h+1);
 
                 for k = 1:N_h
                     xk = X_init(:,k);
@@ -464,7 +506,7 @@ classdef NMPC_Container_final < handle
                     end
                 end
 
-                x0_guess = [X_init(:); U_init(:)];
+                x0_guess = [X_init(:); U_init(:); S_init(:)];
             end
 
             % Fix initial state bounds
@@ -478,6 +520,12 @@ classdef NMPC_Container_final < handle
                 lbx_local(i) = x0(i);
                 ubx_local(i) = x0(i);
             end
+
+            % Per-step selective soft obstacle constraints.
+            s_off = nx*(N_h+1) + nu*N_h;
+            s_idx = (s_off + 1):(s_off + n_obs*(N_h+1));
+            lbx_local(s_idx) = 0;
+            ubx_local(s_idx) = soft_obs_max_m;
 
             % Solve
             try
@@ -500,6 +548,8 @@ classdef NMPC_Container_final < handle
                 X_sol = reshape(sol_x(1:nx*(N_h+1)), nx, N_h+1);
                 u_s = nx*(N_h+1) + 1;
                 U_sol = reshape(sol_x(u_s:u_s+nu*N_h-1), nu, N_h);
+                s_s = nx*(N_h+1) + nu*N_h + 1;
+                S_sol = reshape(sol_x(s_s:s_s+n_obs*(N_h+1)-1), n_obs, N_h+1);
 
                 u_opt = U_sol(:,1);
                 X_pred = X_sol;
@@ -515,6 +565,10 @@ classdef NMPC_Container_final < handle
                 info.cost = full(sol.f);
                 info.n_obs_real = n_real;
                 info.used_dual_warm_start = use_dual_warm_start;
+                info.soft_obs_enabled = soft_enable;
+                info.soft_obs_max_m = soft_obs_max_m;
+                info.max_soft_slack_m = max(S_sol(:));
+                info.sum_soft_slack_m = sum(S_sol(:));
                 obj.solve_ok = obj.solve_ok + 1;
 
             catch ME
@@ -525,6 +579,10 @@ classdef NMPC_Container_final < handle
                 info.error = ME.message;
                 info.n_obs_real = n_real;
                 info.used_dual_warm_start = false;
+                info.soft_obs_enabled = soft_enable;
+                info.soft_obs_max_m = soft_obs_max_m;
+                info.max_soft_slack_m = nan;
+                info.sum_soft_slack_m = nan;
                 obj.solve_fail = obj.solve_fail + 1;
                 obj.prev_lam_x = [];
                 obj.prev_lam_g = [];
