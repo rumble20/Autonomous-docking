@@ -1,0 +1,1010 @@
+  [t=  1.0] pos=(-6087.4,-1493.7) psi= +26.6deg wp=1 xte=+0.0m obs_d=186m ok=1 comp=7636.8ms solve=7615.1ms RT=7.64 obs=9 fb=0
+  [t=  2.0] pos=(-6081.1,-1490.6) psi= +26.6deg wp=1 xte=+0.0m obs_d=181m ok=1 comp=9329.0ms solve=9316.8ms RT=9.33 obs=9 fb=0
+  [t=  3.0] pos=(-6074.8,-1487.4) psi= +26.6deg wp=1 xte=+0.0m obs_d=176m ok=1 comp=7996.7ms solve=7988.8ms RT=8.00 obs=9 fb=0
+  [t=  4.0] pos=(-6068.4,-1484.3) psi= +26.7deg wp=1 xte=+0.0m obs_d=171m ok=1 comp=8168.3ms solve=8090.7ms RT=8.17 obs=9 fb=0
+  [t=  5.0] pos=(-6062.0,-1481.1) psi= +26.7deg wp=1 xte=+0.1m obs_d=165m ok=1 comp=9267.7ms solve=9264.0ms RT=9.27 obs=9 fb=0
+  [t=  6.0] pos=(-6055.7,-1478.0) psi= +26.8deg wp=1 xte=+0.1m obs_d=160m ok=1 comp=10138.4ms solve=10135.5ms RT=10.14 obs=9 fb=0
+  [t=  7.0] pos=(-6049.3,-1474.8) psi= +26.8deg wp=1 xte=+0.1m obs_d=155m ok=1 comp=11333.8ms solve=11332.5ms RT=11.33 obs=9 fb=0
+  [t=  8.0] pos=(-6042.8,-1471.7) psi= +26.9deg wp=1 xte=+0.2m obs_d=149m ok=1 comp=9049.2ms solve=9047.1ms RT=9.05 obs=9 fb=0
+  [t=  9.0] pos=(-6036.4,-1468.5) psi= +27.0deg wp=1 xte=+0.2m obs_d=144m ok=1 comp=11615.2ms solve=11613.3ms RT=11.62 obs=9 fb=0
+  [t= 10.0] pos=(-6029.9,-1465.3) psi= +27.0deg wp=1 xte=+0.3m obs_d=138m ok=1 comp=9742.5ms solve=9740.6ms RT=9.74 obs=9 fb=0
+  [t= 11.0] pos=(-6023.4,-1462.1) psi= +27.1deg wp=1 xte=+0.3m obs_d=132m ok=1 comp=16753.0ms solve=16750.4ms RT=16.75 obs=9 fb=0
+  [t= 12.0] pos=(-6016.9,-1458.8) psi= +27.2deg wp=1 xte=+0.3m obs_d=127m ok=1 comp=16155.0ms solve=16153.4ms RT=16.16 obs=9 fb=0
+  [t= 13.0] pos=(-6010.4,-1455.5) psi= +27.4deg wp=1 xte=+0.3m obs_d=121m ok=1 comp=15432.3ms solve=15430.7ms RT=15.43 obs=9 fb=0
+  [t= 14.0] pos=(-6003.9,-1452.1) psi= +27.6deg wp=1 xte=+0.2m obs_d=116m ok=1 comp=11256.4ms solve=11254.5ms RT=11.26 obs=9 fb=0
+  [t= 15.0] pos=(-5997.4,-1448.7) psi= +27.8deg wp=1 xte=+0.1m obs_d=112m ok=1 comp=8511.0ms solve=8508.0ms RT=8.51 obs=9 fb=0
+  [t= 16.0] pos=(-5991.0,-1445.2) psi= +28.1deg wp=1 xte=-0.0m obs_d=107m ok=1 comp=7527.5ms solve=7526.0ms RT=7.53 obs=9 fb=0
+  [t= 17.0] pos=(-5984.7,-1441.7) psi= +28.5deg wp=1 xte=-0.3m obs_d=104m ok=1 comp=8152.1ms solve=8150.1ms RT=8.15 obs=9 fb=0
+  [t= 18.0] pos=(-5978.4,-1438.1) psi= +28.8deg wp=1 xte=-0.6m obs_d=100m ok=1 comp=6773.4ms solve=6772.0ms RT=6.77 obs=9 fb=0
+  [t= 19.0] pos=(-5972.3,-1434.5) psi= +29.2deg wp=1 xte=-1.0m obs_d=97m ok=1 comp=6791.4ms solve=6790.2ms RT=6.79 obs=9 fb=0
+  [t= 20.0] pos=(-5966.2,-1430.7) psi= +29.6deg wp=1 xte=-1.5m obs_d=95m ok=1 comp=6889.6ms solve=6887.9ms RT=6.89 obs=9 fb=0
+  [t= 21.0] pos=(-5960.3,-1426.8) psi= +30.0deg wp=1 xte=-2.2m obs_d=92m ok=1 comp=8054.2ms solve=8052.4ms RT=8.05 obs=9 fb=0
+  [t= 22.0] pos=(-5954.5,-1422.7) psi= +30.4deg wp=1 xte=-3.0m obs_d=90m ok=1 comp=7406.3ms solve=7403.2ms RT=7.41 obs=9 fb=0
+  [t= 23.0] pos=(-5948.7,-1418.5) psi= +30.8deg wp=1 xte=-4.0m obs_d=89m ok=1 comp=7371.8ms solve=7370.5ms RT=7.37 obs=9 fb=0
+  [t= 24.0] pos=(-5943.0,-1414.2) psi= +31.2deg wp=1 xte=-5.2m obs_d=87m ok=1 comp=7272.9ms solve=7271.0ms RT=7.27 obs=9 fb=0
+  [t= 25.0] pos=(-5937.2,-1409.6) psi= +31.5deg wp=1 xte=-6.5m obs_d=86m ok=1 comp=7020.6ms solve=7017.7ms RT=7.02 obs=9 fb=0
+  [t= 26.0] pos=(-5931.6,-1404.9) psi= +31.8deg wp=1 xte=-8.0m obs_d=86m ok=1 comp=7478.5ms solve=7477.0ms RT=7.48 obs=9 fb=0
+  [t= 27.0] pos=(-5925.9,-1400.1) psi= +32.1deg wp=1 xte=-9.7m obs_d=87m ok=1 comp=7373.3ms solve=7371.4ms RT=7.37 obs=9 fb=0
+  [t= 28.0] pos=(-5920.3,-1395.1) psi= +32.3deg wp=1 xte=-11.5m obs_d=88m ok=1 comp=7007.7ms solve=7006.1ms RT=7.01 obs=9 fb=0
+  [t= 29.0] pos=(-5914.6,-1389.9) psi= +32.5deg wp=1 xte=-13.5m obs_d=89m ok=1 comp=7525.6ms solve=7523.3ms RT=7.53 obs=9 fb=0
+  [t= 30.0] pos=(-5908.9,-1384.6) psi= +32.7deg wp=1 xte=-15.6m obs_d=91m ok=1 comp=7209.9ms solve=7208.0ms RT=7.21 obs=9 fb=0
+  [t= 31.0] pos=(-5903.0,-1379.1) psi= +32.9deg wp=1 xte=-17.8m obs_d=94m ok=1 comp=6908.2ms solve=6906.5ms RT=6.91 obs=9 fb=0
+  [t= 32.0] pos=(-5897.1,-1373.5) psi= +33.1deg wp=1 xte=-20.1m obs_d=97m ok=1 comp=7433.9ms solve=7432.6ms RT=7.43 obs=9 fb=0
+  [t= 33.0] pos=(-5891.1,-1367.8) psi= +33.4deg wp=1 xte=-22.4m obs_d=101m ok=1 comp=6594.5ms solve=6592.8ms RT=6.59 obs=9 fb=0
+  [t= 34.0] pos=(-5885.0,-1361.8) psi= +33.6deg wp=1 xte=-24.9m obs_d=105m ok=1 comp=6904.2ms solve=6902.0ms RT=6.90 obs=9 fb=0
+  [t= 35.0] pos=(-5878.7,-1355.8) psi= +33.7deg wp=1 xte=-27.4m obs_d=110m ok=1 comp=6564.5ms solve=6562.9ms RT=6.56 obs=9 fb=0
+  [t= 36.0] pos=(-5872.3,-1349.6) psi= +33.7deg wp=1 xte=-30.0m obs_d=115m ok=1 comp=8547.4ms solve=8546.2ms RT=8.55 obs=9 fb=0
+  [t= 37.0] pos=(-5865.9,-1343.3) psi= +33.6deg wp=1 xte=-32.7m obs_d=119m ok=1 comp=6767.3ms solve=6765.6ms RT=6.77 obs=9 fb=0
+  [t= 38.0] pos=(-5859.4,-1336.9) psi= +33.4deg wp=1 xte=-35.5m obs_d=125m ok=1 comp=6619.4ms solve=6618.0ms RT=6.62 obs=9 fb=0
+  [t= 39.0] pos=(-5852.9,-1330.5) psi= +32.9deg wp=1 xte=-38.3m obs_d=128m ok=1 comp=8672.9ms solve=8671.3ms RT=8.67 obs=9 fb=0
+  [t= 40.0] pos=(-5846.5,-1324.1) psi= +32.4deg wp=1 xte=-41.1m obs_d=130m ok=1 comp=6469.5ms solve=6467.6ms RT=6.47 obs=9 fb=0
+  [t= 41.0] pos=(-5840.1,-1317.8) psi= +31.7deg wp=1 xte=-43.9m obs_d=130m ok=1 comp=6827.3ms solve=6826.1ms RT=6.83 obs=9 fb=0
+  [t= 42.0] pos=(-5833.9,-1311.6) psi= +30.9deg wp=1 xte=-46.7m obs_d=127m ok=1 comp=8106.2ms solve=8104.3ms RT=8.11 obs=9 fb=0
+  [t= 43.0] pos=(-5827.9,-1305.5) psi= +30.0deg wp=1 xte=-49.5m obs_d=126m ok=1 comp=6919.2ms solve=6917.5ms RT=6.92 obs=9 fb=0
+  [t= 44.0] pos=(-5822.0,-1299.6) psi= +29.0deg wp=1 xte=-52.3m obs_d=125m ok=1 comp=7314.7ms solve=7313.1ms RT=7.31 obs=9 fb=0
+  [t= 45.0] pos=(-5816.3,-1293.9) psi= +28.0deg wp=1 xte=-54.9m obs_d=124m ok=1 comp=8965.2ms solve=8963.4ms RT=8.97 obs=9 fb=0
+  [t= 46.0] pos=(-5810.9,-1288.6) psi= +27.0deg wp=1 xte=-57.4m obs_d=125m ok=1 comp=9827.2ms solve=9825.8ms RT=9.83 obs=9 fb=0
+  [t= 47.0] pos=(-5805.7,-1283.5) psi= +26.0deg wp=1 xte=-59.8m obs_d=125m ok=1 comp=8048.4ms solve=8047.2ms RT=8.05 obs=9 fb=0
+  [t= 48.0] pos=(-5800.7,-1278.7) psi= +25.0deg wp=1 xte=-62.1m obs_d=126m ok=1 comp=6712.4ms solve=6711.3ms RT=6.71 obs=9 fb=0
+  [t= 49.0] pos=(-5796.0,-1274.2) psi= +24.0deg wp=1 xte=-64.1m obs_d=127m ok=1 comp=8003.5ms solve=8001.6ms RT=8.00 obs=9 fb=0
+  [t= 50.0] pos=(-5791.6,-1270.2) psi= +22.9deg wp=1 xte=-66.0m obs_d=128m ok=1 comp=8700.2ms solve=8698.6ms RT=8.70 obs=9 fb=0
+  [t= 51.0] pos=(-5787.5,-1266.4) psi= +21.8deg wp=1 xte=-67.6m obs_d=129m ok=1 comp=11352.5ms solve=11350.9ms RT=11.35 obs=9 fb=0
+  [t= 52.0] pos=(-5783.6,-1263.0) psi= +20.6deg wp=1 xte=-69.1m obs_d=130m ok=1 comp=7449.1ms solve=7447.2ms RT=7.45 obs=9 fb=0
+  [t= 53.0] pos=(-5779.9,-1259.8) psi= +19.3deg wp=1 xte=-70.5m obs_d=131m ok=1 comp=7215.2ms solve=7213.9ms RT=7.22 obs=9 fb=0
+  [t= 54.0] pos=(-5776.3,-1256.8) psi= +18.0deg wp=1 xte=-71.7m obs_d=132m ok=1 comp=6613.9ms solve=6612.6ms RT=6.61 obs=9 fb=0
+  [t= 55.0] pos=(-5772.7,-1254.0) psi= +16.7deg wp=1 xte=-72.8m obs_d=133m ok=1 comp=7435.8ms solve=7434.2ms RT=7.44 obs=9 fb=0
+  [t= 56.0] pos=(-5769.0,-1251.5) psi= +15.3deg wp=1 xte=-73.6m obs_d=133m ok=1 comp=6450.7ms solve=6448.5ms RT=6.45 obs=9 fb=0
+  [t= 57.0] pos=(-5765.3,-1249.0) psi= +14.0deg wp=2 xte=+6.9m obs_d=134m ok=1 comp=6430.7ms solve=6425.9ms RT=6.43 obs=9 fb=0
+  [t= 58.0] pos=(-5761.3,-1246.7) psi= +12.7deg wp=2 xte=+2.6m obs_d=135m ok=1 comp=6322.4ms solve=6320.5ms RT=6.32 obs=9 fb=0
+  [t= 59.0] pos=(-5757.3,-1244.5) psi= +11.4deg wp=2 xte=-1.6m obs_d=136m ok=1 comp=6098.0ms solve=6096.6ms RT=6.10 obs=9 fb=0
+  [t= 60.0] pos=(-5753.1,-1242.4) psi= +10.2deg wp=2 xte=-5.9m obs_d=137m ok=1 comp=6853.7ms solve=6852.6ms RT=6.85 obs=9 fb=0
+  [t= 61.0] pos=(-5748.8,-1240.4) psi=  +9.2deg wp=2 xte=-10.2m obs_d=138m ok=1 comp=6544.2ms solve=6543.1ms RT=6.54 obs=9 fb=0
+  [t= 62.0] pos=(-5744.4,-1238.3) psi=  +8.2deg wp=2 xte=-14.6m obs_d=139m ok=1 comp=6996.8ms solve=6994.5ms RT=7.00 obs=9 fb=0
+  [t= 63.0] pos=(-5739.9,-1236.4) psi=  +7.3deg wp=2 xte=-18.9m obs_d=140m ok=1 comp=6807.0ms solve=6805.7ms RT=6.81 obs=9 fb=0
+  [t= 64.0] pos=(-5735.4,-1234.5) psi=  +6.4deg wp=2 xte=-23.3m obs_d=141m ok=1 comp=7416.3ms solve=7415.2ms RT=7.42 obs=9 fb=0
+  [t= 65.0] pos=(-5730.8,-1232.6) psi=  +5.6deg wp=2 xte=-27.7m obs_d=142m ok=1 comp=5731.2ms solve=5729.9ms RT=5.73 obs=9 fb=0
+  [t= 66.0] pos=(-5726.1,-1230.9) psi=  +4.9deg wp=2 xte=-32.0m obs_d=143m ok=1 comp=6193.7ms solve=6192.3ms RT=6.19 obs=9 fb=0
+  [t= 67.0] pos=(-5721.4,-1229.2) psi=  +4.2deg wp=2 xte=-36.4m obs_d=144m ok=1 comp=6029.0ms solve=6027.7ms RT=6.03 obs=9 fb=0
+  [t= 68.0] pos=(-5716.6,-1227.6) psi=  +3.6deg wp=2 xte=-40.7m obs_d=145m ok=1 comp=5984.0ms solve=5983.0ms RT=5.98 obs=9 fb=0
+  [t= 69.0] pos=(-5711.6,-1226.1) psi=  +3.0deg wp=2 xte=-45.0m obs_d=146m ok=1 comp=5979.8ms solve=5978.1ms RT=5.98 obs=9 fb=0
+  [t= 70.0] pos=(-5706.6,-1224.8) psi=  +2.4deg wp=2 xte=-49.3m obs_d=147m ok=1 comp=7463.1ms solve=7461.7ms RT=7.46 obs=9 fb=0
+  [t= 71.0] pos=(-5701.5,-1223.6) psi=  +1.9deg wp=2 xte=-53.6m obs_d=149m ok=1 comp=6326.0ms solve=6324.7ms RT=6.33 obs=9 fb=0
+  [t= 72.0] pos=(-5696.3,-1222.7) psi=  +1.4deg wp=2 xte=-57.7m obs_d=150m ok=1 comp=7891.9ms solve=7890.9ms RT=7.89 obs=9 fb=0
+  [t= 73.0] pos=(-5691.3,-1222.0) psi=  +0.8deg wp=2 xte=-61.7m obs_d=151m ok=1 comp=7306.0ms solve=7305.0ms RT=7.31 obs=9 fb=0
+  [t= 74.0] pos=(-5686.4,-1221.5) psi=  +0.3deg wp=2 xte=-65.5m obs_d=152m ok=1 comp=5296.6ms solve=5295.1ms RT=5.30 obs=9 fb=0
+  [t= 75.0] pos=(-5681.8,-1221.2) psi=  -0.2deg wp=2 xte=-69.0m obs_d=153m ok=1 comp=6356.2ms solve=6355.1ms RT=6.36 obs=9 fb=0
+  [t= 76.0] pos=(-5677.4,-1221.2) psi=  -0.8deg wp=2 xte=-72.2m obs_d=154m ok=1 comp=6682.5ms solve=6681.4ms RT=6.68 obs=9 fb=0
+  [t= 77.0] pos=(-5673.4,-1221.2) psi=  -1.4deg wp=2 xte=-75.0m obs_d=155m ok=1 comp=7378.5ms solve=7377.1ms RT=7.38 obs=9 fb=0
+  [t= 78.0] pos=(-5669.8,-1221.5) psi=  -2.0deg wp=2 xte=-77.5m obs_d=155m ok=1 comp=6800.5ms solve=6799.2ms RT=6.80 obs=9 fb=0
+  [t= 79.0] pos=(-5666.5,-1221.8) psi=  -2.8deg wp=2 xte=-79.7m obs_d=156m ok=1 comp=6795.7ms solve=6794.4ms RT=6.80 obs=9 fb=0
+  [t= 80.0] pos=(-5663.6,-1222.2) psi=  -3.6deg wp=2 xte=-81.5m obs_d=156m ok=1 comp=6057.6ms solve=6056.1ms RT=6.06 obs=9 fb=0
+  [t= 81.0] pos=(-5661.0,-1222.7) psi=  -4.5deg wp=2 xte=-83.1m obs_d=156m ok=1 comp=6036.4ms solve=6035.5ms RT=6.04 obs=9 fb=0
+  [t= 82.0] pos=(-5658.9,-1223.3) psi=  -5.4deg wp=2 xte=-84.3m obs_d=156m ok=1 comp=6786.5ms solve=6785.5ms RT=6.79 obs=9 fb=0
+  [t= 83.0] pos=(-5657.1,-1224.0) psi=  -6.3deg wp=2 xte=-85.3m obs_d=156m ok=1 comp=6833.9ms solve=6832.6ms RT=6.83 obs=9 fb=0
+  [t= 84.0] pos=(-5655.7,-1224.7) psi=  -7.3deg wp=2 xte=-85.9m obs_d=156m ok=1 comp=6381.1ms solve=6379.8ms RT=6.38 obs=9 fb=0
+  [t= 85.0] pos=(-5654.7,-1225.4) psi=  -8.3deg wp=2 xte=-86.2m obs_d=156m ok=1 comp=6370.8ms solve=6369.7ms RT=6.37 obs=9 fb=0
+  [t= 86.0] pos=(-5654.0,-1226.1) psi=  -9.2deg wp=2 xte=-86.3m obs_d=155m ok=1 comp=7366.3ms solve=7365.3ms RT=7.37 obs=9 fb=0
+  [t= 87.0] pos=(-5653.4,-1226.9) psi= -10.1deg wp=2 xte=-86.2m obs_d=155m ok=1 comp=9376.6ms solve=9375.5ms RT=9.38 obs=9 fb=0
+  [t= 88.0] pos=(-5653.0,-1227.7) psi= -10.9deg wp=2 xte=-86.0m obs_d=154m ok=1 comp=7386.1ms solve=7385.1ms RT=7.39 obs=9 fb=0
+  [t= 89.0] pos=(-5652.6,-1228.6) psi= -11.6deg wp=2 xte=-85.6m obs_d=153m ok=1 comp=7569.6ms solve=7568.3ms RT=7.57 obs=9 fb=0
+  [t= 90.0] pos=(-5652.3,-1229.4) psi= -12.3deg wp=2 xte=-85.2m obs_d=153m ok=1 comp=6234.1ms solve=6233.1ms RT=6.23 obs=9 fb=0
+  [t= 91.0] pos=(-5652.0,-1230.3) psi= -12.9deg wp=2 xte=-84.8m obs_d=152m ok=1 comp=6498.4ms solve=6497.1ms RT=6.50 obs=9 fb=0
+  [t= 92.0] pos=(-5651.7,-1231.2) psi= -13.4deg wp=2 xte=-84.3m obs_d=151m ok=1 comp=5613.3ms solve=5611.8ms RT=5.61 obs=9 fb=0
+  [t= 93.0] pos=(-5651.4,-1232.1) psi= -14.0deg wp=2 xte=-83.8m obs_d=151m ok=1 comp=6121.7ms solve=6120.4ms RT=6.12 obs=9 fb=0
+  [t= 94.0] pos=(-5651.1,-1233.1) psi= -14.6deg wp=2 xte=-83.3m obs_d=150m ok=1 comp=5889.4ms solve=5888.3ms RT=5.89 obs=9 fb=0
+  [t= 95.0] pos=(-5650.8,-1234.1) psi= -15.2deg wp=2 xte=-82.7m obs_d=149m ok=1 comp=6057.0ms solve=6055.6ms RT=6.06 obs=9 fb=0
+  [t= 96.0] pos=(-5650.6,-1235.2) psi= -15.9deg wp=2 xte=-82.1m obs_d=148m ok=1 comp=6492.2ms solve=6491.2ms RT=6.49 obs=9 fb=0
+  [t= 97.0] pos=(-5650.4,-1236.3) psi= -16.6deg wp=2 xte=-81.4m obs_d=147m ok=1 comp=6513.9ms solve=6512.9ms RT=6.51 obs=9 fb=0
+  [t= 98.0] pos=(-5650.2,-1237.4) psi= -17.3deg wp=2 xte=-80.7m obs_d=146m ok=1 comp=6002.9ms solve=6001.7ms RT=6.00 obs=9 fb=0
+  [t= 99.0] pos=(-5650.0,-1238.6) psi= -18.0deg wp=2 xte=-79.9m obs_d=145m ok=1 comp=9938.3ms solve=9937.3ms RT=9.94 obs=9 fb=0
+  [t=100.0] pos=(-5649.9,-1239.8) psi= -18.6deg wp=2 xte=-79.2m obs_d=144m ok=1 comp=7176.1ms solve=7174.8ms RT=7.18 obs=9 fb=0
+  [t=101.0] pos=(-5649.8,-1241.0) psi= -19.3deg wp=2 xte=-78.3m obs_d=143m ok=1 comp=6528.0ms solve=6527.0ms RT=6.53 obs=9 fb=0
+  [t=102.0] pos=(-5649.7,-1242.2) psi= -20.0deg wp=2 xte=-77.5m obs_d=142m ok=1 comp=6379.6ms solve=6378.5ms RT=6.38 obs=9 fb=0
+  [t=103.0] pos=(-5649.6,-1243.4) psi= -20.7deg wp=2 xte=-76.6m obs_d=141m ok=1 comp=6385.1ms solve=6384.1ms RT=6.39 obs=9 fb=0
+  [t=104.0] pos=(-5649.6,-1244.7) psi= -21.4deg wp=2 xte=-75.7m obs_d=140m ok=1 comp=6695.2ms solve=6694.1ms RT=6.70 obs=9 fb=0
+  [t=105.0] pos=(-5649.5,-1245.9) psi= -22.1deg wp=2 xte=-74.8m obs_d=139m ok=1 comp=6284.5ms solve=6283.3ms RT=6.28 obs=9 fb=0
+  [t=106.0] pos=(-5649.5,-1247.2) psi= -22.7deg wp=2 xte=-73.9m obs_d=137m ok=1 comp=6427.2ms solve=6426.1ms RT=6.43 obs=9 fb=0
+  [t=107.0] pos=(-5649.5,-1248.5) psi= -23.3deg wp=2 xte=-72.9m obs_d=136m ok=1 comp=6290.2ms solve=6289.0ms RT=6.29 obs=9 fb=0
+  [t=108.0] pos=(-5649.5,-1249.7) psi= -24.0deg wp=2 xte=-71.9m obs_d=135m ok=1 comp=6497.0ms solve=6495.9ms RT=6.50 obs=9 fb=0
+  [t=109.0] pos=(-5649.6,-1251.1) psi= -24.6deg wp=2 xte=-70.9m obs_d=134m ok=1 comp=6096.2ms solve=6095.1ms RT=6.10 obs=9 fb=0
+  [t=110.0] pos=(-5649.6,-1252.4) psi= -25.3deg wp=2 xte=-69.9m obs_d=133m ok=1 comp=6361.0ms solve=6359.9ms RT=6.36 obs=9 fb=0
+  [t=111.0] pos=(-5649.7,-1253.7) psi= -25.9deg wp=2 xte=-68.8m obs_d=131m ok=1 comp=5739.6ms solve=5738.4ms RT=5.74 obs=9 fb=0
+  [t=112.0] pos=(-5649.8,-1255.0) psi= -26.5deg wp=2 xte=-67.8m obs_d=130m ok=1 comp=6401.7ms solve=6400.5ms RT=6.40 obs=9 fb=0
+  [t=113.0] pos=(-5649.9,-1256.4) psi= -27.1deg wp=2 xte=-66.7m obs_d=129m ok=1 comp=5862.8ms solve=5861.4ms RT=5.86 obs=9 fb=0
+  [t=114.0] pos=(-5650.1,-1257.7) psi= -27.7deg wp=2 xte=-65.6m obs_d=128m ok=1 comp=7044.8ms solve=7043.1ms RT=7.04 obs=9 fb=0
+  [t=115.0] pos=(-5650.2,-1259.1) psi= -28.4deg wp=2 xte=-64.4m obs_d=126m ok=1 comp=8355.5ms solve=8354.5ms RT=8.36 obs=9 fb=0
+  [t=116.0] pos=(-5650.4,-1260.5) psi= -29.0deg wp=2 xte=-63.3m obs_d=125m ok=1 comp=6391.7ms solve=6390.8ms RT=6.39 obs=9 fb=0
+  [t=117.0] pos=(-5650.6,-1261.9) psi= -29.5deg wp=2 xte=-62.1m obs_d=124m ok=1 comp=6501.0ms solve=6499.8ms RT=6.50 obs=9 fb=0
+  [t=118.0] pos=(-5650.8,-1263.3) psi= -30.1deg wp=2 xte=-60.9m obs_d=122m ok=1 comp=5934.9ms solve=5933.8ms RT=5.93 obs=9 fb=0
+  [t=119.0] pos=(-5651.1,-1264.7) psi= -30.6deg wp=2 xte=-59.7m obs_d=121m ok=1 comp=5542.8ms solve=5541.7ms RT=5.54 obs=9 fb=0
+  [t=120.0] pos=(-5651.4,-1266.2) psi= -31.1deg wp=2 xte=-58.4m obs_d=119m ok=1 comp=6633.6ms solve=6632.3ms RT=6.63 obs=9 fb=0
+  [t=121.0] pos=(-5651.7,-1267.8) psi= -31.6deg wp=2 xte=-57.1m obs_d=118m ok=1 comp=6522.4ms solve=6521.2ms RT=6.52 obs=9 fb=0
+  [t=122.0] pos=(-5652.1,-1269.3) psi= -32.1deg wp=2 xte=-55.7m obs_d=116m ok=1 comp=7188.5ms solve=7187.4ms RT=7.19 obs=9 fb=0
+  [t=123.0] pos=(-5652.5,-1270.8) psi= -32.6deg wp=2 xte=-54.3m obs_d=115m ok=1 comp=6620.1ms solve=6619.0ms RT=6.62 obs=9 fb=0
+  [t=124.0] pos=(-5652.9,-1272.4) psi= -33.1deg wp=2 xte=-52.8m obs_d=113m ok=1 comp=6397.9ms solve=6396.7ms RT=6.40 obs=9 fb=0
+  [t=125.0] pos=(-5653.2,-1273.9) psi= -33.5deg wp=2 xte=-51.4m obs_d=112m ok=1 comp=5411.2ms solve=5409.5ms RT=5.41 obs=9 fb=0
+  [t=126.0] pos=(-5653.6,-1275.5) psi= -34.0deg wp=2 xte=-50.0m obs_d=110m ok=1 comp=9439.6ms solve=9437.3ms RT=9.44 obs=9 fb=0
+  [t=127.0] pos=(-5653.8,-1277.0) psi= -34.4deg wp=2 xte=-48.6m obs_d=109m ok=1 comp=10137.8ms solve=10136.0ms RT=10.14 obs=9 fb=0
+  [t=128.0] pos=(-5654.0,-1278.7) psi= -34.8deg wp=2 xte=-47.2m obs_d=107m ok=1 comp=7821.0ms solve=7820.0ms RT=7.82 obs=9 fb=0
+  [t=129.0] pos=(-5654.0,-1280.4) psi= -35.1deg wp=2 xte=-45.9m obs_d=105m ok=1 comp=6172.9ms solve=6171.5ms RT=6.17 obs=9 fb=0
+  [t=130.0] pos=(-5653.9,-1282.1) psi= -35.5deg wp=2 xte=-44.5m obs_d=104m ok=1 comp=6012.5ms solve=6011.1ms RT=6.01 obs=9 fb=0
+  [t=131.0] pos=(-5653.6,-1284.0) psi= -35.8deg wp=2 xte=-43.3m obs_d=102m ok=1 comp=5729.1ms solve=5727.9ms RT=5.73 obs=9 fb=0
+  [t=132.0] pos=(-5653.2,-1286.0) psi= -36.0deg wp=2 xte=-42.0m obs_d=101m ok=1 comp=6060.8ms solve=6059.7ms RT=6.06 obs=9 fb=0
+  [t=133.0] pos=(-5652.5,-1288.1) psi= -36.2deg wp=2 xte=-40.7m obs_d=99m ok=1 comp=6706.8ms solve=6705.7ms RT=6.71 obs=9 fb=0
+  [t=134.0] pos=(-5651.6,-1290.3) psi= -36.3deg wp=2 xte=-39.5m obs_d=97m ok=1 comp=8202.3ms solve=8201.1ms RT=8.20 obs=9 fb=0
+  [t=135.0] pos=(-5650.6,-1292.7) psi= -36.4deg wp=2 xte=-38.4m obs_d=96m ok=1 comp=6951.7ms solve=6950.7ms RT=6.95 obs=9 fb=0
+  [t=136.0] pos=(-5649.2,-1295.1) psi= -36.3deg wp=2 xte=-37.3m obs_d=94m ok=1 comp=7125.3ms solve=7124.2ms RT=7.13 obs=9 fb=0
+  [t=137.0] pos=(-5647.6,-1297.7) psi= -36.2deg wp=2 xte=-36.3m obs_d=93m ok=1 comp=7248.6ms solve=7247.4ms RT=7.25 obs=9 fb=0
+  [t=138.0] pos=(-5645.7,-1300.4) psi= -36.1deg wp=2 xte=-35.3m obs_d=92m ok=1 comp=6970.9ms solve=6969.6ms RT=6.97 obs=9 fb=0
+  [t=139.0] pos=(-5643.5,-1303.3) psi= -35.9deg wp=2 xte=-34.4m obs_d=91m ok=1 comp=6899.8ms solve=6898.6ms RT=6.90 obs=9 fb=0
+  [t=140.0] pos=(-5640.9,-1306.3) psi= -35.7deg wp=2 xte=-33.7m obs_d=90m ok=1 comp=6992.0ms solve=6989.3ms RT=6.99 obs=9 fb=0
+  [t=141.0] pos=(-5638.0,-1309.3) psi= -35.6deg wp=2 xte=-33.0m obs_d=89m ok=1 comp=6450.3ms solve=6446.7ms RT=6.45 obs=9 fb=0
+  [t=142.0] pos=(-5634.7,-1312.5) psi= -35.4deg wp=2 xte=-32.6m obs_d=89m ok=1 comp=8426.3ms solve=8424.2ms RT=8.43 obs=9 fb=0
+  [t=143.0] pos=(-5631.1,-1315.8) psi= -35.3deg wp=2 xte=-32.2m obs_d=89m ok=1 comp=5920.2ms solve=5918.5ms RT=5.92 obs=9 fb=0
+  [t=144.0] pos=(-5627.3,-1319.1) psi= -35.2deg wp=2 xte=-32.0m obs_d=90m ok=1 comp=7060.2ms solve=7057.6ms RT=7.06 obs=9 fb=0
+  [t=145.0] pos=(-5623.1,-1322.5) psi= -35.2deg wp=2 xte=-31.9m obs_d=91m ok=1 comp=6784.7ms solve=6782.0ms RT=6.78 obs=9 fb=0
+  [t=146.0] pos=(-5618.6,-1326.0) psi= -35.2deg wp=2 xte=-31.9m obs_d=93m ok=1 comp=6772.3ms solve=6771.1ms RT=6.77 obs=9 fb=0
+  [t=147.0] pos=(-5613.7,-1329.5) psi= -35.2deg wp=2 xte=-32.2m obs_d=95m ok=1 comp=6533.9ms solve=6533.0ms RT=6.53 obs=9 fb=0
+  [t=148.0] pos=(-5608.6,-1333.1) psi= -35.3deg wp=2 xte=-32.5m obs_d=97m ok=1 comp=6642.9ms solve=6641.9ms RT=6.64 obs=9 fb=0
+  [t=149.0] pos=(-5603.1,-1336.8) psi= -35.5deg wp=2 xte=-33.1m obs_d=100m ok=1 comp=6872.2ms solve=6870.7ms RT=6.87 obs=9 fb=0
+  [t=150.0] pos=(-5597.4,-1340.4) psi= -35.8deg wp=2 xte=-33.8m obs_d=103m ok=1 comp=6921.5ms solve=6920.5ms RT=6.92 obs=9 fb=0
+  [t=151.0] pos=(-5591.4,-1344.0) psi= -36.1deg wp=2 xte=-34.7m obs_d=107m ok=1 comp=6715.0ms solve=6713.9ms RT=6.71 obs=9 fb=0
+  [t=152.0] pos=(-5585.3,-1347.5) psi= -36.6deg wp=2 xte=-35.7m obs_d=111m ok=1 comp=8801.0ms solve=8798.4ms RT=8.80 obs=9 fb=0
+  [t=153.0] pos=(-5579.1,-1351.0) psi= -37.2deg wp=2 xte=-36.9m obs_d=116m ok=1 comp=10299.0ms solve=10297.2ms RT=10.30 obs=9 fb=0
+  [t=154.0] pos=(-5572.8,-1354.4) psi= -37.9deg wp=2 xte=-38.3m obs_d=120m ok=1 comp=7540.5ms solve=7539.2ms RT=7.54 obs=9 fb=0
+  [t=155.0] pos=(-5566.6,-1357.6) psi= -38.7deg wp=2 xte=-39.7m obs_d=124m ok=1 comp=6789.9ms solve=6788.7ms RT=6.79 obs=9 fb=0
+  [t=156.0] pos=(-5560.4,-1360.8) psi= -39.6deg wp=2 xte=-41.1m obs_d=129m ok=1 comp=7973.7ms solve=7972.5ms RT=7.97 obs=9 fb=0
+  [t=157.0] pos=(-5554.4,-1363.8) psi= -40.6deg wp=2 xte=-42.7m obs_d=134m ok=1 comp=8179.2ms solve=8178.0ms RT=8.18 obs=9 fb=0
+  [t=158.0] pos=(-5548.6,-1366.6) psi= -41.6deg wp=2 xte=-44.2m obs_d=139m ok=1 comp=6716.7ms solve=6715.4ms RT=6.72 obs=9 fb=0
+  [t=159.0] pos=(-5543.1,-1369.4) psi= -42.6deg wp=2 xte=-45.7m obs_d=136m ok=1 comp=7128.8ms solve=7127.7ms RT=7.13 obs=9 fb=0
+  [t=160.0] pos=(-5537.8,-1372.0) psi= -43.5deg wp=2 xte=-47.2m obs_d=130m ok=1 comp=7919.9ms solve=7919.0ms RT=7.92 obs=9 fb=0
+  [t=161.0] pos=(-5532.8,-1374.6) psi= -44.5deg wp=2 xte=-48.5m obs_d=125m ok=1 comp=6278.5ms solve=6277.4ms RT=6.28 obs=9 fb=0
+  [t=162.0] pos=(-5528.1,-1377.0) psi= -45.4deg wp=2 xte=-49.7m obs_d=120m ok=1 comp=5488.3ms solve=5487.2ms RT=5.49 obs=9 fb=0
+  [t=163.0] pos=(-5523.8,-1379.4) psi= -46.4deg wp=2 xte=-50.8m obs_d=116m ok=1 comp=9096.8ms solve=9095.8ms RT=9.10 obs=9 fb=0
+  [t=164.0] pos=(-5519.8,-1381.5) psi= -47.3deg wp=2 xte=-51.8m obs_d=111m ok=1 comp=5909.9ms solve=5908.5ms RT=5.91 obs=9 fb=0
+  [t=165.0] pos=(-5516.1,-1383.6) psi= -48.2deg wp=2 xte=-52.7m obs_d=107m ok=1 comp=9104.9ms solve=9103.8ms RT=9.10 obs=9 fb=0
+  [t=166.0] pos=(-5512.6,-1385.4) psi= -49.2deg wp=2 xte=-53.6m obs_d=103m ok=1 comp=6165.9ms solve=6164.2ms RT=6.17 obs=9 fb=0
+  [t=167.0] pos=(-5509.5,-1387.1) psi= -50.1deg wp=2 xte=-54.3m obs_d=99m ok=1 comp=6271.5ms solve=6270.3ms RT=6.27 obs=9 fb=0
+  [t=168.0] pos=(-5506.7,-1388.5) psi= -51.0deg wp=2 xte=-55.0m obs_d=96m ok=1 comp=5516.0ms solve=5514.6ms RT=5.52 obs=9 fb=0
+  [t=169.0] pos=(-5504.3,-1389.7) psi= -51.8deg wp=2 xte=-55.7m obs_d=93m ok=1 comp=5823.2ms solve=5822.0ms RT=5.82 obs=9 fb=0
+  [t=170.0] pos=(-5502.2,-1390.6) psi= -52.7deg wp=2 xte=-56.4m obs_d=90m ok=1 comp=5692.5ms solve=5691.3ms RT=5.69 obs=9 fb=0
+  [t=171.0] pos=(-5500.4,-1391.3) psi= -53.4deg wp=2 xte=-57.0m obs_d=88m ok=1 comp=5692.6ms solve=5691.5ms RT=5.69 obs=9 fb=0
+  [t=172.0] pos=(-5498.9,-1391.8) psi= -54.3deg wp=2 xte=-57.7m obs_d=87m ok=1 comp=2784.7ms solve=2783.8ms RT=2.78 obs=9 fb=0
+  [t=173.0] pos=(-5497.6,-1392.1) psi= -55.1deg wp=2 xte=-58.3m obs_d=86m ok=1 comp=7211.6ms solve=7210.4ms RT=7.21 obs=9 fb=0
+  [t=174.0] pos=(-5496.6,-1392.2) psi= -56.0deg wp=2 xte=-58.8m obs_d=85m ok=1 comp=9735.9ms solve=9734.9ms RT=9.74 obs=9 fb=0
+  [t=175.0] pos=(-5495.7,-1392.4) psi= -56.9deg wp=2 xte=-59.4m obs_d=85m ok=1 comp=9598.9ms solve=9597.8ms RT=9.60 obs=9 fb=0
+  [t=176.0] pos=(-5495.0,-1392.5) psi= -57.9deg wp=2 xte=-59.8m obs_d=85m ok=1 comp=5629.2ms solve=5628.1ms RT=5.63 obs=9 fb=0
+  [t=177.0] pos=(-5494.4,-1392.7) psi= -58.9deg wp=2 xte=-60.2m obs_d=85m ok=1 comp=5564.7ms solve=5563.5ms RT=5.56 obs=9 fb=0
+  [t=178.0] pos=(-5493.9,-1393.0) psi= -59.9deg wp=2 xte=-60.4m obs_d=85m ok=1 comp=8998.7ms solve=8997.3ms RT=9.00 obs=9 fb=0
+  [t=179.0] pos=(-5493.5,-1393.4) psi= -61.0deg wp=2 xte=-60.5m obs_d=86m ok=1 comp=7008.9ms solve=7007.7ms RT=7.01 obs=9 fb=0
+  [t=180.0] pos=(-5493.2,-1393.8) psi= -62.1deg wp=2 xte=-60.5m obs_d=87m ok=1 comp=6575.7ms solve=6574.4ms RT=6.58 obs=9 fb=0
+  [t=181.0] pos=(-5492.9,-1394.2) psi= -63.3deg wp=2 xte=-60.4m obs_d=88m ok=1 comp=7103.5ms solve=7102.1ms RT=7.10 obs=9 fb=0
+  [t=182.0] pos=(-5492.7,-1394.7) psi= -64.5deg wp=2 xte=-60.2m obs_d=90m ok=1 comp=7456.0ms solve=7455.0ms RT=7.46 obs=9 fb=0
+  [t=183.0] pos=(-5492.6,-1395.1) psi= -65.7deg wp=2 xte=-60.0m obs_d=92m ok=1 comp=7565.8ms solve=7564.2ms RT=7.57 obs=9 fb=0
+  [t=184.0] pos=(-5492.5,-1395.6) psi= -66.8deg wp=2 xte=-59.7m obs_d=94m ok=1 comp=6725.7ms solve=6724.5ms RT=6.73 obs=9 fb=0
+  [t=185.0] pos=(-5492.4,-1396.2) psi= -68.0deg wp=2 xte=-59.4m obs_d=97m ok=1 comp=8788.8ms solve=8787.4ms RT=8.79 obs=9 fb=0
+  [t=186.0] pos=(-5492.4,-1396.7) psi= -69.1deg wp=2 xte=-59.0m obs_d=99m ok=1 comp=7652.5ms solve=7651.1ms RT=7.65 obs=9 fb=0
+  [t=187.0] pos=(-5492.4,-1397.3) psi= -70.1deg wp=2 xte=-58.6m obs_d=102m ok=1 comp=8544.9ms solve=8543.8ms RT=8.54 obs=9 fb=0
+  [t=188.0] pos=(-5492.4,-1398.0) psi= -71.1deg wp=2 xte=-58.2m obs_d=105m ok=1 comp=8750.9ms solve=8749.3ms RT=8.75 obs=9 fb=0
+  [t=189.0] pos=(-5492.4,-1398.7) psi= -72.1deg wp=2 xte=-57.6m obs_d=108m ok=1 comp=9291.3ms solve=9289.7ms RT=9.29 obs=9 fb=0
+  [t=190.0] pos=(-5492.4,-1399.5) psi= -73.0deg wp=2 xte=-57.1m obs_d=112m ok=1 comp=5732.0ms solve=5730.8ms RT=5.73 obs=9 fb=0
+  [t=191.0] pos=(-5492.4,-1400.4) psi= -74.0deg wp=2 xte=-56.5m obs_d=115m ok=1 comp=5254.4ms solve=5253.2ms RT=5.25 obs=9 fb=0
+  [t=192.0] pos=(-5492.4,-1401.3) psi= -74.9deg wp=2 xte=-55.8m obs_d=119m ok=1 comp=5107.9ms solve=5106.9ms RT=5.11 obs=9 fb=0
+  [t=193.0] pos=(-5492.4,-1402.2) psi= -75.7deg wp=2 xte=-55.1m obs_d=123m ok=1 comp=4910.7ms solve=4909.6ms RT=4.91 obs=9 fb=0
+  [t=194.0] pos=(-5492.4,-1403.3) psi= -76.6deg wp=2 xte=-54.4m obs_d=127m ok=1 comp=6094.1ms solve=6093.2ms RT=6.09 obs=9 fb=0
+  [t=196.0] pos=(-5492.6,-1405.6) psi= -78.2deg wp=2 xte=-52.6m obs_d=135m ok=1 comp=5263.0ms solve=5262.1ms RT=5.26 obs=9 fb=0
+  [t=197.0] pos=(-5492.8,-1407.0) psi= -79.0deg wp=2 xte=-51.6m obs_d=140m ok=1 comp=6185.2ms solve=6184.2ms RT=6.19 obs=9 fb=0
+  [t=198.0] pos=(-5493.0,-1408.5) psi= -79.8deg wp=2 xte=-50.4m obs_d=144m ok=1 comp=5421.0ms solve=5419.8ms RT=5.42 obs=9 fb=0
+  [t=199.0] pos=(-5493.3,-1410.2) psi= -80.5deg wp=2 xte=-49.1m obs_d=149m ok=1 comp=218.8ms solve=217.9ms RT=0.22 obs=9 fb=0
+  [t=200.0] pos=(-5493.7,-1411.9) psi= -81.3deg wp=2 xte=-47.7m obs_d=154m ok=1 comp=5340.6ms solve=5339.5ms RT=5.34 obs=9 fb=0
+  [t=201.0] pos=(-5494.1,-1413.9) psi= -82.0deg wp=2 xte=-46.1m obs_d=159m ok=1 comp=6672.6ms solve=6671.3ms RT=6.67 obs=9 fb=0
+  [t=202.0] pos=(-5494.5,-1416.0) psi= -82.7deg wp=2 xte=-44.4m obs_d=164m ok=1 comp=5834.4ms solve=5833.0ms RT=5.83 obs=9 fb=0
+  [t=203.0] pos=(-5494.9,-1418.3) psi= -83.4deg wp=2 xte=-42.5m obs_d=170m ok=1 comp=8104.1ms solve=8102.5ms RT=8.10 obs=9 fb=0
+  [t=204.0] pos=(-5495.3,-1420.7) psi= -84.1deg wp=2 xte=-40.4m obs_d=175m ok=1 comp=6125.0ms solve=6120.3ms RT=6.12 obs=9 fb=0
+  [t=205.0] pos=(-5495.8,-1423.4) psi= -84.7deg wp=2 xte=-38.3m obs_d=181m ok=1 comp=6372.4ms solve=6371.3ms RT=6.37 obs=9 fb=0
+  [t=206.0] pos=(-5496.2,-1426.1) psi= -85.4deg wp=2 xte=-36.0m obs_d=181m ok=1 comp=5937.4ms solve=5936.4ms RT=5.94 obs=9 fb=0
+  [t=207.0] pos=(-5496.7,-1429.1) psi= -86.1deg wp=2 xte=-33.6m obs_d=182m ok=1 comp=8425.2ms solve=8422.8ms RT=8.43 obs=9 fb=0
+  [t=208.0] pos=(-5497.1,-1432.2) psi= -86.7deg wp=2 xte=-31.0m obs_d=183m ok=1 comp=10155.4ms solve=10153.3ms RT=10.16 obs=9 fb=0
+  [t=209.0] pos=(-5497.5,-1435.4) psi= -87.4deg wp=2 xte=-28.4m obs_d=183m ok=1 comp=7001.9ms solve=7000.1ms RT=7.00 obs=9 fb=0
+  [t=210.0] pos=(-5497.8,-1438.8) psi= -88.0deg wp=2 xte=-25.6m obs_d=156m ok=1 comp=6348.5ms solve=6347.4ms RT=6.35 obs=9 fb=0
+  [t=211.0] pos=(-5498.2,-1442.2) psi= -88.5deg wp=2 xte=-22.8m obs_d=151m ok=1 comp=8079.3ms solve=8078.1ms RT=8.08 obs=9 fb=0
+  [t=212.0] pos=(-5498.5,-1445.8) psi= -89.0deg wp=2 xte=-19.9m obs_d=153m ok=1 comp=9082.5ms solve=9081.1ms RT=9.08 obs=9 fb=0
+  [t=213.0] pos=(-5498.8,-1449.4) psi= -89.5deg wp=2 xte=-17.0m obs_d=143m ok=1 comp=8093.8ms solve=8092.7ms RT=8.09 obs=9 fb=0
+  [t=214.0] pos=(-5499.0,-1453.2) psi= -89.9deg wp=2 xte=-14.0m obs_d=141m ok=1 comp=7071.0ms solve=7070.0ms RT=7.07 obs=9 fb=0
+  [t=215.0] pos=(-5499.3,-1457.0) psi= -90.2deg wp=2 xte=-11.0m obs_d=140m ok=1 comp=6268.2ms solve=6267.0ms RT=6.27 obs=9 fb=0
+  [t=216.0] pos=(-5499.5,-1461.0) psi= -90.4deg wp=2 xte=-7.9m obs_d=143m ok=1 comp=5916.3ms solve=5915.3ms RT=5.92 obs=9 fb=0
+  [t=217.0] pos=(-5499.6,-1465.0) psi= -90.6deg wp=2 xte=-4.7m obs_d=145m ok=1 comp=5807.1ms solve=5805.9ms RT=5.81 obs=9 fb=0
+  [t=218.0] pos=(-5499.7,-1469.0) psi= -90.6deg wp=2 xte=-1.5m obs_d=148m ok=1 comp=5417.4ms solve=5416.2ms RT=5.42 obs=9 fb=0
+  [t=219.0] pos=(-5499.8,-1473.1) psi= -90.6deg wp=2 xte=+1.7m obs_d=152m ok=1 comp=5757.0ms solve=5755.8ms RT=5.76 obs=9 fb=0
+  [t=220.0] pos=(-5499.7,-1477.1) psi= -90.5deg wp=2 xte=+4.8m obs_d=155m ok=1 comp=5787.2ms solve=5786.2ms RT=5.79 obs=9 fb=0
+  [t=221.0] pos=(-5499.5,-1481.0) psi= -90.3deg wp=2 xte=+7.8m obs_d=158m ok=1 comp=6374.0ms solve=6372.5ms RT=6.37 obs=9 fb=0
+  [t=222.0] pos=(-5499.3,-1484.9) psi= -89.9deg wp=2 xte=+10.8m obs_d=162m ok=1 comp=6279.2ms solve=6278.3ms RT=6.28 obs=9 fb=0
+  [t=223.0] pos=(-5498.9,-1488.6) psi= -89.5deg wp=2 xte=+13.5m obs_d=165m ok=1 comp=8493.6ms solve=8492.4ms RT=8.49 obs=9 fb=0
+  [t=224.0] pos=(-5498.5,-1492.2) psi= -89.0deg wp=2 xte=+16.2m obs_d=168m ok=1 comp=9539.6ms solve=9538.2ms RT=9.54 obs=9 fb=0
+  [t=225.0] pos=(-5498.0,-1495.7) psi= -88.5deg wp=2 xte=+18.6m obs_d=168m ok=1 comp=6368.3ms solve=6367.3ms RT=6.37 obs=9 fb=0
+  [t=226.0] pos=(-5497.4,-1499.1) psi= -87.9deg wp=2 xte=+21.0m obs_d=165m ok=1 comp=5647.7ms solve=5646.8ms RT=5.65 obs=9 fb=0
+  [t=227.0] pos=(-5496.8,-1502.4) psi= -87.3deg wp=2 xte=+23.3m obs_d=162m ok=1 comp=5693.8ms solve=5692.5ms RT=5.69 obs=9 fb=0
+  [t=228.0] pos=(-5496.2,-1505.6) psi= -86.6deg wp=2 xte=+25.4m obs_d=159m ok=1 comp=5917.8ms solve=5916.8ms RT=5.92 obs=9 fb=0
+  [t=229.0] pos=(-5495.5,-1508.8) psi= -85.9deg wp=2 xte=+27.5m obs_d=156m ok=1 comp=8787.0ms solve=8785.8ms RT=8.79 obs=9 fb=0
+  [t=230.0] pos=(-5494.8,-1511.8) psi= -85.2deg wp=2 xte=+29.5m obs_d=153m ok=1 comp=8407.1ms solve=8405.6ms RT=8.41 obs=9 fb=0
+  [t=231.0] pos=(-5494.0,-1514.8) psi= -84.4deg wp=2 xte=+31.3m obs_d=150m ok=1 comp=8821.7ms solve=8820.7ms RT=8.82 obs=9 fb=0
+  [t=232.0] pos=(-5493.2,-1517.7) psi= -83.7deg wp=2 xte=+33.2m obs_d=147m ok=1 comp=8691.4ms solve=8690.2ms RT=8.69 obs=9 fb=0
+  [t=233.0] pos=(-5492.4,-1520.5) psi= -82.9deg wp=2 xte=+34.9m obs_d=145m ok=1 comp=7396.5ms solve=7395.5ms RT=7.40 obs=9 fb=0
+  [t=234.0] pos=(-5491.6,-1523.2) psi= -82.0deg wp=2 xte=+36.5m obs_d=142m ok=1 comp=5760.9ms solve=5759.9ms RT=5.76 obs=9 fb=0
+  [t=235.0] pos=(-5490.7,-1525.7) psi= -81.2deg wp=2 xte=+38.0m obs_d=140m ok=1 comp=6165.1ms solve=6164.0ms RT=6.17 obs=9 fb=0
+  [t=236.0] pos=(-5489.7,-1528.1) psi= -80.3deg wp=2 xte=+39.4m obs_d=139m ok=1 comp=6121.4ms solve=6119.6ms RT=6.12 obs=9 fb=0
+  [t=237.0] pos=(-5488.6,-1530.4) psi= -79.4deg wp=2 xte=+40.6m obs_d=137m ok=1 comp=9126.6ms solve=9125.5ms RT=9.13 obs=9 fb=0
+  [t=238.0] pos=(-5487.5,-1532.5) psi= -78.6deg wp=2 xte=+41.7m obs_d=137m ok=1 comp=6367.7ms solve=6366.3ms RT=6.37 obs=9 fb=0
+  [t=239.0] pos=(-5486.3,-1534.4) psi= -77.7deg wp=2 xte=+42.6m obs_d=135m ok=1 comp=6142.4ms solve=6141.5ms RT=6.14 obs=9 fb=0
+  [t=240.0] pos=(-5485.1,-1536.1) psi= -76.9deg wp=2 xte=+43.3m obs_d=133m ok=1 comp=6298.0ms solve=6296.6ms RT=6.30 obs=9 fb=0
+  [t=241.0] pos=(-5483.7,-1537.7) psi= -76.1deg wp=2 xte=+43.8m obs_d=132m ok=1 comp=6548.8ms solve=6547.9ms RT=6.55 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=542.5 m, U_ship=1.94 m/s, U_d=3.20 m/s, XTE=71.5 m
+  [t=242.0] pos=(-5482.4,-1539.0) psi= -75.3deg wp=3 xte=+71.5m obs_d=126m ok=1 comp=6717.1ms solve=6712.2ms RT=6.72 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=540.6 m, U_ship=1.89 m/s, U_d=3.20 m/s, XTE=70.8 m
+  [t=243.0] pos=(-5480.9,-1540.2) psi= -74.6deg wp=3 xte=+70.8m obs_d=126m ok=1 comp=6966.0ms solve=6962.7ms RT=6.97 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=538.8 m, U_ship=1.91 m/s, U_d=3.20 m/s, XTE=70.0 m
+  [t=244.0] pos=(-5479.4,-1541.4) psi= -73.9deg wp=3 xte=+70.0m obs_d=125m ok=1 comp=7081.2ms solve=7079.3ms RT=7.08 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=537.0 m, U_ship=1.95 m/s, U_d=3.20 m/s, XTE=69.0 m
+  [t=245.0] pos=(-5477.7,-1542.5) psi= -73.2deg wp=3 xte=+69.0m obs_d=124m ok=1 comp=6862.5ms solve=6860.6ms RT=6.86 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=535.2 m, U_ship=2.02 m/s, U_d=3.20 m/s, XTE=68.0 m
+  [t=246.0] pos=(-5476.0,-1543.6) psi= -72.6deg wp=3 xte=+68.0m obs_d=123m ok=1 comp=6647.2ms solve=6642.8ms RT=6.65 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=533.4 m, U_ship=2.08 m/s, U_d=3.20 m/s, XTE=66.9 m
+  [t=247.0] pos=(-5474.2,-1544.7) psi= -72.0deg wp=3 xte=+66.9m obs_d=122m ok=1 comp=6841.9ms solve=6837.3ms RT=6.84 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=531.5 m, U_ship=2.14 m/s, U_d=3.20 m/s, XTE=65.7 m
+  [t=248.0] pos=(-5472.4,-1545.9) psi= -71.3deg wp=3 xte=+65.7m obs_d=121m ok=1 comp=7267.4ms solve=7266.2ms RT=7.27 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=529.6 m, U_ship=2.19 m/s, U_d=3.20 m/s, XTE=64.5 m
+  [t=249.0] pos=(-5470.5,-1547.0) psi= -70.7deg wp=3 xte=+64.5m obs_d=120m ok=1 comp=6367.2ms solve=6365.8ms RT=6.37 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=527.6 m, U_ship=2.24 m/s, U_d=3.20 m/s, XTE=63.2 m
+  [t=250.0] pos=(-5468.5,-1548.2) psi= -70.1deg wp=3 xte=+63.2m obs_d=119m ok=1 comp=6400.9ms solve=6399.7ms RT=6.40 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=525.6 m, U_ship=2.28 m/s, U_d=3.20 m/s, XTE=61.9 m
+  [t=251.0] pos=(-5466.6,-1549.3) psi= -69.4deg wp=3 xte=+61.9m obs_d=118m ok=1 comp=6261.5ms solve=6260.4ms RT=6.26 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=523.6 m, U_ship=2.31 m/s, U_d=3.20 m/s, XTE=60.5 m
+  [t=252.0] pos=(-5464.5,-1550.5) psi= -68.8deg wp=3 xte=+60.5m obs_d=117m ok=1 comp=6529.9ms solve=6528.7ms RT=6.53 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=521.6 m, U_ship=2.34 m/s, U_d=3.20 m/s, XTE=59.2 m
+  [t=253.0] pos=(-5462.5,-1551.6) psi= -68.1deg wp=3 xte=+59.2m obs_d=116m ok=1 comp=6537.2ms solve=6535.9ms RT=6.54 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=519.6 m, U_ship=2.36 m/s, U_d=3.20 m/s, XTE=57.8 m
+  [t=254.0] pos=(-5460.4,-1552.8) psi= -67.4deg wp=3 xte=+57.8m obs_d=115m ok=1 comp=6171.4ms solve=6170.0ms RT=6.17 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=517.5 m, U_ship=2.38 m/s, U_d=3.20 m/s, XTE=56.4 m
+  [t=255.0] pos=(-5458.3,-1553.9) psi= -66.7deg wp=3 xte=+56.4m obs_d=115m ok=1 comp=7285.3ms solve=7284.1ms RT=7.29 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=515.5 m, U_ship=2.39 m/s, U_d=3.20 m/s, XTE=54.9 m
+  [t=256.0] pos=(-5456.2,-1555.1) psi= -66.0deg wp=3 xte=+54.9m obs_d=114m ok=1 comp=6372.4ms solve=6371.2ms RT=6.37 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=513.4 m, U_ship=2.41 m/s, U_d=3.20 m/s, XTE=53.4 m
+  [t=257.0] pos=(-5454.1,-1556.2) psi= -65.3deg wp=3 xte=+53.4m obs_d=113m ok=1 comp=6249.7ms solve=6248.6ms RT=6.25 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=511.4 m, U_ship=2.42 m/s, U_d=3.20 m/s, XTE=52.0 m
+  [t=258.0] pos=(-5452.0,-1557.3) psi= -64.6deg wp=3 xte=+52.0m obs_d=112m ok=1 comp=6447.4ms solve=6446.2ms RT=6.45 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=509.3 m, U_ship=2.43 m/s, U_d=3.20 m/s, XTE=50.5 m
+  [t=259.0] pos=(-5449.8,-1558.4) psi= -63.9deg wp=3 xte=+50.5m obs_d=111m ok=1 comp=11698.2ms solve=11696.9ms RT=11.70 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=507.3 m, U_ship=2.44 m/s, U_d=3.20 m/s, XTE=48.9 m
+  [t=260.0] pos=(-5447.6,-1559.5) psi= -63.2deg wp=3 xte=+48.9m obs_d=110m ok=1 comp=7231.9ms solve=7230.5ms RT=7.23 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=505.3 m, U_ship=2.46 m/s, U_d=3.20 m/s, XTE=47.4 m
+  [t=261.0] pos=(-5445.4,-1560.6) psi= -62.5deg wp=3 xte=+47.4m obs_d=110m ok=1 comp=7370.7ms solve=7369.5ms RT=7.37 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=503.2 m, U_ship=2.47 m/s, U_d=3.20 m/s, XTE=45.8 m
+  [t=262.0] pos=(-5443.2,-1561.7) psi= -61.7deg wp=3 xte=+45.8m obs_d=109m ok=1 comp=7526.8ms solve=7525.3ms RT=7.53 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=501.2 m, U_ship=2.49 m/s, U_d=3.20 m/s, XTE=44.2 m
+  [t=263.0] pos=(-5440.9,-1562.8) psi= -61.0deg wp=3 xte=+44.2m obs_d=108m ok=1 comp=7778.0ms solve=7776.8ms RT=7.78 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=499.2 m, U_ship=2.51 m/s, U_d=3.00 m/s, XTE=42.6 m
+  [t=264.0] pos=(-5438.6,-1563.9) psi= -60.3deg wp=3 xte=+42.6m obs_d=108m ok=1 comp=6745.6ms solve=6743.3ms RT=6.75 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=497.1 m, U_ship=2.52 m/s, U_d=3.00 m/s, XTE=40.9 m
+  [t=265.0] pos=(-5436.3,-1564.9) psi= -59.5deg wp=3 xte=+40.9m obs_d=107m ok=1 comp=5575.9ms solve=5574.5ms RT=5.58 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=495.1 m, U_ship=2.54 m/s, U_d=3.00 m/s, XTE=39.3 m
+  [t=266.0] pos=(-5434.0,-1566.0) psi= -58.8deg wp=3 xte=+39.3m obs_d=106m ok=1 comp=5631.6ms solve=5630.0ms RT=5.63 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=493.1 m, U_ship=2.56 m/s, U_d=3.00 m/s, XTE=37.6 m
+  [t=267.0] pos=(-5431.7,-1567.0) psi= -58.0deg wp=3 xte=+37.6m obs_d=106m ok=1 comp=5313.1ms solve=5311.4ms RT=5.31 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=491.0 m, U_ship=2.58 m/s, U_d=3.00 m/s, XTE=35.9 m
+  [t=268.0] pos=(-5429.3,-1568.1) psi= -57.3deg wp=3 xte=+35.9m obs_d=105m ok=1 comp=5281.9ms solve=5280.2ms RT=5.28 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=489.0 m, U_ship=2.62 m/s, U_d=3.00 m/s, XTE=34.1 m
+  [t=269.0] pos=(-5426.9,-1569.1) psi= -56.6deg wp=3 xte=+34.1m obs_d=105m ok=1 comp=5480.4ms solve=5479.0ms RT=5.48 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=486.9 m, U_ship=2.67 m/s, U_d=3.00 m/s, XTE=32.3 m
+  [t=270.0] pos=(-5424.4,-1570.2) psi= -55.8deg wp=3 xte=+32.3m obs_d=105m ok=1 comp=5259.9ms solve=5258.6ms RT=5.26 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=484.8 m, U_ship=2.73 m/s, U_d=3.00 m/s, XTE=30.5 m
+  [t=271.0] pos=(-5421.9,-1571.4) psi= -55.1deg wp=3 xte=+30.5m obs_d=104m ok=1 comp=5859.0ms solve=5858.0ms RT=5.86 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=482.7 m, U_ship=2.79 m/s, U_d=3.00 m/s, XTE=28.7 m
+  [t=272.0] pos=(-5419.3,-1572.5) psi= -54.3deg wp=3 xte=+28.7m obs_d=104m ok=1 comp=5729.9ms solve=5728.5ms RT=5.73 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=480.4 m, U_ship=2.85 m/s, U_d=3.00 m/s, XTE=26.8 m
+  [t=273.0] pos=(-5416.7,-1573.8) psi= -53.6deg wp=3 xte=+26.8m obs_d=103m ok=1 comp=5855.6ms solve=5854.4ms RT=5.86 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=478.2 m, U_ship=2.91 m/s, U_d=3.00 m/s, XTE=24.9 m
+  [t=274.0] pos=(-5414.0,-1575.1) psi= -52.9deg wp=3 xte=+24.9m obs_d=102m ok=1 comp=5587.9ms solve=5586.7ms RT=5.59 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=475.8 m, U_ship=2.97 m/s, U_d=3.00 m/s, XTE=23.0 m
+  [t=275.0] pos=(-5411.4,-1576.4) psi= -52.3deg wp=3 xte=+23.0m obs_d=101m ok=1 comp=5738.3ms solve=5737.2ms RT=5.74 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=473.4 m, U_ship=3.03 m/s, U_d=3.00 m/s, XTE=21.1 m
+  [t=276.0] pos=(-5408.7,-1577.8) psi= -51.6deg wp=3 xte=+21.1m obs_d=101m ok=1 comp=8229.6ms solve=8228.3ms RT=8.23 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=471.0 m, U_ship=3.06 m/s, U_d=3.00 m/s, XTE=19.2 m
+  [t=277.0] pos=(-5405.9,-1579.2) psi= -51.0deg wp=3 xte=+19.2m obs_d=100m ok=1 comp=6894.4ms solve=6893.1ms RT=6.89 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=468.5 m, U_ship=3.08 m/s, U_d=3.00 m/s, XTE=17.3 m
+  [t=278.0] pos=(-5403.2,-1580.6) psi= -50.4deg wp=3 xte=+17.3m obs_d=99m ok=1 comp=6516.3ms solve=6515.2ms RT=6.52 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=466.0 m, U_ship=3.08 m/s, U_d=3.00 m/s, XTE=15.4 m
+  [t=279.0] pos=(-5400.5,-1582.0) psi= -49.8deg wp=3 xte=+15.4m obs_d=99m ok=1 comp=6824.3ms solve=6822.9ms RT=6.82 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=463.5 m, U_ship=3.06 m/s, U_d=3.00 m/s, XTE=13.4 m
+  [t=280.0] pos=(-5397.7,-1583.4) psi= -49.2deg wp=3 xte=+13.4m obs_d=98m ok=1 comp=5910.3ms solve=5908.8ms RT=5.91 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=461.1 m, U_ship=3.06 m/s, U_d=3.00 m/s, XTE=11.5 m
+  [t=281.0] pos=(-5395.0,-1584.8) psi= -48.6deg wp=3 xte=+11.5m obs_d=97m ok=1 comp=8349.1ms solve=8348.1ms RT=8.35 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=458.7 m, U_ship=3.09 m/s, U_d=3.00 m/s, XTE=9.5 m
+  [t=282.0] pos=(-5392.2,-1586.1) psi= -48.0deg wp=3 xte=+9.5m obs_d=97m ok=1 comp=6950.5ms solve=6949.3ms RT=6.95 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=456.3 m, U_ship=3.13 m/s, U_d=3.00 m/s, XTE=7.5 m
+  [t=283.0] pos=(-5389.3,-1587.5) psi= -47.4deg wp=3 xte=+7.5m obs_d=97m ok=1 comp=6192.2ms solve=6191.2ms RT=6.19 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=453.9 m, U_ship=3.18 m/s, U_d=3.00 m/s, XTE=5.5 m
+  [t=284.0] pos=(-5386.4,-1588.8) psi= -46.8deg wp=3 xte=+5.5m obs_d=96m ok=1 comp=7709.6ms solve=7708.2ms RT=7.71 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=451.5 m, U_ship=3.27 m/s, U_d=3.00 m/s, XTE=3.3 m
+  [t=285.0] pos=(-5383.4,-1590.2) psi= -46.3deg wp=3 xte=+3.3m obs_d=96m ok=1 comp=9928.8ms solve=9927.7ms RT=9.93 obs=9 fb=0
+  [terminal-precision ON] relaxing min forward speed for tight final recapture (d_final=448.9 m)
+  [FINAL-LEG DEBUG] d_final=448.9 m, U_ship=3.40 m/s, U_d=1.20 m/s, XTE=1.1 m
+  [u-min switch] Would rebuild solver for 0.50 -> 0.05 m/s (DISABLED for stability)
+  [t=286.0] pos=(-5380.2,-1591.7) psi= -45.8deg wp=3 xte=+1.1m obs_d=95m ok=1 comp=9483.4ms solve=9477.6ms RT=9.48 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=446.3 m, U_ship=3.51 m/s, U_d=1.20 m/s, XTE=-1.2 m
+  [t=287.0] pos=(-5377.0,-1593.2) psi= -45.3deg wp=3 xte=-1.2m obs_d=95m ok=1 comp=7548.5ms solve=7545.9ms RT=7.55 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=443.7 m, U_ship=3.59 m/s, U_d=1.20 m/s, XTE=-3.5 m
+  [t=288.0] pos=(-5373.7,-1594.7) psi= -44.8deg wp=3 xte=-3.5m obs_d=95m ok=1 comp=6464.4ms solve=6462.2ms RT=6.46 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=441.0 m, U_ship=3.64 m/s, U_d=1.20 m/s, XTE=-5.9 m
+  [t=289.0] pos=(-5370.4,-1596.2) psi= -44.3deg wp=3 xte=-5.9m obs_d=95m ok=1 comp=7225.9ms solve=7223.7ms RT=7.23 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=438.3 m, U_ship=3.65 m/s, U_d=1.20 m/s, XTE=-8.3 m
+  [t=290.0] pos=(-5367.1,-1597.6) psi= -43.7deg wp=3 xte=-8.3m obs_d=95m ok=1 comp=6876.3ms solve=6871.6ms RT=6.88 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=435.7 m, U_ship=3.61 m/s, U_d=1.20 m/s, XTE=-10.7 m
+  [t=291.0] pos=(-5363.8,-1599.0) psi= -43.0deg wp=3 xte=-10.7m obs_d=96m ok=1 comp=7212.6ms solve=7209.9ms RT=7.21 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=433.1 m, U_ship=3.53 m/s, U_d=1.20 m/s, XTE=-13.2 m
+  [t=292.0] pos=(-5360.6,-1600.4) psi= -42.3deg wp=3 xte=-13.2m obs_d=96m ok=1 comp=7720.7ms solve=7716.7ms RT=7.72 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=430.7 m, U_ship=3.39 m/s, U_d=1.20 m/s, XTE=-15.5 m
+  [t=293.0] pos=(-5357.6,-1601.7) psi= -41.5deg wp=3 xte=-15.5m obs_d=96m ok=1 comp=8419.2ms solve=8418.0ms RT=8.42 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=428.3 m, U_ship=3.21 m/s, U_d=1.20 m/s, XTE=-17.8 m
+  [t=294.0] pos=(-5354.7,-1602.9) psi= -40.6deg wp=3 xte=-17.8m obs_d=96m ok=1 comp=8864.9ms solve=8863.5ms RT=8.86 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=426.1 m, U_ship=2.99 m/s, U_d=1.20 m/s, XTE=-19.9 m
+  [t=295.0] pos=(-5352.2,-1604.1) psi= -39.7deg wp=3 xte=-19.9m obs_d=97m ok=1 comp=7166.8ms solve=7165.7ms RT=7.17 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=424.1 m, U_ship=2.72 m/s, U_d=1.20 m/s, XTE=-21.7 m
+  [t=296.0] pos=(-5349.9,-1605.3) psi= -38.6deg wp=3 xte=-21.7m obs_d=97m ok=1 comp=5986.8ms solve=5985.4ms RT=5.99 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=422.2 m, U_ship=2.42 m/s, U_d=1.20 m/s, XTE=-23.4 m
+  [t=297.0] pos=(-5347.9,-1606.4) psi= -37.4deg wp=3 xte=-23.4m obs_d=97m ok=1 comp=6653.8ms solve=6652.2ms RT=6.65 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=420.5 m, U_ship=2.08 m/s, U_d=1.20 m/s, XTE=-24.7 m
+  [t=298.0] pos=(-5346.2,-1607.3) psi= -36.1deg wp=3 xte=-24.7m obs_d=97m ok=1 comp=7212.6ms solve=7210.1ms RT=7.21 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=419.0 m, U_ship=1.73 m/s, U_d=1.20 m/s, XTE=-25.8 m
+  [t=299.0] pos=(-5344.9,-1608.1) psi= -34.8deg wp=3 xte=-25.8m obs_d=97m ok=1 comp=7409.9ms solve=7408.1ms RT=7.41 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=417.8 m, U_ship=1.37 m/s, U_d=1.20 m/s, XTE=-26.7 m
+  [t=300.0] pos=(-5343.9,-1608.8) psi= -33.4deg wp=3 xte=-26.7m obs_d=97m ok=1 comp=6697.9ms solve=6696.5ms RT=6.70 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=416.8 m, U_ship=1.06 m/s, U_d=1.20 m/s, XTE=-27.4 m
+  [t=301.0] pos=(-5343.1,-1609.3) psi= -31.9deg wp=3 xte=-27.4m obs_d=97m ok=1 comp=6613.1ms solve=6610.8ms RT=6.61 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=416.1 m, U_ship=0.84 m/s, U_d=1.20 m/s, XTE=-27.9 m
+  [t=302.0] pos=(-5342.4,-1609.7) psi= -30.5deg wp=3 xte=-27.9m obs_d=97m ok=1 comp=6400.1ms solve=6398.6ms RT=6.40 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=415.5 m, U_ship=0.68 m/s, U_d=1.20 m/s, XTE=-28.4 m
+  [t=303.0] pos=(-5341.9,-1610.0) psi= -29.2deg wp=3 xte=-28.4m obs_d=98m ok=1 comp=6320.3ms solve=6319.1ms RT=6.32 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=415.0 m, U_ship=0.57 m/s, U_d=1.20 m/s, XTE=-28.7 m
+  [t=304.0] pos=(-5341.4,-1610.2) psi= -27.9deg wp=3 xte=-28.7m obs_d=98m ok=1 comp=6634.7ms solve=6633.7ms RT=6.63 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=414.6 m, U_ship=0.52 m/s, U_d=1.20 m/s, XTE=-29.1 m
+  [t=305.0] pos=(-5340.9,-1610.5) psi= -26.7deg wp=3 xte=-29.1m obs_d=98m ok=1 comp=5940.3ms solve=5938.8ms RT=5.94 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=414.3 m, U_ship=0.51 m/s, U_d=1.20 m/s, XTE=-29.4 m
+  [t=306.0] pos=(-5340.5,-1610.7) psi= -25.5deg wp=3 xte=-29.4m obs_d=98m ok=1 comp=5972.1ms solve=5970.9ms RT=5.97 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=413.9 m, U_ship=0.51 m/s, U_d=1.20 m/s, XTE=-29.7 m
+  [t=307.0] pos=(-5340.0,-1610.9) psi= -24.4deg wp=3 xte=-29.7m obs_d=98m ok=1 comp=6088.7ms solve=6087.6ms RT=6.09 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=413.5 m, U_ship=0.51 m/s, U_d=1.20 m/s, XTE=-30.0 m
+  [t=308.0] pos=(-5339.6,-1611.2) psi= -23.3deg wp=3 xte=-30.0m obs_d=98m ok=1 comp=6015.2ms solve=6014.0ms RT=6.02 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=413.1 m, U_ship=0.51 m/s, U_d=1.20 m/s, XTE=-30.3 m
+  [t=309.0] pos=(-5339.2,-1611.5) psi= -22.3deg wp=3 xte=-30.3m obs_d=98m ok=1 comp=7128.1ms solve=7126.9ms RT=7.13 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=412.7 m, U_ship=0.52 m/s, U_d=1.20 m/s, XTE=-30.6 m
+  [t=310.0] pos=(-5338.7,-1611.7) psi= -21.3deg wp=3 xte=-30.6m obs_d=98m ok=1 comp=7463.5ms solve=7461.8ms RT=7.46 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=412.3 m, U_ship=0.52 m/s, U_d=1.20 m/s, XTE=-30.9 m
+  [t=311.0] pos=(-5338.3,-1612.0) psi= -20.3deg wp=3 xte=-30.9m obs_d=98m ok=1 comp=6993.7ms solve=6992.0ms RT=6.99 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=411.9 m, U_ship=0.52 m/s, U_d=1.20 m/s, XTE=-31.2 m
+  [t=312.0] pos=(-5337.9,-1612.3) psi= -19.4deg wp=3 xte=-31.2m obs_d=98m ok=1 comp=6598.4ms solve=6597.0ms RT=6.60 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=411.5 m, U_ship=0.52 m/s, U_d=1.20 m/s, XTE=-31.5 m
+  [t=313.0] pos=(-5337.4,-1612.6) psi= -18.5deg wp=3 xte=-31.5m obs_d=98m ok=1 comp=6953.0ms solve=6951.9ms RT=6.95 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=411.1 m, U_ship=0.52 m/s, U_d=1.20 m/s, XTE=-31.7 m
+  [t=314.0] pos=(-5337.0,-1612.9) psi= -17.6deg wp=3 xte=-31.7m obs_d=98m ok=1 comp=8042.8ms solve=8041.3ms RT=8.04 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=410.7 m, U_ship=0.52 m/s, U_d=1.20 m/s, XTE=-32.0 m
+  [t=315.0] pos=(-5336.6,-1613.1) psi= -16.8deg wp=3 xte=-32.0m obs_d=98m ok=1 comp=9733.7ms solve=9732.3ms RT=9.73 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=410.2 m, U_ship=0.53 m/s, U_d=1.20 m/s, XTE=-32.3 m
+  [t=316.0] pos=(-5336.1,-1613.4) psi= -16.0deg wp=3 xte=-32.3m obs_d=99m ok=1 comp=9656.3ms solve=9654.9ms RT=9.66 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=409.8 m, U_ship=0.54 m/s, U_d=1.20 m/s, XTE=-32.6 m
+  [t=317.0] pos=(-5335.6,-1613.7) psi= -15.3deg wp=3 xte=-32.6m obs_d=99m ok=1 comp=10582.2ms solve=10579.3ms RT=10.58 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=409.4 m, U_ship=0.55 m/s, U_d=1.20 m/s, XTE=-33.0 m
+  [t=318.0] pos=(-5335.1,-1613.9) psi= -14.6deg wp=3 xte=-33.0m obs_d=99m ok=1 comp=8831.8ms solve=8830.3ms RT=8.83 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=409.0 m, U_ship=0.57 m/s, U_d=1.20 m/s, XTE=-33.3 m
+  [t=319.0] pos=(-5334.6,-1614.2) psi= -13.9deg wp=3 xte=-33.3m obs_d=99m ok=1 comp=8544.6ms solve=8543.2ms RT=8.54 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=408.6 m, U_ship=0.59 m/s, U_d=1.20 m/s, XTE=-33.7 m
+  [t=320.0] pos=(-5334.1,-1614.4) psi= -13.3deg wp=3 xte=-33.7m obs_d=99m ok=1 comp=8464.8ms solve=8463.4ms RT=8.46 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=408.2 m, U_ship=0.60 m/s, U_d=1.20 m/s, XTE=-34.1 m
+  [t=321.0] pos=(-5333.5,-1614.7) psi= -12.7deg wp=3 xte=-34.1m obs_d=99m ok=1 comp=6125.0ms solve=6123.5ms RT=6.13 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=407.8 m, U_ship=0.61 m/s, U_d=1.20 m/s, XTE=-34.5 m
+  [t=322.0] pos=(-5332.9,-1614.9) psi= -12.1deg wp=3 xte=-34.5m obs_d=100m ok=1 comp=9525.4ms solve=9523.6ms RT=9.53 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=407.4 m, U_ship=0.62 m/s, U_d=1.20 m/s, XTE=-34.9 m
+  [t=323.0] pos=(-5332.4,-1615.2) psi= -11.5deg wp=3 xte=-34.9m obs_d=100m ok=1 comp=7907.9ms solve=7906.3ms RT=7.91 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=407.0 m, U_ship=0.63 m/s, U_d=1.20 m/s, XTE=-35.4 m
+  [t=324.0] pos=(-5331.8,-1615.4) psi= -10.9deg wp=3 xte=-35.4m obs_d=100m ok=1 comp=8510.3ms solve=8508.8ms RT=8.51 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=406.6 m, U_ship=0.64 m/s, U_d=1.20 m/s, XTE=-35.8 m
+  [t=325.0] pos=(-5331.2,-1615.6) psi= -10.4deg wp=3 xte=-35.8m obs_d=100m ok=1 comp=7457.6ms solve=7456.5ms RT=7.46 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=406.2 m, U_ship=0.65 m/s, U_d=1.20 m/s, XTE=-36.3 m
+  [t=326.0] pos=(-5330.5,-1615.8) psi=  -9.9deg wp=3 xte=-36.3m obs_d=101m ok=1 comp=8610.4ms solve=8609.1ms RT=8.61 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=405.8 m, U_ship=0.65 m/s, U_d=1.20 m/s, XTE=-36.7 m
+  [t=327.0] pos=(-5329.9,-1616.0) psi=  -9.4deg wp=3 xte=-36.7m obs_d=101m ok=1 comp=6757.1ms solve=6755.5ms RT=6.76 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=405.4 m, U_ship=0.66 m/s, U_d=1.20 m/s, XTE=-37.2 m
+  [t=328.0] pos=(-5329.3,-1616.2) psi=  -8.9deg wp=3 xte=-37.2m obs_d=101m ok=1 comp=7665.7ms solve=7664.5ms RT=7.67 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=405.0 m, U_ship=0.67 m/s, U_d=1.20 m/s, XTE=-37.7 m
+  [t=329.0] pos=(-5328.6,-1616.4) psi=  -8.4deg wp=3 xte=-37.7m obs_d=102m ok=1 comp=6642.1ms solve=6641.1ms RT=6.64 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=404.6 m, U_ship=0.68 m/s, U_d=1.20 m/s, XTE=-38.2 m
+  [t=330.0] pos=(-5328.0,-1616.6) psi=  -7.9deg wp=3 xte=-38.2m obs_d=102m ok=1 comp=8313.7ms solve=8311.9ms RT=8.31 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=404.2 m, U_ship=0.69 m/s, U_d=1.20 m/s, XTE=-38.8 m
+  [t=331.0] pos=(-5327.3,-1616.8) psi=  -7.5deg wp=3 xte=-38.8m obs_d=102m ok=1 comp=9728.3ms solve=9727.0ms RT=9.73 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=403.8 m, U_ship=0.71 m/s, U_d=1.20 m/s, XTE=-39.3 m
+  [t=332.0] pos=(-5326.6,-1617.0) psi=  -7.0deg wp=3 xte=-39.3m obs_d=103m ok=1 comp=6549.1ms solve=6548.2ms RT=6.55 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=403.4 m, U_ship=0.72 m/s, U_d=1.20 m/s, XTE=-39.8 m
+  [t=333.0] pos=(-5325.9,-1617.2) psi=  -6.6deg wp=3 xte=-39.8m obs_d=103m ok=1 comp=6553.3ms solve=6551.7ms RT=6.55 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=403.0 m, U_ship=0.74 m/s, U_d=1.20 m/s, XTE=-40.4 m
+  [t=334.0] pos=(-5325.2,-1617.4) psi=  -6.2deg wp=3 xte=-40.4m obs_d=103m ok=1 comp=7174.8ms solve=7173.5ms RT=7.17 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=402.6 m, U_ship=0.77 m/s, U_d=1.20 m/s, XTE=-41.0 m
+  [t=335.0] pos=(-5324.5,-1617.6) psi=  -5.8deg wp=3 xte=-41.0m obs_d=103m ok=1 comp=8601.8ms solve=8600.4ms RT=8.60 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=402.1 m, U_ship=0.79 m/s, U_d=1.20 m/s, XTE=-41.6 m
+  [t=336.0] pos=(-5323.7,-1617.9) psi=  -5.5deg wp=3 xte=-41.6m obs_d=104m ok=1 comp=7729.2ms solve=7727.6ms RT=7.73 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=401.6 m, U_ship=0.83 m/s, U_d=1.20 m/s, XTE=-42.2 m
+  [t=337.0] pos=(-5322.9,-1618.1) psi=  -5.1deg wp=3 xte=-42.2m obs_d=104m ok=1 comp=8652.6ms solve=8651.5ms RT=8.65 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=401.1 m, U_ship=0.87 m/s, U_d=1.20 m/s, XTE=-42.8 m
+  [t=338.0] pos=(-5322.0,-1618.4) psi=  -4.8deg wp=3 xte=-42.8m obs_d=104m ok=1 comp=9254.8ms solve=9253.6ms RT=9.25 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=400.6 m, U_ship=0.90 m/s, U_d=1.20 m/s, XTE=-43.4 m
+  [t=339.0] pos=(-5321.2,-1618.8) psi=  -4.6deg wp=3 xte=-43.4m obs_d=105m ok=1 comp=6106.2ms solve=6104.5ms RT=6.11 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=400.0 m, U_ship=0.94 m/s, U_d=1.20 m/s, XTE=-44.1 m
+  [t=340.0] pos=(-5320.3,-1619.1) psi=  -4.4deg wp=3 xte=-44.1m obs_d=105m ok=1 comp=8263.8ms solve=8262.5ms RT=8.26 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=399.4 m, U_ship=0.99 m/s, U_d=1.20 m/s, XTE=-44.8 m
+  [t=341.0] pos=(-5319.3,-1619.5) psi=  -4.2deg wp=3 xte=-44.8m obs_d=105m ok=1 comp=5523.9ms solve=5522.5ms RT=5.52 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=398.8 m, U_ship=1.04 m/s, U_d=1.20 m/s, XTE=-45.5 m
+  [t=342.0] pos=(-5318.4,-1620.0) psi=  -4.1deg wp=3 xte=-45.5m obs_d=106m ok=1 comp=7270.8ms solve=7269.3ms RT=7.27 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=398.0 m, U_ship=1.08 m/s, U_d=1.20 m/s, XTE=-46.2 m
+  [t=343.0] pos=(-5317.4,-1620.5) psi=  -4.1deg wp=3 xte=-46.2m obs_d=106m ok=1 comp=8209.4ms solve=8208.4ms RT=8.21 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=397.3 m, U_ship=1.13 m/s, U_d=1.20 m/s, XTE=-46.8 m
+  [t=344.0] pos=(-5316.4,-1621.1) psi=  -4.1deg wp=3 xte=-46.8m obs_d=106m ok=1 comp=9524.8ms solve=9523.4ms RT=9.52 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=396.4 m, U_ship=1.16 m/s, U_d=1.20 m/s, XTE=-47.5 m
+  [t=345.0] pos=(-5315.4,-1621.7) psi=  -4.2deg wp=3 xte=-47.5m obs_d=107m ok=1 comp=10181.6ms solve=10180.6ms RT=10.18 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=395.5 m, U_ship=1.18 m/s, U_d=1.20 m/s, XTE=-48.2 m
+  [t=346.0] pos=(-5314.5,-1622.4) psi=  -4.4deg wp=3 xte=-48.2m obs_d=107m ok=1 comp=6625.0ms solve=6623.2ms RT=6.63 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=394.6 m, U_ship=1.17 m/s, U_d=1.20 m/s, XTE=-48.8 m
+  [t=347.0] pos=(-5313.6,-1623.1) psi=  -4.6deg wp=3 xte=-48.8m obs_d=107m ok=1 comp=6264.6ms solve=6263.3ms RT=6.26 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=393.6 m, U_ship=1.15 m/s, U_d=1.20 m/s, XTE=-49.3 m
+  [t=348.0] pos=(-5312.7,-1623.9) psi=  -4.9deg wp=3 xte=-49.3m obs_d=107m ok=1 comp=6232.2ms solve=6230.9ms RT=6.23 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=392.7 m, U_ship=1.11 m/s, U_d=1.20 m/s, XTE=-49.7 m
+  [t=349.0] pos=(-5312.0,-1624.6) psi=  -5.2deg wp=3 xte=-49.7m obs_d=107m ok=1 comp=5835.6ms solve=5834.7ms RT=5.84 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=391.7 m, U_ship=1.06 m/s, U_d=1.20 m/s, XTE=-50.1 m
+  [t=350.0] pos=(-5311.3,-1625.4) psi=  -5.5deg wp=3 xte=-50.1m obs_d=107m ok=1 comp=5660.5ms solve=5658.4ms RT=5.66 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=390.8 m, U_ship=0.99 m/s, U_d=1.20 m/s, XTE=-50.4 m
+  [t=351.0] pos=(-5310.8,-1626.2) psi=  -5.9deg wp=3 xte=-50.4m obs_d=107m ok=1 comp=5789.0ms solve=5787.4ms RT=5.79 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=389.9 m, U_ship=0.95 m/s, U_d=1.20 m/s, XTE=-50.6 m
+  [t=352.0] pos=(-5310.2,-1627.0) psi=  -6.3deg wp=3 xte=-50.6m obs_d=107m ok=1 comp=8324.3ms solve=8322.9ms RT=8.32 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=389.0 m, U_ship=0.92 m/s, U_d=1.20 m/s, XTE=-50.8 m
+  [t=353.0] pos=(-5309.8,-1627.7) psi=  -6.8deg wp=3 xte=-50.8m obs_d=107m ok=1 comp=5308.3ms solve=5307.2ms RT=5.31 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=388.1 m, U_ship=0.90 m/s, U_d=1.20 m/s, XTE=-50.9 m
+  [t=354.0] pos=(-5309.4,-1628.5) psi=  -7.4deg wp=3 xte=-50.9m obs_d=106m ok=1 comp=5889.3ms solve=5888.1ms RT=5.89 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=387.2 m, U_ship=0.89 m/s, U_d=1.20 m/s, XTE=-50.9 m
+  [t=355.0] pos=(-5309.0,-1629.3) psi=  -8.0deg wp=3 xte=-50.9m obs_d=106m ok=1 comp=5565.7ms solve=5564.2ms RT=5.57 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=386.3 m, U_ship=0.89 m/s, U_d=1.20 m/s, XTE=-51.0 m
+  [t=356.0] pos=(-5308.6,-1630.1) psi=  -8.8deg wp=3 xte=-51.0m obs_d=106m ok=1 comp=6055.5ms solve=6054.1ms RT=6.06 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=385.5 m, U_ship=0.88 m/s, U_d=1.20 m/s, XTE=-51.0 m
+  [t=357.0] pos=(-5308.2,-1630.9) psi=  -9.6deg wp=3 xte=-51.0m obs_d=106m ok=1 comp=5591.4ms solve=5589.9ms RT=5.59 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=384.6 m, U_ship=0.86 m/s, U_d=1.20 m/s, XTE=-51.0 m
+  [t=358.0] pos=(-5307.8,-1631.7) psi= -10.5deg wp=3 xte=-51.0m obs_d=106m ok=1 comp=5746.8ms solve=5745.6ms RT=5.75 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=383.8 m, U_ship=0.82 m/s, U_d=1.20 m/s, XTE=-51.1 m
+  [t=359.0] pos=(-5307.5,-1632.4) psi= -11.5deg wp=3 xte=-51.1m obs_d=105m ok=1 comp=5697.9ms solve=5696.5ms RT=5.70 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=383.0 m, U_ship=0.77 m/s, U_d=1.20 m/s, XTE=-51.1 m
+  [t=360.0] pos=(-5307.1,-1633.0) psi= -12.6deg wp=3 xte=-51.1m obs_d=105m ok=1 comp=8416.0ms solve=8414.4ms RT=8.42 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=382.3 m, U_ship=0.75 m/s, U_d=1.20 m/s, XTE=-51.2 m
+  [t=361.0] pos=(-5306.6,-1633.6) psi= -13.7deg wp=3 xte=-51.2m obs_d=105m ok=1 comp=8637.9ms solve=8636.7ms RT=8.64 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=381.6 m, U_ship=0.73 m/s, U_d=1.20 m/s, XTE=-51.4 m
+  [t=362.0] pos=(-5306.2,-1634.2) psi= -14.8deg wp=3 xte=-51.4m obs_d=105m ok=1 comp=7824.5ms solve=7823.5ms RT=7.82 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=380.9 m, U_ship=0.75 m/s, U_d=1.20 m/s, XTE=-51.6 m
+  [t=363.0] pos=(-5305.7,-1634.7) psi= -15.9deg wp=3 xte=-51.6m obs_d=105m ok=1 comp=5429.1ms solve=5427.9ms RT=5.43 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=380.2 m, U_ship=0.73 m/s, U_d=1.20 m/s, XTE=-51.8 m
+  [t=364.0] pos=(-5305.2,-1635.2) psi= -17.0deg wp=3 xte=-51.8m obs_d=105m ok=1 comp=5424.6ms solve=5423.3ms RT=5.42 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=379.6 m, U_ship=0.66 m/s, U_d=1.20 m/s, XTE=-52.0 m
+  [t=365.0] pos=(-5304.8,-1635.7) psi= -18.2deg wp=3 xte=-52.0m obs_d=106m ok=1 comp=5597.3ms solve=5595.9ms RT=5.60 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=379.0 m, U_ship=0.60 m/s, U_d=1.20 m/s, XTE=-52.2 m
+  [t=366.0] pos=(-5304.4,-1636.2) psi= -19.3deg wp=3 xte=-52.2m obs_d=106m ok=1 comp=6440.9ms solve=6439.7ms RT=6.44 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=378.5 m, U_ship=0.59 m/s, U_d=1.20 m/s, XTE=-52.3 m
+  [t=367.0] pos=(-5304.1,-1636.7) psi= -20.4deg wp=3 xte=-52.3m obs_d=106m ok=1 comp=6053.7ms solve=6052.6ms RT=6.05 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=377.9 m, U_ship=0.58 m/s, U_d=1.20 m/s, XTE=-52.5 m
+  [t=368.0] pos=(-5303.7,-1637.1) psi= -21.6deg wp=3 xte=-52.5m obs_d=106m ok=1 comp=5829.5ms solve=5828.4ms RT=5.83 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=377.4 m, U_ship=0.58 m/s, U_d=1.20 m/s, XTE=-52.6 m
+  [t=369.0] pos=(-5303.4,-1637.6) psi= -22.7deg wp=3 xte=-52.6m obs_d=106m ok=1 comp=5875.8ms solve=5874.8ms RT=5.88 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=376.9 m, U_ship=0.57 m/s, U_d=1.20 m/s, XTE=-52.8 m
+  [t=370.0] pos=(-5303.0,-1638.0) psi= -23.9deg wp=3 xte=-52.8m obs_d=106m ok=1 comp=6004.0ms solve=6003.0ms RT=6.00 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=376.3 m, U_ship=0.57 m/s, U_d=1.20 m/s, XTE=-52.9 m
+  [t=371.0] pos=(-5302.7,-1638.5) psi= -25.1deg wp=3 xte=-52.9m obs_d=106m ok=1 comp=5988.6ms solve=5987.2ms RT=5.99 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=375.8 m, U_ship=0.58 m/s, U_d=1.20 m/s, XTE=-53.0 m
+  [t=372.0] pos=(-5302.3,-1639.0) psi= -26.3deg wp=3 xte=-53.0m obs_d=106m ok=1 comp=5589.4ms solve=5587.9ms RT=5.59 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=375.3 m, U_ship=0.59 m/s, U_d=1.20 m/s, XTE=-53.1 m
+  [t=373.0] pos=(-5302.0,-1639.5) psi= -27.4deg wp=3 xte=-53.1m obs_d=106m ok=1 comp=6591.2ms solve=6589.8ms RT=6.59 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=374.7 m, U_ship=0.60 m/s, U_d=1.20 m/s, XTE=-53.2 m
+  [t=374.0] pos=(-5301.7,-1640.0) psi= -28.6deg wp=3 xte=-53.2m obs_d=106m ok=1 comp=6652.9ms solve=6651.6ms RT=6.65 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=374.1 m, U_ship=0.61 m/s, U_d=1.20 m/s, XTE=-53.2 m
+  [t=375.0] pos=(-5301.5,-1640.6) psi= -29.7deg wp=3 xte=-53.2m obs_d=106m ok=1 comp=7194.5ms solve=7192.6ms RT=7.19 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=373.5 m, U_ship=0.63 m/s, U_d=1.20 m/s, XTE=-53.2 m
+  [t=376.0] pos=(-5301.2,-1641.1) psi= -30.8deg wp=3 xte=-53.2m obs_d=105m ok=1 comp=5672.4ms solve=5671.1ms RT=5.67 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=372.9 m, U_ship=0.64 m/s, U_d=1.20 m/s, XTE=-53.2 m
+  [t=377.0] pos=(-5301.0,-1641.8) psi= -31.8deg wp=3 xte=-53.2m obs_d=105m ok=1 comp=6141.5ms solve=6140.2ms RT=6.14 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=372.2 m, U_ship=0.66 m/s, U_d=1.20 m/s, XTE=-53.2 m
+  [t=378.0] pos=(-5300.9,-1642.4) psi= -32.9deg wp=3 xte=-53.2m obs_d=105m ok=1 comp=5816.2ms solve=5815.0ms RT=5.82 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=371.5 m, U_ship=0.68 m/s, U_d=1.20 m/s, XTE=-53.1 m
+  [t=379.0] pos=(-5300.7,-1643.1) psi= -33.9deg wp=3 xte=-53.1m obs_d=105m ok=1 comp=5232.8ms solve=5231.7ms RT=5.23 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=370.9 m, U_ship=0.70 m/s, U_d=1.20 m/s, XTE=-52.9 m
+  [t=380.0] pos=(-5300.6,-1643.8) psi= -35.0deg wp=3 xte=-52.9m obs_d=105m ok=1 comp=5980.9ms solve=5979.9ms RT=5.98 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=370.1 m, U_ship=0.72 m/s, U_d=1.20 m/s, XTE=-52.8 m
+  [t=381.0] pos=(-5300.5,-1644.5) psi= -36.0deg wp=3 xte=-52.8m obs_d=104m ok=1 comp=6427.9ms solve=6426.6ms RT=6.43 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=369.4 m, U_ship=0.75 m/s, U_d=1.20 m/s, XTE=-52.6 m
+  [t=382.0] pos=(-5300.4,-1645.3) psi= -37.0deg wp=3 xte=-52.6m obs_d=104m ok=1 comp=5501.4ms solve=5500.1ms RT=5.50 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=368.7 m, U_ship=0.77 m/s, U_d=1.20 m/s, XTE=-52.3 m
+  [t=383.0] pos=(-5300.4,-1646.0) psi= -37.9deg wp=3 xte=-52.3m obs_d=104m ok=1 comp=5503.0ms solve=5500.5ms RT=5.50 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=367.9 m, U_ship=0.79 m/s, U_d=1.20 m/s, XTE=-52.0 m
+  [t=384.0] pos=(-5300.4,-1646.8) psi= -38.9deg wp=3 xte=-52.0m obs_d=103m ok=1 comp=4749.1ms solve=4747.5ms RT=4.75 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=367.1 m, U_ship=0.81 m/s, U_d=1.20 m/s, XTE=-51.7 m
+  [t=385.0] pos=(-5300.4,-1647.7) psi= -39.9deg wp=3 xte=-51.7m obs_d=103m ok=1 comp=4474.9ms solve=4473.7ms RT=4.47 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=366.4 m, U_ship=0.84 m/s, U_d=1.20 m/s, XTE=-51.3 m
+  [t=386.0] pos=(-5300.5,-1648.5) psi= -40.8deg wp=3 xte=-51.3m obs_d=102m ok=1 comp=1065.0ms solve=1063.7ms RT=1.07 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=365.6 m, U_ship=0.86 m/s, U_d=1.20 m/s, XTE=-50.9 m
+  [FINAL-LEG DEBUG] d_final=364.8 m, U_ship=0.88 m/s, U_d=1.20 m/s, XTE=-50.5 m
+  [t=388.0] pos=(-5300.7,-1650.3) psi= -42.7deg wp=3 xte=-50.5m obs_d=101m ok=1 comp=5403.1ms solve=5402.1ms RT=5.40 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=363.9 m, U_ship=0.90 m/s, U_d=1.20 m/s, XTE=-50.0 m
+  [FINAL-LEG DEBUG] d_final=363.1 m, U_ship=0.92 m/s, U_d=1.20 m/s, XTE=-49.5 m
+  [t=390.0] pos=(-5301.0,-1652.1) psi= -44.5deg wp=3 xte=-49.5m obs_d=100m ok=1 comp=7010.7ms solve=7009.1ms RT=7.01 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=362.3 m, U_ship=0.94 m/s, U_d=1.20 m/s, XTE=-49.0 m
+  [t=391.0] pos=(-5301.2,-1653.0) psi= -45.4deg wp=3 xte=-49.0m obs_d=100m ok=1 comp=6255.0ms solve=6253.6ms RT=6.26 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=361.5 m, U_ship=0.94 m/s, U_d=1.20 m/s, XTE=-48.4 m
+  [t=392.0] pos=(-5301.4,-1653.9) psi= -46.2deg wp=3 xte=-48.4m obs_d=99m ok=1 comp=5743.1ms solve=5741.3ms RT=5.74 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=360.7 m, U_ship=0.95 m/s, U_d=1.20 m/s, XTE=-47.9 m
+  [t=393.0] pos=(-5301.7,-1654.8) psi= -47.0deg wp=3 xte=-47.9m obs_d=98m ok=1 comp=5870.8ms solve=5869.7ms RT=5.87 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=359.8 m, U_ship=0.94 m/s, U_d=1.20 m/s, XTE=-47.3 m
+  [t=394.0] pos=(-5301.9,-1655.7) psi= -47.8deg wp=3 xte=-47.3m obs_d=98m ok=1 comp=6246.8ms solve=6245.7ms RT=6.25 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=359.0 m, U_ship=0.94 m/s, U_d=1.20 m/s, XTE=-46.7 m
+  [t=395.0] pos=(-5302.2,-1656.6) psi= -48.6deg wp=3 xte=-46.7m obs_d=97m ok=1 comp=6950.2ms solve=6948.8ms RT=6.95 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=358.3 m, U_ship=0.93 m/s, U_d=1.20 m/s, XTE=-46.1 m
+  [t=396.0] pos=(-5302.4,-1657.5) psi= -49.3deg wp=3 xte=-46.1m obs_d=97m ok=1 comp=6963.3ms solve=6962.2ms RT=6.96 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=357.5 m, U_ship=0.92 m/s, U_d=1.20 m/s, XTE=-45.5 m
+  [t=397.0] pos=(-5302.7,-1658.4) psi= -50.0deg wp=3 xte=-45.5m obs_d=96m ok=1 comp=5619.5ms solve=5618.5ms RT=5.62 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=356.7 m, U_ship=0.92 m/s, U_d=1.20 m/s, XTE=-44.9 m
+  [t=398.0] pos=(-5303.0,-1659.3) psi= -50.6deg wp=3 xte=-44.9m obs_d=95m ok=1 comp=6585.3ms solve=6584.0ms RT=6.59 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=355.9 m, U_ship=0.93 m/s, U_d=1.20 m/s, XTE=-44.3 m
+  [t=399.0] pos=(-5303.3,-1660.2) psi= -51.2deg wp=3 xte=-44.3m obs_d=95m ok=1 comp=6207.4ms solve=6206.2ms RT=6.21 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=355.2 m, U_ship=0.95 m/s, U_d=1.20 m/s, XTE=-43.7 m
+  [t=400.0] pos=(-5303.6,-1661.1) psi= -51.7deg wp=3 xte=-43.7m obs_d=94m ok=1 comp=6940.7ms solve=6939.5ms RT=6.94 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=354.4 m, U_ship=0.97 m/s, U_d=1.20 m/s, XTE=-43.0 m
+  [t=401.0] pos=(-5303.9,-1662.0) psi= -52.1deg wp=3 xte=-43.0m obs_d=93m ok=1 comp=6453.1ms solve=6452.0ms RT=6.45 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=353.6 m, U_ship=1.01 m/s, U_d=1.20 m/s, XTE=-42.3 m
+  [t=402.0] pos=(-5304.3,-1663.0) psi= -52.5deg wp=3 xte=-42.3m obs_d=93m ok=1 comp=6784.4ms solve=6782.9ms RT=6.78 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=352.8 m, U_ship=1.04 m/s, U_d=1.20 m/s, XTE=-41.6 m
+  [t=403.0] pos=(-5304.8,-1663.9) psi= -52.8deg wp=3 xte=-41.6m obs_d=92m ok=1 comp=7113.1ms solve=7111.6ms RT=7.11 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=352.0 m, U_ship=1.07 m/s, U_d=1.20 m/s, XTE=-40.8 m
+  [t=404.0] pos=(-5305.2,-1664.9) psi= -53.0deg wp=3 xte=-40.8m obs_d=91m ok=1 comp=9221.2ms solve=9219.9ms RT=9.22 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=351.2 m, U_ship=1.09 m/s, U_d=1.20 m/s, XTE=-40.0 m
+  [t=405.0] pos=(-5305.7,-1665.9) psi= -53.2deg wp=3 xte=-40.0m obs_d=90m ok=1 comp=7408.5ms solve=7407.1ms RT=7.41 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=350.4 m, U_ship=1.10 m/s, U_d=1.20 m/s, XTE=-39.1 m
+  [t=406.0] pos=(-5306.2,-1666.9) psi= -53.3deg wp=3 xte=-39.1m obs_d=90m ok=1 comp=6996.7ms solve=6994.9ms RT=7.00 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=349.6 m, U_ship=1.11 m/s, U_d=1.20 m/s, XTE=-38.3 m
+  [t=407.0] pos=(-5306.7,-1667.9) psi= -53.4deg wp=3 xte=-38.3m obs_d=89m ok=1 comp=6270.0ms solve=6266.7ms RT=6.27 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=348.8 m, U_ship=1.11 m/s, U_d=1.20 m/s, XTE=-37.4 m
+  [t=408.0] pos=(-5307.2,-1668.9) psi= -53.5deg wp=3 xte=-37.4m obs_d=88m ok=1 comp=5705.0ms solve=5703.4ms RT=5.70 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=348.0 m, U_ship=1.10 m/s, U_d=1.20 m/s, XTE=-36.6 m
+  [t=409.0] pos=(-5307.6,-1669.8) psi= -53.5deg wp=3 xte=-36.6m obs_d=87m ok=1 comp=5772.1ms solve=5770.7ms RT=5.77 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=347.3 m, U_ship=1.08 m/s, U_d=1.20 m/s, XTE=-35.7 m
+  [t=410.0] pos=(-5308.1,-1670.8) psi= -53.6deg wp=3 xte=-35.7m obs_d=86m ok=1 comp=5608.4ms solve=5607.1ms RT=5.61 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=346.5 m, U_ship=1.07 m/s, U_d=1.20 m/s, XTE=-34.9 m
+  [t=411.0] pos=(-5308.5,-1671.8) psi= -53.6deg wp=3 xte=-34.9m obs_d=85m ok=1 comp=5969.4ms solve=5966.9ms RT=5.97 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=345.7 m, U_ship=1.05 m/s, U_d=1.20 m/s, XTE=-34.1 m
+  [t=412.0] pos=(-5309.0,-1672.7) psi= -53.5deg wp=3 xte=-34.1m obs_d=84m ok=1 comp=5518.2ms solve=5516.9ms RT=5.52 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=344.9 m, U_ship=1.04 m/s, U_d=1.20 m/s, XTE=-33.3 m
+  [t=413.0] pos=(-5309.4,-1673.7) psi= -53.5deg wp=3 xte=-33.3m obs_d=84m ok=1 comp=5295.0ms solve=5293.9ms RT=5.30 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=344.2 m, U_ship=1.04 m/s, U_d=1.20 m/s, XTE=-32.6 m
+  [t=414.0] pos=(-5309.8,-1674.6) psi= -53.4deg wp=3 xte=-32.6m obs_d=83m ok=1 comp=5177.3ms solve=5175.6ms RT=5.18 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=343.4 m, U_ship=1.06 m/s, U_d=1.20 m/s, XTE=-31.8 m
+  [t=415.0] pos=(-5310.2,-1675.7) psi= -53.3deg wp=3 xte=-31.8m obs_d=82m ok=1 comp=5816.0ms solve=5814.6ms RT=5.82 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=342.5 m, U_ship=1.10 m/s, U_d=1.20 m/s, XTE=-31.1 m
+  [t=416.0] pos=(-5310.5,-1676.7) psi= -53.1deg wp=3 xte=-31.1m obs_d=81m ok=1 comp=6709.8ms solve=6708.5ms RT=6.71 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=341.6 m, U_ship=1.16 m/s, U_d=1.20 m/s, XTE=-30.3 m
+  [t=417.0] pos=(-5310.7,-1677.9) psi= -52.9deg wp=3 xte=-30.3m obs_d=81m ok=1 comp=7559.0ms solve=7557.9ms RT=7.56 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=340.6 m, U_ship=1.25 m/s, U_d=1.20 m/s, XTE=-29.6 m
+  [t=418.0] pos=(-5310.9,-1679.2) psi= -52.7deg wp=3 xte=-29.6m obs_d=80m ok=1 comp=7651.6ms solve=7650.5ms RT=7.65 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=339.4 m, U_ship=1.36 m/s, U_d=1.20 m/s, XTE=-29.0 m
+  [t=419.0] pos=(-5310.9,-1680.6) psi= -52.3deg wp=3 xte=-29.0m obs_d=80m ok=1 comp=7051.6ms solve=7050.4ms RT=7.05 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=338.1 m, U_ship=1.50 m/s, U_d=1.20 m/s, XTE=-28.4 m
+  [t=420.0] pos=(-5310.7,-1682.2) psi= -51.9deg wp=3 xte=-28.4m obs_d=79m ok=1 comp=6474.1ms solve=6472.9ms RT=6.47 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=336.5 m, U_ship=1.63 m/s, U_d=1.20 m/s, XTE=-27.9 m
+  [t=421.0] pos=(-5310.4,-1683.8) psi= -51.4deg wp=3 xte=-27.9m obs_d=79m ok=1 comp=6567.6ms solve=6566.5ms RT=6.57 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=334.9 m, U_ship=1.71 m/s, U_d=1.20 m/s, XTE=-27.6 m
+  [t=422.0] pos=(-5309.9,-1685.5) psi= -50.8deg wp=3 xte=-27.6m obs_d=79m ok=1 comp=6624.4ms solve=6623.0ms RT=6.62 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=333.2 m, U_ship=1.76 m/s, U_d=1.20 m/s, XTE=-27.3 m
+  [t=423.0] pos=(-5309.4,-1687.2) psi= -50.1deg wp=3 xte=-27.3m obs_d=79m ok=1 comp=6703.8ms solve=6702.7ms RT=6.70 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=331.4 m, U_ship=1.78 m/s, U_d=1.20 m/s, XTE=-27.1 m
+  [t=424.0] pos=(-5308.7,-1688.8) psi= -49.4deg wp=3 xte=-27.1m obs_d=79m ok=1 comp=7332.3ms solve=7331.2ms RT=7.33 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=329.6 m, U_ship=1.81 m/s, U_d=1.20 m/s, XTE=-27.0 m
+  [t=425.0] pos=(-5307.9,-1690.5) psi= -48.6deg wp=3 xte=-27.0m obs_d=80m ok=1 comp=8484.2ms solve=8483.0ms RT=8.48 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=327.8 m, U_ship=1.90 m/s, U_d=1.20 m/s, XTE=-27.1 m
+  [t=426.0] pos=(-5306.8,-1692.2) psi= -47.7deg wp=3 xte=-27.1m obs_d=81m ok=1 comp=7321.2ms solve=7319.1ms RT=7.32 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=325.8 m, U_ship=2.06 m/s, U_d=1.20 m/s, XTE=-27.4 m
+  [t=427.0] pos=(-5305.5,-1693.9) psi= -46.8deg wp=3 xte=-27.4m obs_d=81m ok=1 comp=7310.2ms solve=7308.1ms RT=7.31 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=323.8 m, U_ship=2.28 m/s, U_d=1.20 m/s, XTE=-27.9 m
+  [t=428.0] pos=(-5303.9,-1695.7) psi= -45.9deg wp=3 xte=-27.9m obs_d=83m ok=1 comp=5984.5ms solve=5982.2ms RT=5.98 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=321.5 m, U_ship=2.52 m/s, U_d=1.20 m/s, XTE=-28.6 m
+  [t=429.0] pos=(-5302.1,-1697.6) psi= -45.0deg wp=3 xte=-28.6m obs_d=84m ok=1 comp=6723.6ms solve=6721.8ms RT=6.72 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=319.2 m, U_ship=2.78 m/s, U_d=1.20 m/s, XTE=-29.5 m
+  [t=430.0] pos=(-5300.0,-1699.6) psi= -44.2deg wp=3 xte=-29.5m obs_d=86m ok=1 comp=7408.0ms solve=7406.0ms RT=7.41 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=316.6 m, U_ship=3.00 m/s, U_d=1.20 m/s, XTE=-30.6 m
+  [t=431.0] pos=(-5297.7,-1701.6) psi= -43.6deg wp=3 xte=-30.6m obs_d=88m ok=1 comp=8024.4ms solve=8022.8ms RT=8.02 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=313.9 m, U_ship=3.18 m/s, U_d=1.20 m/s, XTE=-31.9 m
+  [t=432.0] pos=(-5295.2,-1703.7) psi= -43.1deg wp=3 xte=-31.9m obs_d=90m ok=1 comp=9335.5ms solve=9333.7ms RT=9.34 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=311.2 m, U_ship=3.30 m/s, U_d=1.20 m/s, XTE=-33.4 m
+  [t=433.0] pos=(-5292.6,-1705.8) psi= -42.7deg wp=3 xte=-33.4m obs_d=92m ok=1 comp=8256.3ms solve=8255.0ms RT=8.26 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=308.4 m, U_ship=3.38 m/s, U_d=1.20 m/s, XTE=-34.9 m
+  [t=434.0] pos=(-5289.9,-1707.9) psi= -42.4deg wp=3 xte=-34.9m obs_d=94m ok=1 comp=7768.7ms solve=7767.4ms RT=7.77 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=305.6 m, U_ship=3.40 m/s, U_d=1.20 m/s, XTE=-36.5 m
+  [t=435.0] pos=(-5287.2,-1710.0) psi= -42.3deg wp=3 xte=-36.5m obs_d=97m ok=1 comp=13129.7ms solve=13128.4ms RT=13.13 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=302.9 m, U_ship=3.36 m/s, U_d=1.20 m/s, XTE=-38.1 m
+  [t=436.0] pos=(-5284.5,-1711.9) psi= -42.3deg wp=3 xte=-38.1m obs_d=99m ok=1 comp=7309.6ms solve=7308.2ms RT=7.31 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=300.2 m, U_ship=3.28 m/s, U_d=1.20 m/s, XTE=-39.8 m
+  [t=437.0] pos=(-5281.9,-1713.8) psi= -42.5deg wp=3 xte=-39.8m obs_d=102m ok=1 comp=7302.9ms solve=7301.9ms RT=7.30 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=297.7 m, U_ship=3.20 m/s, U_d=1.20 m/s, XTE=-41.4 m
+  [t=438.0] pos=(-5279.3,-1715.6) psi= -42.8deg wp=3 xte=-41.4m obs_d=104m ok=1 comp=8062.5ms solve=8061.1ms RT=8.06 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=295.3 m, U_ship=3.09 m/s, U_d=1.20 m/s, XTE=-43.1 m
+  [t=439.0] pos=(-5276.8,-1717.2) psi= -43.3deg wp=3 xte=-43.1m obs_d=106m ok=1 comp=7861.6ms solve=7860.6ms RT=7.86 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=293.0 m, U_ship=2.95 m/s, U_d=1.20 m/s, XTE=-44.7 m
+  [t=440.0] pos=(-5274.4,-1718.8) psi= -43.9deg wp=3 xte=-44.7m obs_d=108m ok=1 comp=7504.2ms solve=7503.1ms RT=7.50 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=290.9 m, U_ship=2.73 m/s, U_d=1.20 m/s, XTE=-46.2 m
+  [t=441.0] pos=(-5272.3,-1720.3) psi= -44.5deg wp=3 xte=-46.2m obs_d=110m ok=1 comp=8405.8ms solve=8404.1ms RT=8.41 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=288.9 m, U_ship=2.51 m/s, U_d=1.20 m/s, XTE=-47.6 m
+  [t=442.0] pos=(-5270.3,-1721.6) psi= -45.3deg wp=3 xte=-47.6m obs_d=112m ok=1 comp=8232.0ms solve=8230.4ms RT=8.23 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=287.1 m, U_ship=2.28 m/s, U_d=1.20 m/s, XTE=-48.8 m
+  [t=443.0] pos=(-5268.5,-1722.9) psi= -46.1deg wp=3 xte=-48.8m obs_d=114m ok=1 comp=6097.9ms solve=6096.8ms RT=6.10 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=285.5 m, U_ship=2.07 m/s, U_d=1.20 m/s, XTE=-50.0 m
+  [t=444.0] pos=(-5266.9,-1724.0) psi= -46.9deg wp=3 xte=-50.0m obs_d=115m ok=1 comp=6747.1ms solve=6745.7ms RT=6.75 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=284.0 m, U_ship=1.87 m/s, U_d=1.20 m/s, XTE=-51.0 m
+  [t=445.0] pos=(-5265.4,-1725.0) psi= -47.7deg wp=3 xte=-51.0m obs_d=116m ok=1 comp=6881.4ms solve=6880.2ms RT=6.88 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=282.7 m, U_ship=1.66 m/s, U_d=1.20 m/s, XTE=-51.9 m
+  [t=446.0] pos=(-5264.2,-1725.9) psi= -48.5deg wp=3 xte=-51.9m obs_d=117m ok=1 comp=8510.9ms solve=8509.2ms RT=8.51 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=281.5 m, U_ship=1.46 m/s, U_d=1.20 m/s, XTE=-52.7 m
+  [t=447.0] pos=(-5263.1,-1726.7) psi= -49.2deg wp=3 xte=-52.7m obs_d=118m ok=1 comp=8953.6ms solve=8952.6ms RT=8.95 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=280.5 m, U_ship=1.27 m/s, U_d=1.20 m/s, XTE=-53.4 m
+  [t=448.0] pos=(-5262.1,-1727.4) psi= -50.0deg wp=3 xte=-53.4m obs_d=119m ok=1 comp=5973.3ms solve=5972.1ms RT=5.97 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=279.6 m, U_ship=1.09 m/s, U_d=1.20 m/s, XTE=-54.0 m
+  [t=449.0] pos=(-5261.3,-1728.0) psi= -50.8deg wp=3 xte=-54.0m obs_d=120m ok=1 comp=7848.6ms solve=7847.3ms RT=7.85 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=278.8 m, U_ship=0.92 m/s, U_d=1.20 m/s, XTE=-54.5 m
+  [t=450.0] pos=(-5260.6,-1728.5) psi= -51.6deg wp=3 xte=-54.5m obs_d=120m ok=1 comp=7136.0ms solve=7134.6ms RT=7.14 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=278.2 m, U_ship=0.77 m/s, U_d=1.20 m/s, XTE=-54.9 m
+  [t=451.0] pos=(-5260.1,-1729.0) psi= -52.5deg wp=3 xte=-54.9m obs_d=121m ok=1 comp=8064.1ms solve=8062.7ms RT=8.06 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=277.6 m, U_ship=0.67 m/s, U_d=1.20 m/s, XTE=-55.2 m
+  [t=452.0] pos=(-5259.7,-1729.4) psi= -53.3deg wp=3 xte=-55.2m obs_d=121m ok=1 comp=5317.4ms solve=5316.4ms RT=5.32 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=277.1 m, U_ship=0.59 m/s, U_d=1.20 m/s, XTE=-55.4 m
+  [t=453.0] pos=(-5259.3,-1729.9) psi= -54.2deg wp=3 xte=-55.4m obs_d=121m ok=1 comp=5985.5ms solve=5984.1ms RT=5.99 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=276.5 m, U_ship=0.53 m/s, U_d=1.20 m/s, XTE=-55.5 m
+  [t=454.0] pos=(-5259.1,-1730.4) psi= -55.1deg wp=3 xte=-55.5m obs_d=122m ok=1 comp=6798.4ms solve=6797.2ms RT=6.80 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=276.0 m, U_ship=0.52 m/s, U_d=1.20 m/s, XTE=-55.5 m
+  [t=455.0] pos=(-5258.9,-1730.9) psi= -56.0deg wp=3 xte=-55.5m obs_d=122m ok=1 comp=6269.5ms solve=6268.5ms RT=6.27 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=275.5 m, U_ship=0.54 m/s, U_d=1.20 m/s, XTE=-55.4 m
+  [t=456.0] pos=(-5258.9,-1731.4) psi= -56.9deg wp=3 xte=-55.4m obs_d=122m ok=1 comp=5793.9ms solve=5792.8ms RT=5.79 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=274.9 m, U_ship=0.57 m/s, U_d=1.20 m/s, XTE=-55.3 m
+  [t=457.0] pos=(-5258.8,-1732.0) psi= -57.8deg wp=3 xte=-55.3m obs_d=122m ok=1 comp=8539.3ms solve=8538.3ms RT=8.54 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=274.4 m, U_ship=0.63 m/s, U_d=1.20 m/s, XTE=-55.1 m
+  [t=458.0] pos=(-5258.8,-1732.7) psi= -58.7deg wp=3 xte=-55.1m obs_d=121m ok=1 comp=9279.7ms solve=9278.3ms RT=9.28 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=273.7 m, U_ship=0.71 m/s, U_d=1.20 m/s, XTE=-54.8 m
+  [t=459.0] pos=(-5258.9,-1733.4) psi= -59.6deg wp=3 xte=-54.8m obs_d=121m ok=1 comp=7919.8ms solve=7918.7ms RT=7.92 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=273.0 m, U_ship=0.75 m/s, U_d=1.20 m/s, XTE=-54.5 m
+  [t=460.0] pos=(-5258.9,-1734.2) psi= -60.5deg wp=3 xte=-54.5m obs_d=121m ok=1 comp=6805.3ms solve=6804.3ms RT=6.81 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=272.3 m, U_ship=0.78 m/s, U_d=1.20 m/s, XTE=-54.1 m
+  [t=461.0] pos=(-5259.0,-1735.0) psi= -61.4deg wp=3 xte=-54.1m obs_d=121m ok=1 comp=5839.0ms solve=5837.9ms RT=5.84 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=271.5 m, U_ship=0.77 m/s, U_d=1.20 m/s, XTE=-53.7 m
+  [t=462.0] pos=(-5259.2,-1735.7) psi= -62.4deg wp=3 xte=-53.7m obs_d=121m ok=1 comp=5626.8ms solve=5624.8ms RT=5.63 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=270.8 m, U_ship=0.77 m/s, U_d=1.20 m/s, XTE=-53.3 m
+  [t=463.0] pos=(-5259.4,-1736.5) psi= -63.3deg wp=3 xte=-53.3m obs_d=120m ok=1 comp=7997.5ms solve=7996.0ms RT=8.00 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=270.2 m, U_ship=0.80 m/s, U_d=1.20 m/s, XTE=-52.8 m
+  [t=464.0] pos=(-5259.6,-1737.2) psi= -64.2deg wp=3 xte=-52.8m obs_d=120m ok=1 comp=6892.2ms solve=6890.5ms RT=6.89 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=269.5 m, U_ship=0.80 m/s, U_d=1.20 m/s, XTE=-52.2 m
+  [t=465.0] pos=(-5259.9,-1738.0) psi= -65.1deg wp=3 xte=-52.2m obs_d=120m ok=1 comp=6104.2ms solve=6102.6ms RT=6.10 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=268.8 m, U_ship=0.82 m/s, U_d=1.20 m/s, XTE=-51.7 m
+  [t=466.0] pos=(-5260.2,-1738.8) psi= -65.9deg wp=3 xte=-51.7m obs_d=119m ok=1 comp=6204.4ms solve=6203.1ms RT=6.20 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=268.1 m, U_ship=0.84 m/s, U_d=1.20 m/s, XTE=-51.1 m
+  [t=467.0] pos=(-5260.5,-1739.5) psi= -66.7deg wp=3 xte=-51.1m obs_d=119m ok=1 comp=6114.2ms solve=6112.7ms RT=6.11 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=267.4 m, U_ship=0.86 m/s, U_d=1.20 m/s, XTE=-50.5 m
+  [t=468.0] pos=(-5260.9,-1740.3) psi= -67.4deg wp=3 xte=-50.5m obs_d=119m ok=1 comp=6027.8ms solve=6026.7ms RT=6.03 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=266.7 m, U_ship=0.90 m/s, U_d=1.20 m/s, XTE=-49.8 m
+  [t=469.0] pos=(-5261.3,-1741.2) psi= -68.1deg wp=3 xte=-49.8m obs_d=118m ok=1 comp=5771.9ms solve=5770.1ms RT=5.77 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=266.0 m, U_ship=0.94 m/s, U_d=1.20 m/s, XTE=-49.1 m
+  [t=470.0] pos=(-5261.7,-1742.1) psi= -68.7deg wp=3 xte=-49.1m obs_d=118m ok=1 comp=6198.8ms solve=6197.7ms RT=6.20 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=265.2 m, U_ship=1.00 m/s, U_d=1.20 m/s, XTE=-48.4 m
+  [t=471.0] pos=(-5262.1,-1743.0) psi= -69.2deg wp=3 xte=-48.4m obs_d=117m ok=1 comp=5833.4ms solve=5831.9ms RT=5.83 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=264.4 m, U_ship=1.05 m/s, U_d=1.20 m/s, XTE=-47.6 m
+  [t=472.0] pos=(-5262.7,-1743.9) psi= -69.5deg wp=3 xte=-47.6m obs_d=117m ok=1 comp=5791.7ms solve=5790.6ms RT=5.79 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=263.6 m, U_ship=1.10 m/s, U_d=1.20 m/s, XTE=-46.7 m
+  [t=473.0] pos=(-5263.3,-1744.9) psi= -69.8deg wp=3 xte=-46.7m obs_d=116m ok=1 comp=5946.0ms solve=5944.7ms RT=5.95 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=262.9 m, U_ship=1.14 m/s, U_d=1.20 m/s, XTE=-45.8 m
+  [t=474.0] pos=(-5263.9,-1745.8) psi= -69.9deg wp=3 xte=-45.8m obs_d=115m ok=1 comp=6357.4ms solve=6355.7ms RT=6.36 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=262.1 m, U_ship=1.17 m/s, U_d=1.20 m/s, XTE=-44.8 m
+  [t=475.0] pos=(-5264.5,-1746.8) psi= -70.0deg wp=3 xte=-44.8m obs_d=115m ok=1 comp=5354.4ms solve=5353.2ms RT=5.35 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=261.3 m, U_ship=1.20 m/s, U_d=1.20 m/s, XTE=-43.8 m
+  [t=476.0] pos=(-5265.2,-1747.8) psi= -70.1deg wp=3 xte=-43.8m obs_d=114m ok=1 comp=5273.7ms solve=5272.7ms RT=5.27 obs=9 fb=0
+  [FINAL-LEG DEBUG] d_final=260.5 m, U_ship=1.23 m/s, U_d=1.20 m/s, XTE=-42.8 m
+  [t=477.0] pos=(-5265.9,-1748.9) psi= -70.1deg wp=3 xte=-42.8m obs_d=113m ok=1 comp=4961.2ms solve=4960.2ms RT=4.96 obs=9 fb=0
+  [terminal-mode] final-leg map-sample relaxation active (d_final=259.6 m)
+  [FINAL-LEG DEBUG] d_final=259.6 m, U_ship=1.25 m/s, U_d=1.20 m/s, XTE=-41.8 m
+  [mode-switch] Would rebuild solver (DISABLED for stability)
+  [t=478.0] pos=(-5266.6,-1749.9) psi= -70.1deg wp=3 xte=-41.8m obs_d=1539m ok=1 comp=6113.8ms solve=6091.7ms RT=6.11 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=258.8 m, U_ship=1.27 m/s, U_d=1.20 m/s, XTE=-40.7 m
+  [t=479.0] pos=(-5267.3,-1751.0) psi= -70.1deg wp=3 xte=-40.7m obs_d=1545m ok=1 comp=5341.5ms solve=5335.4ms RT=5.34 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=257.9 m, U_ship=1.28 m/s, U_d=1.20 m/s, XTE=-39.7 m
+  [t=480.0] pos=(-5267.9,-1752.1) psi= -70.1deg wp=3 xte=-39.7m obs_d=1551m ok=1 comp=6420.0ms solve=6418.4ms RT=6.42 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=257.0 m, U_ship=1.28 m/s, U_d=1.20 m/s, XTE=-38.6 m
+  [t=481.0] pos=(-5268.6,-1753.2) psi= -70.1deg wp=3 xte=-38.6m obs_d=1558m ok=1 comp=5056.4ms solve=5054.5ms RT=5.06 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=256.2 m, U_ship=1.28 m/s, U_d=1.20 m/s, XTE=-37.6 m
+  [t=482.0] pos=(-5269.2,-1754.3) psi= -70.1deg wp=3 xte=-37.6m obs_d=1564m ok=1 comp=5005.5ms solve=4999.1ms RT=5.01 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=255.3 m, U_ship=1.28 m/s, U_d=1.20 m/s, XTE=-36.5 m
+  [t=483.0] pos=(-5269.9,-1755.4) psi= -70.2deg wp=3 xte=-36.5m obs_d=1570m ok=1 comp=4921.0ms solve=4915.6ms RT=4.92 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=254.4 m, U_ship=1.27 m/s, U_d=1.20 m/s, XTE=-35.5 m
+  [FINAL-LEG DEBUG] d_final=253.5 m, U_ship=1.27 m/s, U_d=1.20 m/s, XTE=-34.5 m
+  [FINAL-LEG DEBUG] d_final=252.6 m, U_ship=1.26 m/s, U_d=1.20 m/s, XTE=-33.5 m
+  [FINAL-LEG DEBUG] d_final=251.7 m, U_ship=1.25 m/s, U_d=1.20 m/s, XTE=-32.5 m
+  [FINAL-LEG DEBUG] d_final=250.8 m, U_ship=1.25 m/s, U_d=1.20 m/s, XTE=-31.5 m
+  [FINAL-LEG DEBUG] d_final=249.9 m, U_ship=1.24 m/s, U_d=1.20 m/s, XTE=-30.6 m
+  [FINAL-LEG DEBUG] d_final=248.9 m, U_ship=1.24 m/s, U_d=1.20 m/s, XTE=-29.6 m
+  [FINAL-LEG DEBUG] d_final=248.0 m, U_ship=1.24 m/s, U_d=1.20 m/s, XTE=-28.7 m
+  [FINAL-LEG DEBUG] d_final=247.1 m, U_ship=1.23 m/s, U_d=1.20 m/s, XTE=-27.8 m
+  [FINAL-LEG DEBUG] d_final=246.1 m, U_ship=1.23 m/s, U_d=1.20 m/s, XTE=-26.9 m
+  [t=493.0] pos=(-5275.2,-1766.6) psi= -70.8deg wp=3 xte=-26.9m obs_d=1630m ok=1 comp=1657.5ms solve=1655.7ms RT=1.66 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=245.2 m, U_ship=1.23 m/s, U_d=1.20 m/s, XTE=-26.0 m
+  [t=494.0] pos=(-5275.7,-1767.8) psi= -70.9deg wp=3 xte=-26.0m obs_d=1636m ok=1 comp=1255.9ms solve=1254.2ms RT=1.26 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=244.2 m, U_ship=1.23 m/s, U_d=1.20 m/s, XTE=-25.2 m
+  [t=495.0] pos=(-5276.1,-1768.9) psi= -70.9deg wp=3 xte=-25.2m obs_d=1642m ok=1 comp=1553.2ms solve=1552.0ms RT=1.55 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=243.3 m, U_ship=1.23 m/s, U_d=1.20 m/s, XTE=-24.3 m
+  [FINAL-LEG DEBUG] d_final=242.3 m, U_ship=1.23 m/s, U_d=1.20 m/s, XTE=-23.5 m
+  [FINAL-LEG DEBUG] d_final=241.3 m, U_ship=1.23 m/s, U_d=1.20 m/s, XTE=-22.7 m
+  [FINAL-LEG DEBUG] d_final=240.3 m, U_ship=1.23 m/s, U_d=1.20 m/s, XTE=-21.8 m
+  [t=499.0] pos=(-5277.6,-1773.6) psi= -71.1deg wp=3 xte=-21.8m obs_d=1666m ok=1 comp=4579.0ms solve=4578.1ms RT=4.58 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=239.3 m, U_ship=1.23 m/s, U_d=1.20 m/s, XTE=-21.1 m
+  [t=500.0] pos=(-5277.9,-1774.8) psi= -71.2deg wp=3 xte=-21.1m obs_d=1672m ok=1 comp=3456.7ms solve=3455.0ms RT=3.46 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=238.3 m, U_ship=1.23 m/s, U_d=1.20 m/s, XTE=-20.3 m
+  [t=501.0] pos=(-5278.2,-1776.0) psi= -71.2deg wp=3 xte=-20.3m obs_d=1678m ok=1 comp=6395.0ms solve=6393.6ms RT=6.40 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=237.3 m, U_ship=1.23 m/s, U_d=1.20 m/s, XTE=-19.5 m
+  [t=502.0] pos=(-5278.5,-1777.2) psi= -71.2deg wp=3 xte=-19.5m obs_d=1684m ok=1 comp=7235.8ms solve=7234.7ms RT=7.24 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=236.3 m, U_ship=1.23 m/s, U_d=1.20 m/s, XTE=-18.8 m
+  [t=503.0] pos=(-5278.8,-1778.4) psi= -71.3deg wp=3 xte=-18.8m obs_d=1689m ok=1 comp=8624.8ms solve=8623.3ms RT=8.62 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=235.2 m, U_ship=1.23 m/s, U_d=1.20 m/s, XTE=-18.0 m
+  [t=504.0] pos=(-5279.1,-1779.6) psi= -71.3deg wp=3 xte=-18.0m obs_d=1695m ok=1 comp=11584.8ms solve=11581.4ms RT=11.58 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=234.2 m, U_ship=1.23 m/s, U_d=1.20 m/s, XTE=-17.3 m
+  [t=505.0] pos=(-5279.3,-1780.8) psi= -71.3deg wp=3 xte=-17.3m obs_d=1701m ok=1 comp=5925.6ms solve=5924.4ms RT=5.93 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=233.1 m, U_ship=1.23 m/s, U_d=1.20 m/s, XTE=-16.6 m
+  [t=506.0] pos=(-5279.5,-1782.0) psi= -71.3deg wp=3 xte=-16.6m obs_d=1707m ok=1 comp=9375.5ms solve=9374.2ms RT=9.38 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=232.1 m, U_ship=1.23 m/s, U_d=1.20 m/s, XTE=-15.9 m
+  [FINAL-LEG DEBUG] d_final=231.0 m, U_ship=1.23 m/s, U_d=1.20 m/s, XTE=-15.2 m
+  [t=508.0] pos=(-5279.9,-1784.4) psi= -71.3deg wp=3 xte=-15.2m obs_d=1719m ok=1 comp=10208.3ms solve=10206.9ms RT=10.21 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=229.9 m, U_ship=1.23 m/s, U_d=1.20 m/s, XTE=-14.6 m
+  [t=509.0] pos=(-5280.0,-1785.6) psi= -71.2deg wp=3 xte=-14.6m obs_d=1725m ok=1 comp=8552.3ms solve=8551.2ms RT=8.55 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=228.8 m, U_ship=1.24 m/s, U_d=1.20 m/s, XTE=-13.9 m
+  [t=510.0] pos=(-5280.2,-1786.8) psi= -71.2deg wp=3 xte=-13.9m obs_d=1730m ok=1 comp=8854.5ms solve=8853.2ms RT=8.85 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=227.7 m, U_ship=1.24 m/s, U_d=1.20 m/s, XTE=-13.3 m
+  [t=511.0] pos=(-5280.3,-1788.1) psi= -71.2deg wp=3 xte=-13.3m obs_d=1736m ok=1 comp=9206.1ms solve=9205.0ms RT=9.21 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=226.6 m, U_ship=1.24 m/s, U_d=1.20 m/s, XTE=-12.7 m
+  [t=512.0] pos=(-5280.4,-1789.3) psi= -71.1deg wp=3 xte=-12.7m obs_d=1742m ok=1 comp=8831.2ms solve=8830.0ms RT=8.83 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=225.5 m, U_ship=1.24 m/s, U_d=1.20 m/s, XTE=-12.1 m
+  [t=513.0] pos=(-5280.6,-1790.5) psi= -71.1deg wp=3 xte=-12.1m obs_d=1748m ok=1 comp=6961.2ms solve=6959.8ms RT=6.96 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=224.4 m, U_ship=1.24 m/s, U_d=1.20 m/s, XTE=-11.5 m
+  [t=514.0] pos=(-5280.6,-1791.8) psi= -71.1deg wp=3 xte=-11.5m obs_d=1754m ok=1 comp=7853.1ms solve=7851.9ms RT=7.85 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=223.3 m, U_ship=1.25 m/s, U_d=1.20 m/s, XTE=-10.9 m
+  [t=515.0] pos=(-5280.7,-1793.0) psi= -71.0deg wp=3 xte=-10.9m obs_d=1759m ok=1 comp=8549.2ms solve=8548.0ms RT=8.55 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=222.1 m, U_ship=1.25 m/s, U_d=1.20 m/s, XTE=-10.3 m
+  [t=516.0] pos=(-5280.8,-1794.3) psi= -71.0deg wp=3 xte=-10.3m obs_d=1765m ok=1 comp=10157.3ms solve=10156.1ms RT=10.16 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=221.0 m, U_ship=1.26 m/s, U_d=1.20 m/s, XTE=-9.7 m
+  [t=517.0] pos=(-5280.9,-1795.5) psi= -70.9deg wp=3 xte=-9.7m obs_d=1771m ok=1 comp=8811.6ms solve=8810.4ms RT=8.81 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=219.9 m, U_ship=1.26 m/s, U_d=1.20 m/s, XTE=-9.1 m
+  [t=518.0] pos=(-5280.9,-1796.8) psi= -70.9deg wp=3 xte=-9.1m obs_d=1777m ok=1 comp=8574.8ms solve=8573.7ms RT=8.57 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=218.7 m, U_ship=1.26 m/s, U_d=1.20 m/s, XTE=-8.6 m
+  [t=519.0] pos=(-5281.0,-1798.1) psi= -70.8deg wp=3 xte=-8.6m obs_d=1782m ok=1 comp=8705.6ms solve=8704.4ms RT=8.71 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=217.6 m, U_ship=1.27 m/s, U_d=1.20 m/s, XTE=-8.0 m
+  [t=520.0] pos=(-5281.0,-1799.3) psi= -70.8deg wp=3 xte=-8.0m obs_d=1788m ok=1 comp=6278.6ms solve=6277.4ms RT=6.28 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=216.4 m, U_ship=1.28 m/s, U_d=1.20 m/s, XTE=-7.5 m
+  [t=521.0] pos=(-5281.0,-1800.6) psi= -70.7deg wp=3 xte=-7.5m obs_d=1794m ok=1 comp=8662.1ms solve=8660.3ms RT=8.66 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=215.2 m, U_ship=1.30 m/s, U_d=1.20 m/s, XTE=-6.9 m
+  [t=522.0] pos=(-5281.1,-1801.9) psi= -70.7deg wp=3 xte=-6.9m obs_d=1800m ok=1 comp=7946.1ms solve=7944.6ms RT=7.95 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=214.0 m, U_ship=1.31 m/s, U_d=1.20 m/s, XTE=-6.4 m
+  [t=523.0] pos=(-5281.1,-1803.3) psi= -70.7deg wp=3 xte=-6.4m obs_d=1806m ok=1 comp=10411.4ms solve=10410.4ms RT=10.41 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=212.8 m, U_ship=1.32 m/s, U_d=1.20 m/s, XTE=-5.8 m
+  [t=524.0] pos=(-5281.1,-1804.6) psi= -70.6deg wp=3 xte=-5.8m obs_d=1811m ok=1 comp=10145.4ms solve=10144.3ms RT=10.15 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=211.6 m, U_ship=1.33 m/s, U_d=1.20 m/s, XTE=-5.3 m
+  [t=525.0] pos=(-5281.1,-1805.9) psi= -70.6deg wp=3 xte=-5.3m obs_d=1817m ok=1 comp=10665.2ms solve=10663.5ms RT=10.67 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=210.3 m, U_ship=1.34 m/s, U_d=1.20 m/s, XTE=-4.8 m
+  [t=526.0] pos=(-5281.0,-1807.3) psi= -70.5deg wp=3 xte=-4.8m obs_d=1823m ok=1 comp=8921.7ms solve=8919.5ms RT=8.92 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=209.1 m, U_ship=1.35 m/s, U_d=1.20 m/s, XTE=-4.2 m
+  [t=527.0] pos=(-5281.0,-1808.6) psi= -70.5deg wp=3 xte=-4.2m obs_d=1829m ok=1 comp=8412.1ms solve=8411.0ms RT=8.41 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=207.8 m, U_ship=1.35 m/s, U_d=1.20 m/s, XTE=-3.7 m
+  [t=528.0] pos=(-5281.0,-1810.0) psi= -70.4deg wp=3 xte=-3.7m obs_d=1834m ok=1 comp=9825.7ms solve=9824.4ms RT=9.83 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=206.6 m, U_ship=1.36 m/s, U_d=1.20 m/s, XTE=-3.2 m
+  [t=529.0] pos=(-5280.9,-1811.3) psi= -70.4deg wp=3 xte=-3.2m obs_d=1840m ok=1 comp=10875.7ms solve=10874.7ms RT=10.88 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=205.3 m, U_ship=1.36 m/s, U_d=1.20 m/s, XTE=-2.7 m
+  [t=530.0] pos=(-5280.9,-1812.7) psi= -70.3deg wp=3 xte=-2.7m obs_d=1846m ok=1 comp=8585.3ms solve=8584.0ms RT=8.59 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=204.0 m, U_ship=1.37 m/s, U_d=1.20 m/s, XTE=-2.2 m
+  [t=531.0] pos=(-5280.8,-1814.1) psi= -70.3deg wp=3 xte=-2.2m obs_d=1852m ok=1 comp=8126.3ms solve=8124.8ms RT=8.13 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=202.7 m, U_ship=1.38 m/s, U_d=1.20 m/s, XTE=-1.7 m
+  [t=532.0] pos=(-5280.8,-1815.4) psi= -70.2deg wp=3 xte=-1.7m obs_d=1858m ok=1 comp=9483.6ms solve=9481.7ms RT=9.48 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=201.5 m, U_ship=1.39 m/s, U_d=1.20 m/s, XTE=-1.2 m
+  [t=533.0] pos=(-5280.7,-1816.8) psi= -70.2deg wp=3 xte=-1.2m obs_d=1863m ok=1 comp=9559.6ms solve=9558.0ms RT=9.56 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=200.1 m, U_ship=1.40 m/s, U_d=1.20 m/s, XTE=-0.7 m
+  [t=534.0] pos=(-5280.6,-1818.2) psi= -70.1deg wp=3 xte=-0.7m obs_d=1869m ok=1 comp=10151.1ms solve=10149.9ms RT=10.15 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=198.8 m, U_ship=1.42 m/s, U_d=1.20 m/s, XTE=-0.2 m
+  [t=535.0] pos=(-5280.4,-1819.7) psi= -70.1deg wp=3 xte=-0.2m obs_d=1875m ok=1 comp=9246.0ms solve=9243.5ms RT=9.25 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=197.5 m, U_ship=1.44 m/s, U_d=1.20 m/s, XTE=0.3 m
+  [t=536.0] pos=(-5280.3,-1821.1) psi= -70.1deg wp=3 xte=+0.3m obs_d=1881m ok=1 comp=10789.7ms solve=10787.5ms RT=10.79 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=196.1 m, U_ship=1.46 m/s, U_d=1.20 m/s, XTE=0.7 m
+  [t=537.0] pos=(-5280.1,-1822.6) psi= -70.1deg wp=3 xte=+0.7m obs_d=1886m ok=1 comp=13806.1ms solve=13804.4ms RT=13.81 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=194.7 m, U_ship=1.47 m/s, U_d=1.20 m/s, XTE=1.2 m
+  [t=538.0] pos=(-5280.0,-1824.0) psi= -70.0deg wp=3 xte=+1.2m obs_d=1892m ok=1 comp=9012.1ms solve=9009.8ms RT=9.01 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=193.3 m, U_ship=1.48 m/s, U_d=1.20 m/s, XTE=1.6 m
+  [t=539.0] pos=(-5279.8,-1825.5) psi= -70.0deg wp=3 xte=+1.6m obs_d=1898m ok=1 comp=8566.0ms solve=8564.5ms RT=8.57 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=191.9 m, U_ship=1.49 m/s, U_d=1.20 m/s, XTE=2.1 m
+  [t=540.0] pos=(-5279.6,-1827.0) psi= -70.0deg wp=3 xte=+2.1m obs_d=1904m ok=1 comp=9231.6ms solve=9230.5ms RT=9.23 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=190.5 m, U_ship=1.50 m/s, U_d=1.20 m/s, XTE=2.5 m
+  [t=541.0] pos=(-5279.4,-1828.5) psi= -69.9deg wp=3 xte=+2.5m obs_d=1909m ok=1 comp=8899.8ms solve=8898.6ms RT=8.90 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=189.0 m, U_ship=1.51 m/s, U_d=1.20 m/s, XTE=2.9 m
+  [t=542.0] pos=(-5279.2,-1830.0) psi= -69.9deg wp=3 xte=+2.9m obs_d=1915m ok=1 comp=9085.7ms solve=9084.9ms RT=9.09 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=187.6 m, U_ship=1.52 m/s, U_d=1.20 m/s, XTE=3.4 m
+  [t=543.0] pos=(-5279.0,-1831.5) psi= -69.8deg wp=3 xte=+3.4m obs_d=1921m ok=1 comp=10036.8ms solve=10035.9ms RT=10.04 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=186.1 m, U_ship=1.53 m/s, U_d=1.20 m/s, XTE=3.8 m
+  [t=544.0] pos=(-5278.8,-1833.0) psi= -69.8deg wp=3 xte=+3.8m obs_d=1927m ok=1 comp=14148.2ms solve=14147.0ms RT=14.15 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=184.7 m, U_ship=1.54 m/s, U_d=1.20 m/s, XTE=4.2 m
+  [t=545.0] pos=(-5278.6,-1834.6) psi= -69.8deg wp=3 xte=+4.2m obs_d=1932m ok=1 comp=6169.6ms solve=6164.6ms RT=6.17 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=183.2 m, U_ship=1.56 m/s, U_d=1.20 m/s, XTE=4.6 m
+  [t=546.0] pos=(-5278.4,-1836.1) psi= -69.7deg wp=3 xte=+4.6m obs_d=1938m ok=1 comp=8865.7ms solve=8864.6ms RT=8.87 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=181.7 m, U_ship=1.57 m/s, U_d=1.20 m/s, XTE=5.1 m
+  [t=547.0] pos=(-5278.1,-1837.7) psi= -69.7deg wp=3 xte=+5.1m obs_d=1944m ok=1 comp=8876.1ms solve=8875.2ms RT=8.88 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=180.2 m, U_ship=1.59 m/s, U_d=1.20 m/s, XTE=5.5 m
+  [t=548.0] pos=(-5277.9,-1839.2) psi= -69.7deg wp=3 xte=+5.5m obs_d=1950m ok=1 comp=7909.8ms solve=7907.2ms RT=7.91 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=178.6 m, U_ship=1.61 m/s, U_d=1.20 m/s, XTE=5.9 m
+  [t=549.0] pos=(-5277.6,-1840.8) psi= -69.6deg wp=3 xte=+5.9m obs_d=1955m ok=1 comp=9028.9ms solve=9027.7ms RT=9.03 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=177.1 m, U_ship=1.63 m/s, U_d=1.20 m/s, XTE=6.3 m
+  [t=550.0] pos=(-5277.3,-1842.4) psi= -69.6deg wp=3 xte=+6.3m obs_d=1961m ok=1 comp=10136.5ms solve=10135.3ms RT=10.14 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=175.5 m, U_ship=1.65 m/s, U_d=1.20 m/s, XTE=6.7 m
+  [t=551.0] pos=(-5277.1,-1844.1) psi= -69.6deg wp=3 xte=+6.7m obs_d=1967m ok=1 comp=9306.4ms solve=9305.4ms RT=9.31 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=173.9 m, U_ship=1.68 m/s, U_d=1.20 m/s, XTE=7.1 m
+  [t=552.0] pos=(-5276.8,-1845.8) psi= -69.5deg wp=3 xte=+7.1m obs_d=1973m ok=1 comp=9233.8ms solve=9232.7ms RT=9.23 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=172.3 m, U_ship=1.70 m/s, U_d=1.20 m/s, XTE=7.5 m
+  [t=553.0] pos=(-5276.4,-1847.4) psi= -69.5deg wp=3 xte=+7.5m obs_d=1978m ok=1 comp=9259.6ms solve=9258.1ms RT=9.26 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=170.6 m, U_ship=1.72 m/s, U_d=1.20 m/s, XTE=7.9 m
+  [t=554.0] pos=(-5276.1,-1849.1) psi= -69.5deg wp=3 xte=+7.9m obs_d=1984m ok=1 comp=9221.2ms solve=9219.9ms RT=9.22 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=169.0 m, U_ship=1.74 m/s, U_d=1.20 m/s, XTE=8.3 m
+  [t=555.0] pos=(-5275.8,-1850.9) psi= -69.4deg wp=3 xte=+8.3m obs_d=1990m ok=1 comp=9458.2ms solve=9457.2ms RT=9.46 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=167.3 m, U_ship=1.75 m/s, U_d=1.20 m/s, XTE=8.7 m
+  [t=556.0] pos=(-5275.4,-1852.6) psi= -69.4deg wp=3 xte=+8.7m obs_d=1996m ok=1 comp=9079.7ms solve=9078.1ms RT=9.08 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=165.6 m, U_ship=1.75 m/s, U_d=1.20 m/s, XTE=9.1 m
+  [t=557.0] pos=(-5275.1,-1854.3) psi= -69.4deg wp=3 xte=+9.1m obs_d=2002m ok=1 comp=8875.1ms solve=8874.2ms RT=8.88 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=163.9 m, U_ship=1.76 m/s, U_d=1.20 m/s, XTE=9.4 m
+  [t=558.0] pos=(-5274.7,-1856.0) psi= -69.3deg wp=3 xte=+9.4m obs_d=2007m ok=1 comp=9088.4ms solve=9087.4ms RT=9.09 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=162.2 m, U_ship=1.77 m/s, U_d=1.20 m/s, XTE=9.8 m
+  [t=559.0] pos=(-5274.4,-1857.8) psi= -69.3deg wp=3 xte=+9.8m obs_d=2013m ok=1 comp=11701.4ms solve=11700.1ms RT=11.70 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=160.5 m, U_ship=1.78 m/s, U_d=1.20 m/s, XTE=10.2 m
+  [t=560.0] pos=(-5274.0,-1859.5) psi= -69.3deg wp=3 xte=+10.2m obs_d=2019m ok=1 comp=9151.5ms solve=9149.1ms RT=9.15 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=158.8 m, U_ship=1.79 m/s, U_d=1.20 m/s, XTE=10.6 m
+  [t=561.0] pos=(-5273.6,-1861.3) psi= -69.2deg wp=3 xte=+10.6m obs_d=2025m ok=1 comp=9266.0ms solve=9265.0ms RT=9.27 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=157.0 m, U_ship=1.82 m/s, U_d=1.20 m/s, XTE=10.9 m
+  [t=562.0] pos=(-5273.2,-1863.1) psi= -69.2deg wp=3 xte=+10.9m obs_d=2031m ok=1 comp=9168.7ms solve=9167.5ms RT=9.17 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=155.3 m, U_ship=1.84 m/s, U_d=1.20 m/s, XTE=11.3 m
+  [t=563.0] pos=(-5272.8,-1864.9) psi= -69.2deg wp=3 xte=+11.3m obs_d=2036m ok=1 comp=12077.0ms solve=12075.9ms RT=12.08 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=153.5 m, U_ship=1.85 m/s, U_d=1.20 m/s, XTE=11.6 m
+  [t=564.0] pos=(-5272.4,-1866.7) psi= -69.1deg wp=3 xte=+11.6m obs_d=2042m ok=1 comp=10660.5ms solve=10659.6ms RT=10.66 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=151.7 m, U_ship=1.85 m/s, U_d=1.20 m/s, XTE=12.0 m
+  [t=565.0] pos=(-5272.0,-1868.5) psi= -69.1deg wp=3 xte=+12.0m obs_d=2048m ok=1 comp=8465.4ms solve=8464.5ms RT=8.47 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=149.9 m, U_ship=1.86 m/s, U_d=1.20 m/s, XTE=12.4 m
+  [t=566.0] pos=(-5271.6,-1870.3) psi= -69.1deg wp=3 xte=+12.4m obs_d=2054m ok=1 comp=9754.8ms solve=9753.6ms RT=9.75 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=148.1 m, U_ship=1.87 m/s, U_d=1.20 m/s, XTE=12.7 m
+  [t=567.0] pos=(-5271.1,-1872.1) psi= -69.0deg wp=3 xte=+12.7m obs_d=2060m ok=1 comp=9414.6ms solve=9413.6ms RT=9.41 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=146.3 m, U_ship=1.88 m/s, U_d=1.20 m/s, XTE=13.1 m
+  [t=568.0] pos=(-5270.7,-1873.9) psi= -69.0deg wp=3 xte=+13.1m obs_d=2065m ok=1 comp=8994.7ms solve=8993.6ms RT=8.99 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=144.5 m, U_ship=1.90 m/s, U_d=1.20 m/s, XTE=13.4 m
+  [t=569.0] pos=(-5270.2,-1875.8) psi= -69.0deg wp=3 xte=+13.4m obs_d=2071m ok=1 comp=8180.1ms solve=8179.0ms RT=8.18 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=142.7 m, U_ship=1.91 m/s, U_d=1.20 m/s, XTE=13.8 m
+  [t=570.0] pos=(-5269.8,-1877.7) psi= -68.9deg wp=3 xte=+13.8m obs_d=2077m ok=1 comp=9044.8ms solve=9043.9ms RT=9.04 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=140.9 m, U_ship=1.92 m/s, U_d=1.20 m/s, XTE=14.1 m
+  [t=571.0] pos=(-5269.3,-1879.5) psi= -68.9deg wp=3 xte=+14.1m obs_d=2083m ok=1 comp=9765.2ms solve=9764.2ms RT=9.77 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=139.0 m, U_ship=1.93 m/s, U_d=1.20 m/s, XTE=14.4 m
+  [t=572.0] pos=(-5268.9,-1881.4) psi= -68.9deg wp=3 xte=+14.4m obs_d=2089m ok=1 comp=9259.3ms solve=9258.1ms RT=9.26 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=137.2 m, U_ship=1.93 m/s, U_d=1.20 m/s, XTE=14.8 m
+  [t=573.0] pos=(-5268.4,-1883.3) psi= -68.8deg wp=3 xte=+14.8m obs_d=2094m ok=1 comp=9696.8ms solve=9695.8ms RT=9.70 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=135.3 m, U_ship=1.93 m/s, U_d=1.20 m/s, XTE=15.1 m
+  [t=574.0] pos=(-5268.0,-1885.1) psi= -68.8deg wp=3 xte=+15.1m obs_d=2100m ok=1 comp=7921.4ms solve=7920.6ms RT=7.92 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=133.5 m, U_ship=1.94 m/s, U_d=1.20 m/s, XTE=15.5 m
+  [t=575.0] pos=(-5267.5,-1887.0) psi= -68.7deg wp=3 xte=+15.5m obs_d=2106m ok=1 comp=8382.6ms solve=8380.9ms RT=8.38 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=131.6 m, U_ship=1.94 m/s, U_d=1.20 m/s, XTE=15.8 m
+  [t=576.0] pos=(-5267.0,-1888.9) psi= -68.7deg wp=3 xte=+15.8m obs_d=2112m ok=1 comp=7906.2ms solve=7905.3ms RT=7.91 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=129.7 m, U_ship=1.95 m/s, U_d=1.20 m/s, XTE=16.1 m
+  [t=577.0] pos=(-5266.5,-1890.8) psi= -68.7deg wp=3 xte=+16.1m obs_d=2118m ok=1 comp=8612.0ms solve=8611.0ms RT=8.61 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=127.9 m, U_ship=1.95 m/s, U_d=1.20 m/s, XTE=16.4 m
+  [t=578.0] pos=(-5266.0,-1892.7) psi= -68.6deg wp=3 xte=+16.4m obs_d=2123m ok=1 comp=8420.1ms solve=8418.6ms RT=8.42 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=126.0 m, U_ship=1.96 m/s, U_d=1.20 m/s, XTE=16.8 m
+  [t=579.0] pos=(-5265.6,-1894.6) psi= -68.6deg wp=3 xte=+16.8m obs_d=2129m ok=1 comp=8190.6ms solve=8189.5ms RT=8.19 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=124.1 m, U_ship=1.97 m/s, U_d=1.20 m/s, XTE=17.1 m
+  [t=580.0] pos=(-5265.1,-1896.5) psi= -68.5deg wp=3 xte=+17.1m obs_d=2135m ok=1 comp=8872.6ms solve=8871.6ms RT=8.87 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=122.2 m, U_ship=1.98 m/s, U_d=1.20 m/s, XTE=17.4 m
+  [t=581.0] pos=(-5264.6,-1898.4) psi= -68.5deg wp=3 xte=+17.4m obs_d=2141m ok=1 comp=9154.1ms solve=9153.1ms RT=9.15 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=120.3 m, U_ship=1.99 m/s, U_d=1.20 m/s, XTE=17.7 m
+  [t=582.0] pos=(-5264.1,-1900.4) psi= -68.4deg wp=3 xte=+17.7m obs_d=2147m ok=1 comp=8593.6ms solve=8592.5ms RT=8.59 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=118.4 m, U_ship=2.00 m/s, U_d=1.20 m/s, XTE=18.1 m
+  [t=583.0] pos=(-5263.5,-1902.3) psi= -68.4deg wp=3 xte=+18.1m obs_d=2152m ok=1 comp=10637.2ms solve=10636.1ms RT=10.64 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=116.5 m, U_ship=2.01 m/s, U_d=1.20 m/s, XTE=18.4 m
+  [t=584.0] pos=(-5263.0,-1904.3) psi= -68.3deg wp=3 xte=+18.4m obs_d=2158m ok=1 comp=6023.3ms solve=6022.1ms RT=6.02 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=114.6 m, U_ship=2.03 m/s, U_d=1.20 m/s, XTE=18.7 m
+  [t=585.0] pos=(-5262.5,-1906.2) psi= -68.3deg wp=3 xte=+18.7m obs_d=2164m ok=1 comp=9598.3ms solve=9597.3ms RT=9.60 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=112.7 m, U_ship=2.04 m/s, U_d=1.20 m/s, XTE=19.0 m
+  [t=586.0] pos=(-5262.0,-1908.2) psi= -68.2deg wp=3 xte=+19.0m obs_d=2170m ok=1 comp=8137.3ms solve=8136.2ms RT=8.14 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=110.8 m, U_ship=2.06 m/s, U_d=1.20 m/s, XTE=19.3 m
+  [t=587.0] pos=(-5261.4,-1910.2) psi= -68.2deg wp=3 xte=+19.3m obs_d=2176m ok=1 comp=8694.9ms solve=8693.8ms RT=8.69 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=108.8 m, U_ship=2.07 m/s, U_d=1.20 m/s, XTE=19.6 m
+  [t=588.0] pos=(-5260.9,-1912.2) psi= -68.1deg wp=3 xte=+19.6m obs_d=2182m ok=1 comp=8751.1ms solve=8750.2ms RT=8.75 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=106.8 m, U_ship=2.09 m/s, U_d=1.20 m/s, XTE=20.0 m
+  [t=589.0] pos=(-5260.3,-1914.2) psi= -68.1deg wp=3 xte=+20.0m obs_d=2187m ok=1 comp=8731.4ms solve=8730.1ms RT=8.73 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=104.8 m, U_ship=2.11 m/s, U_d=1.20 m/s, XTE=20.3 m
+  [t=590.0] pos=(-5259.7,-1916.3) psi= -68.0deg wp=3 xte=+20.3m obs_d=2193m ok=1 comp=8703.0ms solve=8701.7ms RT=8.70 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=102.9 m, U_ship=2.11 m/s, U_d=1.20 m/s, XTE=20.6 m
+  [t=591.0] pos=(-5259.2,-1918.3) psi= -67.9deg wp=3 xte=+20.6m obs_d=2199m ok=1 comp=8704.1ms solve=8703.2ms RT=8.70 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=100.9 m, U_ship=2.12 m/s, U_d=1.20 m/s, XTE=20.9 m
+  [t=592.0] pos=(-5258.6,-1920.3) psi= -67.9deg wp=3 xte=+20.9m obs_d=2205m ok=1 comp=9094.6ms solve=9093.7ms RT=9.09 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=98.9 m, U_ship=2.13 m/s, U_d=0.60 m/s, XTE=21.2 m
+  [t=593.0] pos=(-5258.0,-1922.4) psi= -67.8deg wp=3 xte=+21.2m obs_d=2211m ok=1 comp=9560.2ms solve=9557.9ms RT=9.56 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=96.9 m, U_ship=2.13 m/s, U_d=0.60 m/s, XTE=21.5 m
+  [t=594.0] pos=(-5257.4,-1924.4) psi= -67.7deg wp=3 xte=+21.5m obs_d=2217m ok=1 comp=8598.0ms solve=8596.5ms RT=8.60 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=94.9 m, U_ship=2.14 m/s, U_d=0.60 m/s, XTE=21.8 m
+  [t=595.0] pos=(-5256.8,-1926.5) psi= -67.7deg wp=3 xte=+21.8m obs_d=2222m ok=1 comp=9044.2ms solve=9042.8ms RT=9.04 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=92.9 m, U_ship=2.15 m/s, U_d=0.60 m/s, XTE=22.1 m
+  [t=596.0] pos=(-5256.2,-1928.6) psi= -67.6deg wp=3 xte=+22.1m obs_d=2228m ok=1 comp=9634.6ms solve=9633.3ms RT=9.63 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=90.9 m, U_ship=2.15 m/s, U_d=0.60 m/s, XTE=22.4 m
+  [t=597.0] pos=(-5255.6,-1930.6) psi= -67.5deg wp=3 xte=+22.4m obs_d=2234m ok=1 comp=8534.9ms solve=8532.8ms RT=8.53 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=88.9 m, U_ship=2.16 m/s, U_d=0.60 m/s, XTE=22.7 m
+  [t=598.0] pos=(-5255.0,-1932.7) psi= -67.5deg wp=3 xte=+22.7m obs_d=2240m ok=1 comp=8298.8ms solve=8297.8ms RT=8.30 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=86.9 m, U_ship=2.16 m/s, U_d=0.60 m/s, XTE=23.0 m
+  [t=599.0] pos=(-5254.4,-1934.8) psi= -67.4deg wp=3 xte=+23.0m obs_d=2246m ok=1 comp=10524.1ms solve=10522.9ms RT=10.52 obs=1 fb=0
+  [FINAL-LEG DEBUG] d_final=84.9 m, U_ship=2.16 m/s, U_d=0.60 m/s, XTE=23.2 m
+  [t=600.0] pos=(-5253.8,-1936.9) psi= -67.3deg wp=3 xte=+23.2m obs_d=2252m ok=1 comp=8660.9ms solve=8659.8ms RT=8.66 obs=1 fb=0
+
+══════════════════════════════════════════════════════════════
+  SUMMARY
+══════════════════════════════════════════════════════════════
+  NMPC solves: 601/601 (100.0%)
+  PID fallback: 0 times
+  Mean |XTE|: 36.5 m, Max |XTE|: 86.3 m
+  Final position: (-5253.8, -1936.9)
+  Dynamic packaging drift [m]: max=0.000
+  Collisions detected: 0
+
+  REAL-TIME FEASIBILITY (dt = 1.000 s)
+  Step compute [ms]: mean=7141.34, p95=10141.58, max=16752.95
+  NMPC solve  [ms]: mean=7139.60, p95=10139.72, max=16750.39
+  RT overruns (step_time > dt): 584/601 (97.17%)
+  Worst RT ratio: 16.753
+
+  TOP-5 SLOWEST STEPS
+    k    t[s]   step[ms]  solve[ms]  guide[ms]  obs[ms]  ref[ms]  int[ms]  ok
+    12    11.0   16752.95    16750.39       0.11     0.94     0.20     0.06   1
+    13    12.0   16155.01    16153.43       0.14     0.65     0.11     0.05   1
+    14    13.0   15432.35    15430.68       0.12     0.54     0.10     0.05   1
+   545   544.0   14148.19    14146.96       0.11     0.66     0.03     0.03   1
+   538   537.0   13806.10    13804.43       0.16     0.92     0.03     0.03   1
+
+  TERMINAL TIMING PLOTS (ASCII)
+    Total step time (ref=1.000)
+      0-25%    |                                     4
+      25-50%   | #                                  11
+      50-75%   |                                     1
+      75-100%  |                                     1
+      100-125% |                                     1
+      >125%    | ################################  583
+    NMPC solve time (ref=1.000)
+      0-25%    |                                     5
+      25-50%   | #                                  10
+      50-75%   |                                     1
+      75-100%  |                                     1
+      100-125% |                                     1
+      >125%    | ################################  583
+    RT ratio (step/dt) (ref=1.000)
+      0-25%    |                                     4
+      25-50%   | #                                  11
+      50-75%   |                                     1
+      75-100%  |                                     1
+      100-125% |                                     1
+      >125%    | ################################  583
+
+  Launching animation...
+  Recording video to: MY_NPMC\my work\plots in development process\recordings\nmpc_run_20260401_172816.mp4
+  [animateSimResult] Loading ship icon: "C:\Users\SERILEG\OneDrive - ABB\Autonomous-docking\useful pictures\vessel_top.png"...
+  [animateSimResult] Icon loaded (312x312 px).
+  [animateSimResult] Recording video: "MY_NPMC\my work\plots in development process\recordings\nmpc_run_20260401_172816.mp4"
+  [animateSimResult] Video saved: "MY_NPMC\my work\plots in development process\recordings\nmpc_run_20260401_172816.mp4"
+  Video saved: MY_NPMC\my work\plots in development process\recordings\nmpc_run_20260401_172816.mp4
+  Terminal log saved: MY_NPMC\my work\plots in development process\logs\nmpc_run_20260401_172816_log.txt
+
+Done. Check figures.
+  ✓ Terminal log confirmed saved: MY_NPMC\my work\plots in development process\logs\nmpc_run_20260401_172816_log.txt
+
+══════════════════════════════════════════════════════════════
+  Simulation and output generation complete
+══════════════════════════════════════════════════════════════

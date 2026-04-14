@@ -1,0 +1,104 @@
+  Terminal log recording to: C:\Users\SERILEG\OneDrive - ABB\Autonomous-docking\MY_NPMC\my work\plots in development process\logs\nmpc_run_20260402_171433_log.txt
+  container.m check: u_dot=0.0406, r_dot=0.000000, U=7.00 m/s
+
+  Harbor map loaded: 60 polygons
+  Final waypoint is outside mapped forbidden zones
+  Map sample points: 3729
+  Final waypoint -> nearest map sample: 172.6 m (nominal keepout 115.0 m)
+  Dynamic obstacles enabled: 1
+  Dynamic replay determinism check: PASS
+
+--- Building NMPC solver (6 obstacle slots) ---
+  Hull footprint: oriented rectangle 87.5 m x 12.7 m (clearance 2.0 m)
+NMPC_Container_final: N=25, dt=1.00, obs_slots=6
+  8-state model: [u v r x y psi n1 n2]
+  4 controls: [alpha1 alpha2 n1_c n2_c]
+  forward speed constraint: u >= 0.50 m/s
+  actuator penalty: 0.0500 | forward incentive: 2.50
+  collision: oriented rectangle 87.5 x 12.7 m (clearance 2.0 m)
+  nlpsol built: 308 vars, 464 constraints
+    - Equalities: 208 (initial + dynamics)
+    - Obstacle:   156 (slots × horizon)
+    - Rate:       100 (first-step + consecutive)
+
+  Waypoints: (-6100, -1500) (-5700, -1300) (-5400, -1550) (-5200, -2000)   [t=  0.0] pos=(-6093.7,-1496.9) psi= +26.6deg wp=1 xte=+0.0m obs_d=192m ok=1 comp=1272.6ms solve=1205.7ms RT=1.27 obs=6 fb=0
+  [t=  1.0] pos=(-6087.4,-1493.7) psi= +26.5deg wp=1 xte=-0.0m obs_d=186m ok=1 comp=1365.4ms solve=1333.3ms RT=1.37 obs=6 fb=0
+  [t=  2.0] pos=(-6081.1,-1490.5) psi= +26.5deg wp=1 xte=-0.0m obs_d=181m ok=1 comp=2205.0ms solve=2179.7ms RT=2.20 obs=6 fb=0
+  [t=  4.0] pos=(-6068.5,-1484.2) psi= +26.5deg wp=1 xte=-0.0m obs_d=171m ok=1 comp=1292.5ms solve=1208.8ms RT=1.29 obs=6 fb=0
+  [t=  6.0] pos=(-6055.9,-1477.8) psi= +26.4deg wp=1 xte=-0.1m obs_d=160m ok=1 comp=1030.0ms solve=1026.7ms RT=1.03 obs=6 fb=0
+  [t=  7.0] pos=(-6049.6,-1474.7) psi= +26.5deg wp=1 xte=-0.1m obs_d=155m ok=1 comp=1062.5ms solve=1053.7ms RT=1.06 obs=6 fb=0
+  [t= 19.0] pos=(-5972.7,-1437.1) psi= +27.6deg wp=1 xte=+0.7m obs_d=96m ok=1 comp=651.4ms solve=650.4ms RT=0.65 obs=6 fb=0
+  [t= 39.0] pos=(-5861.6,-1349.4) psi= +21.5deg wp=1 xte=-26.3m obs_d=113m ok=1 comp=674.7ms solve=673.9ms RT=0.67 obs=6 fb=0
+  [t= 59.0] pos=(-5777.0,-1299.7) psi= +41.6deg wp=1 xte=-35.0m obs_d=95m ok=1 comp=622.3ms solve=621.3ms RT=0.62 obs=6 fb=0
+  [t= 79.0] pos=(-5715.7,-1254.8) psi= +57.7deg wp=2 xte=-20.0m obs_d=118m ok=1 comp=609.4ms solve=608.0ms RT=0.61 obs=6 fb=0
+  [t= 99.0] pos=(-5669.0,-1234.2) psi= +63.9deg wp=2 xte=-69.6m obs_d=143m ok=1 comp=571.7ms solve=570.9ms RT=0.57 obs=6 fb=0
+  [t=119.0] pos=(-5649.6,-1232.6) psi= +65.7deg wp=2 xte=-83.5m obs_d=151m ok=1 comp=533.5ms solve=532.2ms RT=0.53 obs=6 fb=0
+  [t=139.0] pos=(-5659.2,-1220.0) psi= +83.4deg wp=2 xte=-87.6m obs_d=159m ok=1 comp=538.5ms solve=537.5ms RT=0.54 obs=6 fb=0
+  [t=159.0] pos=(-5681.6,-1210.6) psi= +98.2deg wp=2 xte=-81.0m obs_d=163m ok=1 comp=568.6ms solve=567.4ms RT=0.57 obs=6 fb=0
+  [t=166.0] pos=(-5691.3,-1208.9) psi=+102.7deg wp=2 xte=-76.4m obs_d=164m ok=1 comp=1194.7ms solve=1192.6ms RT=1.19 obs=6 fb=0
+  [t=167.0] pos=(-5692.7,-1208.7) psi=+103.3deg wp=2 xte=-75.6m obs_d=164m ok=1 comp=1711.6ms solve=1709.6ms RT=1.71 obs=6 fb=0
+  [t=168.0] pos=(-5694.2,-1208.5) psi=+103.9deg wp=2 xte=-74.8m obs_d=164m ok=1 comp=1151.5ms solve=1149.6ms RT=1.15 obs=6 fb=0
+  [t=173.0] pos=(-5701.5,-1207.9) psi=+106.9deg wp=2 xte=-70.7m obs_d=164m ok=1 comp=1194.9ms solve=1193.0ms RT=1.19 obs=6 fb=0
+  [t=174.0] pos=(-5703.0,-1207.9) psi=+107.5deg wp=2 xte=-69.8m obs_d=164m ok=1 comp=1477.3ms solve=1474.8ms RT=1.48 obs=6 fb=0
+  [t=176.0] pos=(-5706.0,-1207.8) psi=+108.6deg wp=2 xte=-67.9m obs_d=164m ok=1 comp=1268.1ms solve=1266.1ms RT=1.27 obs=6 fb=0
+  [t=179.0] pos=(-5710.5,-1207.8) psi=+110.3deg wp=2 xte=-65.1m obs_d=164m ok=1 comp=1066.1ms solve=1065.1ms RT=1.07 obs=6 fb=0
+  [t=183.0] pos=(-5716.6,-1208.0) psi=+112.6deg wp=2 xte=-61.1m obs_d=164m ok=1 comp=1066.3ms solve=1065.1ms RT=1.07 obs=6 fb=0
+  [t=199.0] pos=(-5739.4,-1210.4) psi=+119.8deg wp=2 xte=-44.5m obs_d=165m ok=1 comp=587.5ms solve=586.7ms RT=0.59 obs=6 fb=0
+  [t=219.0] pos=(-5759.8,-1211.2) psi=+123.7deg wp=2 xte=-30.3m obs_d=169m ok=1 comp=651.2ms solve=650.1ms RT=0.65 obs=6 fb=0
+  [t=239.0] pos=(-5767.3,-1204.2) psi=+133.4deg wp=2 xte=-30.4m obs_d=177m ok=1 comp=587.3ms solve=586.4ms RT=0.59 obs=6 fb=0
+
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+  SUMMARY
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+  NMPC solves: 241/241 (100.0%)
+  PID fallback: 0 times
+  Mean |XTE|: 46.9 m, Max |XTE|: 87.7 m
+  Final position: (-5767.6, -1203.8)
+  Dynamic packaging drift [m]: max=0.000
+  Collisions detected: 0
+
+  REAL-TIME FEASIBILITY (dt = 1.000 s)
+  Step compute [ms]: mean=661.26, p95=1064.15, max=2204.98
+  NMPC solve  [ms]: mean=659.00, p95=1058.83, max=2179.74
+  RT overruns (step_time > dt): 14/241 (5.81%)
+  Worst RT ratio: 2.205
+
+  TOP-5 SLOWEST STEPS
+    k    t[s]   step[ms]  solve[ms]  guide[ms]  obs[ms]  ref[ms]  int[ms]  ok
+     3     2.0   2204.98    2179.74       2.79    14.17     1.03     1.68   1
+   168   167.0   1711.59    1709.55       0.15     0.76     0.06     0.05   1
+   175   174.0   1477.30    1474.81       0.16     0.68     0.05     0.12   1
+     2     1.0   1365.41    1333.30       2.45    18.28     5.28     0.58   1
+     5     4.0   1292.53    1208.76      25.02    35.21     7.62     4.03   1
+
+  TERMINAL TIMING PLOTS (ASCII)
+    Total step time (ref=1.000)
+      0-25%    | #                                   6
+      25-50%   |                                     0
+      50-75%   | ################################  200
+      75-100%  | ###                                21
+      100-125% | #                                   7
+      >125%    | #                                   7
+    NMPC solve time (ref=1.000)
+      0-25%    | #                                   6
+      25-50%   |                                     0
+      50-75%   | ################################  200
+      75-100%  | ###                                21
+      100-125% | #                                   9
+      >125%    | #                                   5
+    RT ratio (step/dt) (ref=1.000)
+      0-25%    | #                                   6
+      25-50%   |                                     0
+      50-75%   | ################################  200
+      75-100%  | ###                                21
+      100-125% | #                                   7
+      >125%    | #                                   7
+
+  Launching animation...
+  Recording video to: C:\Users\SERILEG\OneDrive - ABB\Autonomous-docking\MY_NPMC\my work\plots in development process\recordings\nmpc_run_20260402_171433.mp4
+  [animateSimResult] Loading ship icon: "C:\Users\SERILEG\OneDrive - ABB\Autonomous-docking\useful pictures\vessel_top.png"...
+  [animateSimResult] Icon loaded (312x312 px).
+  [animateSimResult] Recording video: "C:\Users\SERILEG\OneDrive - ABB\Autonomous-docking\MY_NPMC\my work\plots in development process\recordings\nmpc_run_20260402_171433.mp4"
+[Warning: The video's width and height has been padded to be a multiple of two as required by the H.264 codec.] 
+  [animateSimResult] Video saved: "C:\Users\SERILEG\OneDrive - ABB\Autonomous-docking\MY_NPMC\my work\plots in development process\recordings\nmpc_run_20260402_171433.mp4"
+  Video saved: C:\Users\SERILEG\OneDrive - ABB\Autonomous-docking\MY_NPMC\my work\plots in development process\recordings\nmpc_run_20260402_171433.mp4

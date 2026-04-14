@@ -1,0 +1,145 @@
+  Terminal log recording to: C:\Users\SERILEG\OneDrive - ABB\Autonomous-docking\MY_NPMC\my work\plots in development process\logs\nmpc_run_20260402_132241_log.txt
+  container.m check: u_dot=0.0406, r_dot=0.000000, U=7.00 m/s
+
+  Harbor map loaded: 60 polygons
+  Final waypoint is outside mapped forbidden zones
+  Map sample points: 3729
+  Final waypoint -> nearest map sample: 182.7 m (nominal keepout 115.0 m)
+  Dynamic obstacles enabled: 2
+  Dynamic replay determinism check: PASS
+
+--- Building NMPC solver (5 obstacle slots) ---
+  Hull footprint: oriented rectangle 87.5 m x 12.7 m (clearance 2.0 m)
+NMPC_Container_final: N=25, dt=1.00, obs_slots=5
+  8-state model: [u v r x y psi n1 n2]
+  4 controls: [alpha1 alpha2 n1_c n2_c]
+  forward speed constraint: u >= 0.50 m/s
+  actuator penalty: 0.0500 | forward incentive: 2.50
+  collision: oriented rectangle 87.5 x 12.7 m (clearance 2.0 m)
+  nlpsol built: 308 vars, 438 constraints
+    - Equalities: 208 (initial + dynamics)
+    - Obstacle:   130 (slots × horizon)
+    - Rate:       100 (first-step + consecutive)
+
+  Waypoints: (-3500, -1600) (-3100, -1500) (-2850, -1700) (-2550, -1400)   [t=  0.0] pos=(-3493.2,-1598.3) psi= +14.0deg wp=1 xte=+0.0m obs_d=224m ok=1 comp=1918.4ms solve=1808.5ms RT=1.92 obs=5 fb=0
+  [t=  1.0] pos=(-3486.4,-1596.6) psi= +14.1deg wp=1 xte=+0.0m obs_d=222m ok=1 comp=1881.0ms solve=1845.1ms RT=1.88 obs=5 fb=0
+  [t=  2.0] pos=(-3479.5,-1594.9) psi= +14.1deg wp=1 xte=+0.0m obs_d=219m ok=1 comp=1657.3ms solve=1612.8ms RT=1.66 obs=5 fb=0
+  [t=  3.0] pos=(-3472.6,-1593.2) psi= +14.1deg wp=1 xte=+0.0m obs_d=217m ok=1 comp=1350.6ms solve=1334.6ms RT=1.35 obs=5 fb=0
+  [t=  4.0] pos=(-3465.8,-1591.6) psi= +14.2deg wp=1 xte=+0.1m obs_d=215m ok=1 comp=1351.4ms solve=1249.4ms RT=1.35 obs=5 fb=0
+  [t=  5.0] pos=(-3458.9,-1589.9) psi= +14.3deg wp=1 xte=+0.1m obs_d=213m ok=1 comp=1342.6ms solve=1335.6ms RT=1.34 obs=5 fb=0
+  [t=  6.0] pos=(-3452.0,-1588.3) psi= +14.5deg wp=1 xte=+0.2m obs_d=211m ok=1 comp=1182.6ms solve=1173.3ms RT=1.18 obs=5 fb=0
+  [t=  7.0] pos=(-3445.0,-1586.8) psi= +14.8deg wp=1 xte=+0.3m obs_d=210m ok=1 comp=1060.9ms solve=1059.0ms RT=1.06 obs=5 fb=0
+  [t=  8.0] pos=(-3438.1,-1585.4) psi= +15.1deg wp=1 xte=+0.5m obs_d=208m ok=1 comp=1509.5ms solve=1506.8ms RT=1.51 obs=5 fb=0
+  [t=  9.0] pos=(-3431.3,-1584.1) psi= +15.6deg wp=1 xte=+0.8m obs_d=206m ok=1 comp=1366.3ms solve=1364.3ms RT=1.37 obs=5 fb=0
+  [t= 10.0] pos=(-3424.6,-1582.9) psi= +16.2deg wp=1 xte=+1.2m obs_d=204m ok=1 comp=1481.6ms solve=1480.0ms RT=1.48 obs=5 fb=0
+  [t= 11.0] pos=(-3418.1,-1581.8) psi= +16.9deg wp=1 xte=+1.7m obs_d=203m ok=1 comp=1160.7ms solve=1157.4ms RT=1.16 obs=5 fb=0
+  [t= 12.0] pos=(-3411.7,-1580.9) psi= +17.7deg wp=1 xte=+2.2m obs_d=202m ok=1 comp=1448.0ms solve=1444.4ms RT=1.45 obs=5 fb=0
+  [t= 13.0] pos=(-3405.7,-1580.1) psi= +18.5deg wp=1 xte=+2.9m obs_d=201m ok=1 comp=1260.7ms solve=1258.6ms RT=1.26 obs=5 fb=0
+  [t= 14.0] pos=(-3400.0,-1579.3) psi= +19.2deg wp=1 xte=+3.5m obs_d=199m ok=1 comp=1449.3ms solve=1446.7ms RT=1.45 obs=5 fb=0
+  [t= 15.0] pos=(-3394.6,-1578.7) psi= +20.0deg wp=1 xte=+4.2m obs_d=197m ok=1 comp=1159.5ms solve=1157.1ms RT=1.16 obs=5 fb=0
+  [mode-switch] Would rebuild solver (DISABLED for stability)
+  [t= 16.0] pos=(-3389.6,-1578.1) psi= +20.7deg wp=1 xte=+4.9m obs_d=196m ok=1 comp=1242.9ms solve=1237.4ms RT=1.24 obs=5 fb=0
+  [t= 17.0] pos=(-3384.8,-1577.6) psi= +21.3deg wp=1 xte=+5.6m obs_d=195m ok=1 comp=1247.5ms solve=1243.7ms RT=1.25 obs=5 fb=0
+  [t= 18.0] pos=(-3380.4,-1577.2) psi= +22.0deg wp=1 xte=+6.2m obs_d=193m ok=1 comp=1582.4ms solve=1579.5ms RT=1.58 obs=5 fb=0
+  [t= 19.0] pos=(-3376.3,-1576.9) psi= +22.5deg wp=1 xte=+6.9m obs_d=192m ok=1 comp=1430.3ms solve=1428.4ms RT=1.43 obs=5 fb=0
+  [t= 20.0] pos=(-3372.4,-1576.6) psi= +23.1deg wp=1 xte=+7.5m obs_d=191m ok=1 comp=1265.2ms solve=1263.5ms RT=1.27 obs=5 fb=0
+  [t= 21.0] pos=(-3368.7,-1576.3) psi= +23.7deg wp=1 xte=+8.2m obs_d=188m ok=1 comp=1396.3ms solve=1394.2ms RT=1.40 obs=5 fb=0
+  [t= 22.0] pos=(-3365.2,-1576.2) psi= +24.3deg wp=1 xte=+8.9m obs_d=183m ok=1 comp=1382.4ms solve=1377.8ms RT=1.38 obs=5 fb=0
+  [t= 23.0] pos=(-3361.8,-1576.0) psi= +24.9deg wp=1 xte=+9.6m obs_d=179m ok=1 comp=1572.9ms solve=1570.8ms RT=1.57 obs=5 fb=0
+  [t= 24.0] pos=(-3358.5,-1575.9) psi= +25.5deg wp=1 xte=+10.3m obs_d=174m ok=1 comp=1266.6ms solve=1264.7ms RT=1.27 obs=5 fb=0
+  [t= 25.0] pos=(-3355.2,-1575.8) psi= +26.1deg wp=1 xte=+11.0m obs_d=170m ok=1 comp=1503.8ms solve=1502.2ms RT=1.50 obs=5 fb=0
+  [mode-switch] Would rebuild solver (DISABLED for stability)
+  [t= 27.0] pos=(-3348.8,-1575.5) psi= +27.3deg wp=1 xte=+12.3m obs_d=161m ok=1 comp=1511.1ms solve=1503.4ms RT=1.51 obs=3 fb=0
+  [t= 31.0] pos=(-3336.6,-1574.6) psi= +29.4deg wp=1 xte=+14.5m obs_d=144m ok=1 comp=1250.0ms solve=1222.7ms RT=1.25 obs=2 fb=0
+  [t= 32.0] pos=(-3333.6,-1574.3) psi= +29.9deg wp=1 xte=+15.0m obs_d=140m ok=1 comp=1303.9ms solve=1286.0ms RT=1.30 obs=3 fb=0
+  [t= 33.0] pos=(-3330.7,-1574.0) psi= +30.3deg wp=1 xte=+15.4m obs_d=136m ok=1 comp=1320.9ms solve=1318.2ms RT=1.32 obs=2 fb=0
+  [t= 34.0] pos=(-3327.8,-1573.7) psi= +30.8deg wp=1 xte=+15.8m obs_d=132m ok=1 comp=1001.6ms solve=1000.3ms RT=1.00 obs=2 fb=0
+  [t= 35.0] pos=(-3325.0,-1573.4) psi= +31.2deg wp=1 xte=+16.2m obs_d=129m ok=1 comp=1157.9ms solve=1156.0ms RT=1.16 obs=2 fb=0
+  [t= 36.0] pos=(-3322.3,-1573.1) psi= +31.7deg wp=1 xte=+16.6m obs_d=125m ok=1 comp=1121.3ms solve=1115.9ms RT=1.12 obs=2 fb=0
+  [t= 38.0] pos=(-3316.9,-1572.4) psi= +32.5deg wp=1 xte=+17.3m obs_d=119m ok=1 comp=1226.8ms solve=1224.9ms RT=1.23 obs=2 fb=0
+  [t= 39.0] pos=(-3314.4,-1572.1) psi= +32.9deg wp=1 xte=+17.6m obs_d=115m ok=1 comp=1401.0ms solve=1399.4ms RT=1.40 obs=2 fb=0
+  [t= 40.0] pos=(-3311.8,-1571.8) psi= +33.3deg wp=1 xte=+18.0m obs_d=112m ok=1 comp=1382.4ms solve=1381.0ms RT=1.38 obs=2 fb=0
+  [t= 41.0] pos=(-3309.3,-1571.4) psi= +33.7deg wp=1 xte=+18.2m obs_d=110m ok=1 comp=1489.0ms solve=1487.3ms RT=1.49 obs=2 fb=0
+  [t= 42.0] pos=(-3306.8,-1571.0) psi= +34.1deg wp=1 xte=+18.5m obs_d=107m ok=1 comp=1737.5ms solve=1735.7ms RT=1.74 obs=2 fb=0
+  [t= 45.0] pos=(-3299.5,-1569.6) psi= +35.2deg wp=1 xte=+19.1m obs_d=100m ok=1 comp=1046.7ms solve=1044.1ms RT=1.05 obs=2 fb=0
+  [t= 46.0] pos=(-3297.1,-1569.1) psi= +35.5deg wp=1 xte=+19.2m obs_d=98m ok=1 comp=1794.4ms solve=1793.1ms RT=1.79 obs=2 fb=0
+  [t= 47.0] pos=(-3294.7,-1568.6) psi= +35.9deg wp=1 xte=+19.3m obs_d=96m ok=1 comp=2013.7ms solve=2011.6ms RT=2.01 obs=2 fb=0
+  [t= 48.0] pos=(-3292.3,-1568.0) psi= +36.2deg wp=1 xte=+19.3m obs_d=94m ok=1 comp=1168.9ms solve=1167.8ms RT=1.17 obs=2 fb=0
+  [t= 50.0] pos=(-3287.6,-1566.7) psi= +36.8deg wp=1 xte=+19.3m obs_d=90m ok=1 comp=1412.7ms solve=1411.1ms RT=1.41 obs=2 fb=0
+  [mode-switch] Would rebuild solver (DISABLED for stability)
+  [t= 52.0] pos=(-3282.9,-1565.3) psi= +37.3deg wp=1 xte=+19.1m obs_d=88m ok=1 comp=1551.9ms solve=1550.2ms RT=1.55 obs=2 fb=0
+  [t= 53.0] pos=(-3280.5,-1564.6) psi= +37.6deg wp=1 xte=+19.0m obs_d=87m ok=1 comp=1071.5ms solve=1069.8ms RT=1.07 obs=2 fb=0
+  [t= 54.0] pos=(-3278.2,-1563.8) psi= +37.9deg wp=1 xte=+18.9m obs_d=86m ok=1 comp=1067.9ms solve=1052.5ms RT=1.07 obs=2 fb=0
+  [t= 55.0] pos=(-3275.9,-1563.1) psi= +38.1deg wp=1 xte=+18.7m obs_d=85m ok=1 comp=1361.8ms solve=1359.7ms RT=1.36 obs=2 fb=0
+  [t= 57.0] pos=(-3271.2,-1561.4) psi= +38.6deg wp=1 xte=+18.3m obs_d=84m ok=1 comp=1267.5ms solve=1266.4ms RT=1.27 obs=2 fb=0
+  [t= 59.0] pos=(-3266.6,-1559.8) psi= +39.1deg wp=1 xte=+17.8m obs_d=84m ok=1 comp=807.9ms solve=804.9ms RT=0.81 obs=2 fb=0
+  [t= 60.0] pos=(-3264.3,-1558.9) psi= +39.3deg wp=1 xte=+17.6m obs_d=85m ok=1 comp=1160.1ms solve=1158.7ms RT=1.16 obs=2 fb=0
+  [t= 62.0] pos=(-3259.7,-1557.2) psi= +39.8deg wp=1 xte=+17.0m obs_d=85m ok=1 comp=1019.6ms solve=1018.1ms RT=1.02 obs=2 fb=0
+  [t= 63.0] pos=(-3257.4,-1556.3) psi= +39.9deg wp=1 xte=+16.7m obs_d=86m ok=1 comp=1124.0ms solve=1122.2ms RT=1.12 obs=3 fb=0
+  [t= 64.0] pos=(-3255.1,-1555.4) psi= +40.1deg wp=1 xte=+16.4m obs_d=87m ok=1 comp=1012.1ms solve=1010.8ms RT=1.01 obs=3 fb=0
+  [t= 66.0] pos=(-3250.6,-1553.6) psi= +40.5deg wp=1 xte=+15.8m obs_d=89m ok=1 comp=1452.0ms solve=1450.5ms RT=1.45 obs=3 fb=0
+  [t= 67.0] pos=(-3248.3,-1552.6) psi= +40.7deg wp=1 xte=+15.4m obs_d=91m ok=1 comp=1018.0ms solve=1016.2ms RT=1.02 obs=3 fb=0
+  [t= 69.0] pos=(-3243.8,-1550.7) psi= +41.0deg wp=1 xte=+14.7m obs_d=94m ok=1 comp=1086.0ms solve=1084.4ms RT=1.09 obs=4 fb=0
+  [t= 72.0] pos=(-3237.1,-1547.8) psi= +41.4deg wp=1 xte=+13.5m obs_d=99m ok=1 comp=1078.8ms solve=1077.2ms RT=1.08 obs=5 fb=0
+  [t= 79.0] pos=(-3221.6,-1541.5) psi= +40.8deg wp=1 xte=+11.1m obs_d=116m ok=1 comp=512.2ms solve=511.1ms RT=0.51 obs=5 fb=0
+  [t= 99.0] pos=(-3185.7,-1522.8) psi= +32.6deg wp=1 xte=+1.8m obs_d=175m ok=1 comp=578.7ms solve=577.6ms RT=0.58 obs=5 fb=0
+  [t=119.0] pos=(-3118.5,-1497.7) psi= +41.4deg wp=2 xte=+12.3m obs_d=137m ok=1 comp=621.1ms solve=620.1ms RT=0.62 obs=5 fb=0
+  [t=139.0] pos=(-3069.6,-1509.5) psi= +41.7deg wp=2 xte=-11.4m obs_d=94m ok=1 comp=571.3ms solve=569.4ms RT=0.57 obs=5 fb=0
+  [t=159.0] pos=(-3039.0,-1531.4) psi= +34.9deg wp=2 xte=-13.6m obs_d=59m ok=1 comp=577.0ms solve=575.0ms RT=0.58 obs=5 fb=0
+  [t=179.0] pos=(-3007.7,-1549.2) psi= +24.9deg wp=2 xte=-17.8m obs_d=33m ok=1 comp=529.9ms solve=529.0ms RT=0.53 obs=5 fb=0
+
+══════════════════════════════════════════════════════════════
+  SUMMARY
+══════════════════════════════════════════════════════════════
+  NMPC solves: 181/181 (100.0%)
+  PID fallback: 0 times
+  Mean |XTE|: 12.5 m, Max |XTE|: 54.3 m
+  Final position: (-3005.0, -1549.4)
+  Dynamic packaging drift [m]: max=0.000
+  Collisions detected: 0
+
+  REAL-TIME FEASIBILITY (dt = 1.000 s)
+  Step compute [ms]: mean=859.85, p95=1529.45, max=2013.70
+  NMPC solve  [ms]: mean=856.11, p95=1526.35, max=2011.58
+  RT overruns (step_time > dt): 56/181 (30.94%)
+  Worst RT ratio: 2.014
+
+  TOP-5 SLOWEST STEPS
+    k    t[s]   step[ms]  solve[ms]  guide[ms]  obs[ms]  ref[ms]  int[ms]  ok
+    48    47.0   2013.70    2011.58       0.11     0.69     0.04     0.07   1
+     1     0.0   1918.35    1808.47      33.70    29.96    16.99     4.74   1
+     2     1.0   1880.98    1845.07       5.71    15.19     7.31     0.88   1
+    47    46.0   1794.37    1793.08       0.13     0.51     0.04     0.04   1
+    43    42.0   1737.55    1735.75       0.18     0.55     0.10     0.04   1
+
+  TERMINAL TIMING PLOTS (ASCII)
+    Total step time (ref=1.000)
+      0-25%    |                                     0
+      25-50%   |                                     0
+      50-75%   | ################################  103
+      75-100%  | #######                            22
+      100-125% | #######                            22
+      >125%    | ###########                        34
+    NMPC solve time (ref=1.000)
+      0-25%    |                                     0
+      25-50%   |                                     0
+      50-75%   | ################################  104
+      75-100%  | ######                             21
+      100-125% | #######                            23
+      >125%    | ##########                         33
+    RT ratio (step/dt) (ref=1.000)
+      0-25%    |                                     0
+      25-50%   |                                     0
+      50-75%   | ################################  103
+      75-100%  | #######                            22
+      100-125% | #######                            22
+      >125%    | ###########                        34
+
+  Launching animation...
+  Recording video to: C:\Users\SERILEG\OneDrive - ABB\Autonomous-docking\MY_NPMC\my work\plots in development process\recordings\nmpc_run_20260402_132241.mp4
+  [animateSimResult] Loading ship icon: "C:\Users\SERILEG\OneDrive - ABB\Autonomous-docking\useful pictures\vessel_top.png"...
+  [animateSimResult] Icon loaded (312x312 px).
+  [animateSimResult] Recording video: "C:\Users\SERILEG\OneDrive - ABB\Autonomous-docking\MY_NPMC\my work\plots in development process\recordings\nmpc_run_20260402_132241.mp4"
+[Warning: The video's width and height has been padded to be a multiple of two as required by the H.264 codec.] 
+  [animateSimResult] Video saved: "C:\Users\SERILEG\OneDrive - ABB\Autonomous-docking\MY_NPMC\my work\plots in development process\recordings\nmpc_run_20260402_132241.mp4"
+  Video saved: C:\Users\SERILEG\OneDrive - ABB\Autonomous-docking\MY_NPMC\my work\plots in development process\recordings\nmpc_run_20260402_132241.mp4
