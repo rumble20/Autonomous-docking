@@ -1,4 +1,4 @@
-function [xdot, U] = container_new(x, ui)
+function [xdot, U] = container(x, ui)
 % Simplified 6-DOF container ship model with twin stern azipods + bow tunnel thruster
 % Based on Son & Nomoto (1982) with roll dynamics removed
 % Compatible with MATLAB and GNU Octave (www.octave.org)
@@ -30,7 +30,8 @@ function [xdot, U] = container_new(x, ui)
 %            Ocean Engineering 20:73-83.
 %
 % Author: Riccardo Legnini
-% Modified for twin-stern + bow thruster configuration (2026-04-14)
+% Based on T. Fossen's implementation, modified for twin-stern + bow thruster config
+% Date: 2026-04-14
 
 %% Input validation
 if (length(x) ~= 9), error('x-vector must have dimension 9 (new 3-thruster model)!'); end
@@ -51,12 +52,12 @@ Izz_ship = 0.1 * m_ship * L^2;  % Yaw moment of inertia (kg·m^2)
 %% Propeller/Azipod parameters - STERN AZIPODS (larger)
 D_stern   = 6.533;          % Propeller diameter for stern azipods (m)
 t_stern   = 0.175;          % Thrust deduction factor for stern azipods
-wp_stern  = 0.184;          % Wake fraction for stern azipods at design speed
+wp_stern  = 0.184;          % Wake fraction for stern azipods
 
 % BOW TUNNEL THRUSTER (smaller, lateral-only, speed-dependent)
 D_bow     = 4.5;            % Propeller diameter for bow thruster (m) - smaller
 t_bow     = 0.15;           % Thrust deduction factor for bow thruster (slightly higher in tunnel)
-wp_bow    = 0.05;           % Very low wake fraction (tunnel effect minimizes wake)
+wp_bow    = 0.05;           % Very low wake fraction (tunnel effect)
 n_bow_max = 140;            % Max shaft speed for bow thruster (rpm) - lower than stern
 bow_thrust_factor = 0.30;   % Thrust ratio: T_bow_max ≈ 0.3 × T_stern_max per azipod
 
@@ -178,13 +179,28 @@ T3 = T3_raw * speed_decay_factor;  % Apply speed-dependent penalty
 alpha3 = pi/2;  % Fixed azimuth for bow tunnel thruster
 
 %% Total thrust forces and moments (dimensional, in N and N·m)
-% Force components from STERN AZIPODS
+% Force components from each thruster
 Fx1 = T1 * cos(alpha1);
 Fy1 = T1 * sin(alpha1);
 Fx2 = T2 * cos(alpha2);
 Fy2 = T2 * sin(alpha2);
 
-% Force components from BOW THRUSTER (FIXED lateral direction, alpha3 = pi/2)
+% Total forces (N)
+X_thrust = Fx1 + Fx2;
+Y_thrust = Fy1 + Fy2;
+
+% Moments about center of gravity (N·m)
+N_thrust = x_azi1 * Fy1 - y_azi1 * Fx1 + x_azi2 * Fy2 - y_azi2 * Fx2;
+%% Total thrust forces and moments (dimensional, in N and N·m)
+% Force components from each thruster
+
+% Stern Azipods (full azimuth control)
+Fx1 = T1 * cos(alpha1);
+Fy1 = T1 * sin(alpha1);
+Fx2 = T2 * cos(alpha2);
+Fy2 = T2 * sin(alpha2);
+
+% Bow Thruster (FIXED lateral direction, alpha3 = pi/2)
 Fx3 = T3 * cos(alpha3);  % = T3 * cos(pi/2) ≈ 0 (minimal forward component)
 Fy3 = T3 * sin(alpha3);  % = T3 * sin(pi/2) = T3 (pure lateral)
 
@@ -223,6 +239,25 @@ psi_dot = r;
 % Shaft dynamics (first-order lag)
 Tm1 = shaft_time_constant(n1);
 Tm2 = shaft_time_constant(n2);
+
+% Saturate commanded values
+n1_c = max(min(n1_c, n_max), n_min);
+n2_c = max(min(n2_c, n_max), n_min);
+
+% Shaft acceleration with rate limiting
+n1_dot = (n1_c - n1) / Tm1;
+n2_dot = (n2_c - n2) / Tm2;
+
+n1_dot = max(min(n1_dot, Dn_max), -Dn_max);
+n2_dot = max(min(n2_dot, Dn_max), -Dn_max);
+
+%% Output
+xdot = [u_dot; v_dot; r_dot; x_dot; y_dot; psi_dot; n1_dot; n2_dot];
+%% Actuator dynamics
+
+% Shaft dynamics (first-order lag)
+Tm1 = shaft_time_constant(n1);
+Tm2 = shaft_time_constant(n2);
 Tm3 = shaft_time_constant(n3) * 1.5;  % Bow thruster is slightly slower (1.5x time constant)
 
 % Saturate commanded values (STERN AZIPODS)
@@ -247,14 +282,14 @@ xdot = [u_dot; v_dot; r_dot; x_dot; y_dot; psi_dot; n1_dot; n2_dot; n3_dot];
 end
 
 
-function [T, Q] = azipod_thrust(n_rpm, u, v, r, x_pos, y_pos, alpha, D, wp, t, rho, U, L)
-% AZIPOD_THRUST Computes thrust and torque for an azipod thruster (with y-position for general moment calc)
+function [T, Q] = azipod_thrust(n_rpm, u, v, r, x_pos, alpha, D, wp, t, rho, U, L)
+% AZIPOD_THRUST Computes thrust and torque for an azipod thruster
 %
 % Inputs:
 %   n_rpm  - Shaft speed (rpm)
 %   u, v   - Ship velocities (m/s)
 %   r      - Yaw rate (rad/s)
-%   x_pos, y_pos - Position of thruster (m)
+%   x_pos  - Longitudinal position of thruster (m)
 %   alpha  - Azimuth angle (rad)
 %   D      - Propeller diameter (m)
 %   wp     - Wake fraction
@@ -278,8 +313,8 @@ if abs(n) < 0.01
 end
 
 % Local velocity at thruster position (accounting for yaw rotation)
-u_local = u + r * y_pos;            % Surge component affected by yaw, sway distance
-v_local = v - r * x_pos;            % Sway component affected by yaw, surge distance
+u_local = u + r * 0;            % Surge component (no y-offset assumed)
+v_local = v + r * x_pos;        % Sway component affected by yaw
 
 % Velocity into the propeller (considering azimuth angle)
 u_inflow = u_local * cos(alpha) + v_local * sin(alpha);
@@ -314,77 +349,7 @@ Q = rho * D^5 * n * abs(n) * KQ;
 
 end
 
-
-function [T, Q] = bow_tunnel_thrust(n_rpm, u, v, r, x_pos, y_pos, D, wp, t, rho, U, L, thrust_factor)
-% BOW_TUNNEL_THRUST Computes trust for bow tunnel thruster (smaller, lateral-only)
-%
-% Inputs:
-%   n_rpm  - Shaft speed (rpm)
-%   u, v   - Ship velocities (m/s)
-%   r      - Yaw rate (rad/s)
-%   x_pos, y_pos - Position of thruster (m)
-%   D      - Propeller diameter (m)
-%   wp     - Wake fraction
-%   t      - Thrust deduction factor
-%   rho    - Water density (kg/m^3)
-%   U      - Ship speed (m/s)
-%   L      - Ship length (m)
-%   thrust_factor - Scaling factor for bow thruster relative to main azipods (≈0.3)
-%
-% Outputs:
-%   T      - Net lateral thrust (N)
-%   Q      - Torque (N·m)
-
-% Convert rpm to rps
-n = n_rpm / 60;
-
-% Handle zero/low rpm
-if abs(n) < 0.01
-    T = 0;
-    Q = 0;
-    return;
-end
-
-% Local velocity at thruster position (accounting for yaw rotation)
-u_local = u + r * y_pos;            % Surge component affected by yaw, sway distance
-v_local = v - r * x_pos;            % Sway component affected by yaw, surge distance
-
-% BOW THRUSTER: Primarily affected by sway velocity (lateral inflow)
-% The bow tunnel thruster matrix: primarily responds to sway, affected by yaw
-u_inflow = v_local;  % Primarily lateral inflow for tunnel thruster (simplified)
-
-% Effective advance velocity with wake
-u_a = u_inflow * (1 - wp);
-
-% Advance ratio
-J = u_a / (abs(n) * D);
-
-% Limit J to valid range
-J = max(min(J, 1.2), -0.5);
-
-% Open water propeller characteristics (similar but scaled)
-KT0 = 0.527 * thrust_factor;        % Smaller baseline thrust coefficient
-KT1 = -0.455 * thrust_factor;
-KT = KT0 + KT1 * J;
-
-% Ensure KT doesn't go negative at high J
-KT = max(KT, 0.05 * thrust_factor);
-
-% Thrust (N) - lateral thrust
-T_gross = rho * D^4 * n * abs(n) * KT;
-
-% Net thrust after thrust deduction
-T = (1 - t) * T_gross;
-
-% Torque coefficient (simplified)
-KQ = 0.01 * KT + 0.005;
-Q = rho * D^5 * n * abs(n) * KQ;
-
-end
-
-
 function Tm = shaft_time_constant(n_rpm)
-% SHAFT_TIME_CONSTANT Returns shaft motor time constant based on RPM
 % Based on original Son & Nomoto model
 
 if abs(n_rpm) > 18    % 0.3 rps = 18 rpm
