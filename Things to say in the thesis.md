@@ -124,7 +124,11 @@ Hard constraints currently include:
 - First-step and consecutive azimuth-rate constraints are hard.
 - Deceleration-rate constraint is hard and active.
 
-There are currently no slack variables in the active NLP.
+Selective soft constraints are now included for obstacle inequalities in precision-berthing mode. In nominal transit conditions, obstacle constraints remain hard. Near tight terminal situations, bounded slack variables with high penalty are enabled to preserve feasibility without relaxing safety intent globally.
+
+Thesis framing note:
+
+- This is not a full soft-constraint NMPC. It is a phase-dependent feasibility safeguard: hard constraints by default, selective softening only in constrained endgame conditions, with explicit slack logging for transparency.
 
 A natural extension remains CBF integration, for example:
 
@@ -210,6 +214,28 @@ Validation outcome:
 Interpretation:
 
 - Remaining issue is mainly guidance/reference recapture robustness, not braking-constraint correctness.
+
+## Recent substantial architecture update (2026-04-13)
+
+To improve robustness in the final docking leg, the controller was updated with a phase-aware recovery mechanism and explicit maneuver staging. This is a structural change, not a one-off parameter retune.
+
+1. Explicit transit-to-berth phase logic
+- The maneuver is now split into Phase A (transit) and Phase B (precision berth) using a horizon-based switching radius
+
+$$
+R_s = T_{hor}\sqrt{u_{max}^2 + v_{max}^2}
+$$
+
+- Phase B uses stricter near-berth behavior (collision model and obstacle policy), while Phase A stays lighter for runtime efficiency.
+
+2. Trend-based missed-approach detection and recovery
+- Final-leg monitoring now uses the trend of distance-to-final (increase/decrease over consecutive steps), instead of a simple proximity warning.
+- If sustained regression is detected, a temporary recovery mode is latched to force direct-goal recapture with bounded speed and higher yaw authority.
+- Recovery is automatically released after sustained improvement, preventing permanent mode lock-in.
+
+3. Why this matters for thesis claims
+- The update demonstrates supervisory resilience on top of NMPC: when nominal guidance degrades in cluttered terminal geometry, the system applies a controlled fallback policy while keeping the same core optimizer.
+- This supports a stronger claim of operational robustness under realistic harbor uncertainty, rather than only nominal tracking performance.
 
 ## About the actuation motors mounted
 
