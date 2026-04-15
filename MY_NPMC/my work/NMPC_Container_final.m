@@ -306,9 +306,9 @@ classdef NMPC_Container_final < handle
             % State bounds
             for k = 1:(N_h+1)
                 base = (k-1)*n_state;
-                lbx(base+1) = obj.u_min_forward;  ubx(base+1) = 12;  % NEW: Hard minimum forward speed
+                lbx(base+1) = obj.u_min_forward;  ubx(base+1) = 12;  % Hard minimum forward speed
                 lbx(base+2) = -3;         ubx(base+2) = 3;
-                lbx(base+3) = -0.15;      ubx(base+3) = 0.15;
+                lbx(base+3) = -0.25;      ubx(base+3) = 0.25;
                 lbx(base+4) = -1e5;       ubx(base+4) = 1e5;
                 lbx(base+5) = -1e5;       ubx(base+5) = 1e5;
                 lbx(base+6) = -inf;       ubx(base+6) = inf;
@@ -323,6 +323,8 @@ classdef NMPC_Container_final < handle
                 base = u_off + (k-1)*n_ctrl;
                 lbx(base+1) = -obj.alpha_max;  ubx(base+1) = obj.alpha_max;
                 lbx(base+2) = -obj.alpha_max;  ubx(base+2) = obj.alpha_max;
+                lbx(base+3) = obj.n_min;       ubx(base+3) = obj.n_max;
+                lbx(base+4) = obj.n_min;       ubx(base+4) = obj.n_max;
                 lbx(base+3) = obj.n_min;       ubx(base+3) = obj.n_max;
                 lbx(base+4) = obj.n_min;       ubx(base+4) = obj.n_max;
                 lbx(base+5) = obj.n_bow_min;   ubx(base+5) = obj.n_bow_max;
@@ -630,6 +632,8 @@ classdef NMPC_Container_final < handle
             nabla_ship = obj.nabla;
             D_stern = obj.D;
             D_bow = 4.5;
+            D_stern_local = D_stern;
+            D_bow_local = D_bow;
             t_stern = obj.t_ded;
             t_bow = 0.15;
             wp_stern = obj.wp;
@@ -685,7 +689,7 @@ classdef NMPC_Container_final < handle
             J1 = if_else(J1 > 1.2, 1.2, if_else(J1 < -0.5, -0.5, J1));
             KT1_val = KT0 + KT1 * J1;
             KT1_val = if_else(KT1_val < 0.05, 0.05, KT1_val);
-            T1_gross = rho_w * D_stern^4 * n1_rps * n1_abs * KT1_val;
+            T1_gross = rho_w * D_stern_local^4 * n1_rps * n1_abs * KT1_val;
             T1 = (1 - t_stern) * T1_gross;
 
             %% FIX #2: STARBOARD STERN AZIPOD (n2) - CORRECT LOCAL VELOCITY KINEMATICS
@@ -700,7 +704,7 @@ classdef NMPC_Container_final < handle
             J2 = if_else(J2 > 1.2, 1.2, if_else(J2 < -0.5, -0.5, J2));
             KT2_val = KT0 + KT1 * J2;
             KT2_val = if_else(KT2_val < 0.05, 0.05, KT2_val);
-            T2_gross = rho_w * D_stern^4 * n2_rps * n2_abs * KT2_val;
+            T2_gross = rho_w * D_stern_local^4 * n2_rps * n2_abs * KT2_val;
             T2 = (1 - t_stern) * T2_gross;
 
             %% FIX #3: BOW TUNNEL THRUSTER (n3) - CORRECT YAW COUPLING & WAKE FRACTION
@@ -711,12 +715,12 @@ classdef NMPC_Container_final < handle
             u_a3 = u_inflow3 * (1 - wp_bow);             %   CORRECT: uses wp_bow not t_bow
             n3_abs = if_else(n3_rps >= 0, n3_rps, -n3_rps);
             n3_safe = if_else(n3_abs < 0.01, 0.01, n3_abs);
-            J3 = u_a3 / (n3_safe * D_bow);
+            J3 = u_a3 / (n3_safe * D_bow_local);
             J3 = if_else(J3 > 1.2, 1.2, if_else(J3 < -0.5, -0.5, J3));
             KT3_val = 0.527 * bow_thrust_factor + (-0.455 * bow_thrust_factor) * J3;
             KT3_val = if_else(KT3_val < 0.05 * bow_thrust_factor, 0.05 * bow_thrust_factor, KT3_val);
             speed_decay_factor = max(0.3, 1 - 0.08 * max(0.1, u));
-            T3_gross = rho_w * D_bow^4 * n3_rps * n3_abs * KT3_val;
+            T3_gross = rho_w * D_bow_local^4 * n3_rps * n3_abs * KT3_val;
             T3 = (1 - t_bow) * T3_gross * speed_decay_factor;
 
             %% THRUST FORCES AND MOMENTS

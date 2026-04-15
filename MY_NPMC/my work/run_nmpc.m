@@ -125,6 +125,7 @@ map_half_width_max_m = 420;    % Clamp upper bound for corridor width [m]
 enable_dynamic_obstacles = false;      % Master switch for moving obstacles
 dynamic_obs_speed_mps    = 10;       % Constant speed [m/s]
 dynamic_obs_radius_m     = 25;        % Circular obstacle radius [m]
+dynamic_obs_nmpc_guard_m = 15;        % Extra inflation for NMPC dynamic-obstacle constraints [m]
 dynamic_obs_boundary_policy = 'deactivate'; % deactivate | clip | wrap
 dynamic_obs_boundary_margin = 120;    % Margin around map bounds [m]
 enable_dynamic_replay_check = true;   % Determinism self-check
@@ -140,10 +141,10 @@ dynamic_obs_trigger_distance_m = 420;       % scalar or one per obstacle (earlie
 % obstacle motion before and during activation.
 dynamic_latent_awareness = struct();
 dynamic_latent_awareness.enabled = true;
-dynamic_latent_awareness.horizon_s = 18;
-dynamic_latent_awareness.n_samples = 2;
-dynamic_latent_awareness.awareness_distance_m = 700;
-dynamic_latent_awareness.radius_scale = 1.15;
+dynamic_latent_awareness.horizon_s = 24;
+dynamic_latent_awareness.n_samples = 3;
+dynamic_latent_awareness.awareness_distance_m = 850;
+dynamic_latent_awareness.radius_scale = 1.35;
 dynamic_latent_awareness.only_when_not_moving = false;
 
 % ---- SPEED GOVERNOR (reference speed capping) ----
@@ -309,8 +310,8 @@ missed_approach_cfg.recapture_r_ref_max = 0.30;    % increase yaw authority in r
 dynamic_threat_cfg = struct();
 dynamic_threat_cfg.enabled = true;
 dynamic_threat_cfg.clearance_m = 300;         % trigger when ship-to-dynamic clearance below this
-dynamic_threat_cfg.speed_cap_mps = 1.2;       % cap surge command under dynamic threat
-dynamic_threat_cfg.avoid_margin_scale = 1.15; % inflate ref keep-out under dynamic threat
+dynamic_threat_cfg.speed_cap_mps = 1.6;       % cap surge command under dynamic threat
+dynamic_threat_cfg.avoid_margin_scale = 1.25; % inflate ref keep-out under dynamic threat
 
 % ---- PID FALLBACK GAINS (used when NMPC fails) ----
 pid_Kp = 0.8;
@@ -720,7 +721,7 @@ for i = 1:length(t)
     obs_dyn_latent = struct('position', {}, 'radius', {});
     dyn_threat_active = false;
     if enable_dynamic_obstacles && ~isempty(dynamic_obstacles)
-        obs_dyn = dynamicToCircleObstacles(dynamic_obstacles);
+        obs_dyn = dynamicToCircleObstacles(dynamic_obstacles, dynamic_obs_nmpc_guard_m);
         if isfield(dynamic_latent_awareness, 'enabled') && dynamic_latent_awareness.enabled
             obs_dyn_latent = buildLatentDynamicAwarenessObstacles(dynamic_obstacles, x(4:5), dynamic_latent_awareness);
         end
@@ -936,7 +937,7 @@ for i = 1:length(t)
     % clearance is already comfortable, steer directly toward the active
     % waypoint and reduce reference-deflection inflation to avoid large loops.
     force_wp_recap = false;
-    if getOr(xte_recovery_cfg, 'force_wp_mode_enabled', false) && wp_idx < size(waypoints, 1)
+    if getOr(xte_recovery_cfg, 'force_wp_mode_enabled', false) && wp_idx < (size(waypoints, 1) - 1)
         nearest_clear = inf;
         for kk = 1:length(obs_local)
             d_cent = norm(x(4:5) - obs_local(kk).position(1:2));
@@ -1132,7 +1133,9 @@ for i = 1:length(t)
     [hit_map_samples, ~, ~] = detectHullCircleHit(x, obs_map, hull_cfg, 0.0);
     [hit_dyn_latent, ~, ~] = detectHullCircleHit(x, obs_dyn_latent, hull_cfg, 0.0);
     [hit_dyn_real, ~, ~] = detectHullCircleHit(x, obs_dyn, hull_cfg, 0.0);
-    hit_obs = hit_static || hit_map_samples || hit_dyn_latent || hit_dyn_real;
+    % Map-sample and latent-dynamic circles are planning-only proxies and
+    % should not count as physical collisions in truth-model evaluation.
+    hit_obs = hit_static || hit_dyn_real;
     [hit_map, ~, ~] = detectHullMapHit(x, hull_cfg, map);
     if hit_obs || hit_map
         collision_log(i) = true;
@@ -1546,6 +1549,11 @@ function [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, wp, cruise_speed_mps, 
         % avoid getting trapped on the previous leg after obstacle bypass.
         skip_due_to_missed_gate = (proj >= 0.92) && ...
             (d_to_waypoint <= max(2.5 * R_accept, 180));
+        % Large-XTE gate release: if we have already progressed far along the
+        % segment but obstacle avoidance pushed us far from the corridor,
+        % advance to the next leg instead of orbiting the old waypoint.
+        skip_due_to_large_xte_progress = (proj >= 0.85) && ...
+            (xte_seg >= max(1.8 * R_accept, 140));
         skip_due_to_better_next = (proj >= 0.90) && near_segment && (d_to_next_waypoint < d_to_waypoint);
 
         if in_terminal_lock_window
@@ -1567,7 +1575,7 @@ function [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, wp, cruise_speed_mps, 
         else
             can_skip = (d_to_waypoint <= R_accept || skip_due_to_progress || ...
                         skip_due_to_better_next || skip_due_to_overshoot || ...
-                        skip_due_to_missed_gate || ...
+                        skip_due_to_missed_gate || skip_due_to_large_xte_progress || ...
                         (proj >= 1.0 && near_segment));
         end
         
@@ -1938,17 +1946,21 @@ function x_ref = buildSimpleRef8(x0, chi_d, U_d, N, dt, n1_ref, n2_ref, n3_ref, 
         x_ref(9, k) = n3_ref;
         
         % NEW: Smooth ramp for heading instead of step change
-        if k <= n_ramp + 1
+        if apply_turn_ramp && k <= n_ramp + 1
             % Linear ramp from current heading to desired heading
             ramp_factor = (k - 1) / (n_ramp + 1);
             x_ref(6, k) = x0(6) + ramp_factor * psi_err;
             % Reduce rotation rate during ramp
             x_ref(3, k) = ramp_r_scale * r_d * sin((k-1) / (n_ramp + 1) * pi);
 
-            % Turn-first progress: keep translational progress modest during early heading capture.
-            U_prog = U_d * max(0.18, ramp_factor^1.5);
+            % Keep forward progress during heading capture to avoid speed-collapse.
+            u_ramp_floor = 0.55;
+            if abs(psi_err) > deg2rad(55)
+                u_ramp_floor = 0.35;
+            end
+            U_prog = U_d * max(u_ramp_floor, ramp_factor^1.20);
             if abs(psi_err) > deg2rad(25)
-                U_prog = min(U_prog, 1.2);
+                U_prog = min(U_prog, 2.4);
             end
         else
             % After ramp, use full heading and rotation rate
@@ -2029,6 +2041,7 @@ function x_ref = buildObstacleAwareRef8(x0, chi_d, U_d, N, dt, n1_ref, n2_ref, n
             n_ramp = min(5, N);
             for k = 2:(N+1)
                 if k <= n_ramp + 1
+                    % Keep the smooth ramp from buildSimpleRef8
                     % Keep the smooth ramp from buildSimpleRef8
                     % Don't overwrite heading during initial ramp
                     continue;
@@ -2352,11 +2365,14 @@ function dynamic_obstacles = propagateDynamicObstacles(dynamic_obstacles, dt, bo
     end
 end
 
-function obs_dyn = dynamicToCircleObstacles(dynamic_obstacles)
+function obs_dyn = dynamicToCircleObstacles(dynamic_obstacles, radius_guard_m)
 % Convert active dynamic obstacle states to NMPC-compatible circle obstacles
     obs_dyn = struct('position', {}, 'radius', {});
     if isempty(dynamic_obstacles)
         return;
+    end
+    if nargin < 2 || isempty(radius_guard_m)
+        radius_guard_m = 0;
     end
 
     out_idx = 0;
@@ -2368,7 +2384,7 @@ function obs_dyn = dynamicToCircleObstacles(dynamic_obstacles)
         end
         out_idx = out_idx + 1;
         obs_dyn(out_idx).position = dynamic_obstacles(k).position(1:2);
-        obs_dyn(out_idx).radius = dynamic_obstacles(k).radius;
+        obs_dyn(out_idx).radius = dynamic_obstacles(k).radius + radius_guard_m;
     end
 end
 
