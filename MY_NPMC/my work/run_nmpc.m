@@ -1,5 +1,5 @@
 ﻿%% run_nmpc.m
-% NMPC harbor navigation with 8-state azipod container ship model
+% NMPC harbor navigation with 9-state stern-azipod + bow-thruster container ship model
 %
 % UNIFIED TEST — Single configurable test with:
 %   - Multi-waypoint path following
@@ -8,7 +8,7 @@
 %   - PID fallback for robustness
 %
 % Dependencies:
-%   container.m             - 8-state ship dynamics (Son & Nomoto + azipods)
+%   container.m             - 9-state ship dynamics (Son & Nomoto + twin stern azipods + bow thruster)
 %   NMPC_Container_final.m   - CasADi NMPC solver (see below)
 %   NavUtils.m              - Navigation utilities (see below)
 %   animateSimResult.m      - Post-simulation animation
@@ -20,7 +20,7 @@
 clear; close all; clc;
 clear animateSimResult   
 fprintf('══════════════════════════════════════════════════════════════\n');
-fprintf('  NMPC HARBOR NAVIGATION — Unified Test (8-State Azipod)\n');
+fprintf('  NMPC HARBOR NAVIGATION — Unified Test (9-State Azipod + Bow Thruster)\n');
 fprintf('══════════════════════════════════════════════════════════════\n\n');
 
 %  USER CONFIGURATION — EDIT THIS SECTION
@@ -52,8 +52,9 @@ R_accept_final = 25;    % Final waypoint acceptance radius [m]
 R_accept_final_soft = 65;      % Soft terminal capture radius [m] (used with low-speed hold)
 final_capture_speed_mps = 2.5; % Max speed for soft terminal capture [m/s]
 final_capture_hold_s = 6;      % Time inside soft capture gate before declaring success [s]
-n1_cruise   = 100;      % Aft thruster cruise speed [rpm]
-n2_cruise   = 0;        % Forward thruster (off during cruise)
+n1_cruise   = 100;      % Port stern azipod cruise speed [rpm]
+n2_cruise   = 100;      % Starboard stern azipod cruise speed [rpm]
+n3_cruise   = 0;        % Bow tunnel thruster (off during cruise)
 
 % ---- HULL FOOTPRINT MODEL (oriented rectangle) ----
 % Full-ship collision model uses a yawed rectangle centered at [x,y].
@@ -168,19 +169,19 @@ nmpc_dt = 1.0;          % Sample time [s]
 r_safety = 40;          % Safety margin around obstacles [m]
 
 % === BALANCED TUNING (default for open water & cluttered zones) ===
-Q_weights_balanced = diag([2.0, 0.18, 0.95, 5.4, 5.4, 4.4, 0.001, 0.001]);
-R_weights_balanced = diag([0.06, 0.06, 0.007, 0.007]);
-R_rate_weights_balanced = diag([0.045, 0.045, 0.004, 0.004]);
+Q_weights_balanced = diag([2.0, 0.18, 0.95, 5.4, 5.4, 4.4, 0.001, 0.001, 0.001]);
+R_weights_balanced = diag([0.06, 0.06, 0.007, 0.007, 0.060]);
+R_rate_weights_balanced = diag([0.045, 0.045, 0.004, 0.004, 0.035]);
 
 % === PHASE-B (precision berth) tightening ===
-Q_weights_berth = diag([2.0, 0.20, 1.35, 9.0, 9.0, 8.4, 0.001, 0.001]);
-R_weights_berth = diag([0.06, 0.06, 0.007, 0.007]);
-R_rate_weights_berth = diag([0.075, 0.075, 0.010, 0.010]);
+Q_weights_berth = diag([2.0, 0.20, 1.35, 9.0, 9.0, 8.4, 0.001, 0.001, 0.001]);
+R_weights_berth = diag([0.06, 0.06, 0.007, 0.007, 0.090]);
+R_rate_weights_berth = diag([0.075, 0.075, 0.010, 0.010, 0.050]);
 
 % === AGGRESSIVE TUNING (activated in tight corridor mode) ===
-Q_weights_aggressive = diag([2.0, 0.22, 1.10, 5.7, 5.7, 4.9, 0.001, 0.001]);
-R_weights_aggressive = diag([0.045, 0.045, 0.005, 0.005]);
-R_rate_weights_aggressive = diag([0.035, 0.035, 0.003, 0.003]);
+Q_weights_aggressive = diag([2.0, 0.22, 1.10, 5.7, 5.7, 4.9, 0.001, 0.001, 0.001]);
+R_weights_aggressive = diag([0.045, 0.045, 0.005, 0.005, 0.070]);
+R_rate_weights_aggressive = diag([0.035, 0.035, 0.003, 0.003, 0.030]);
 
 % Start with balanced tuning (will switch dynamically)
 Q_weights = Q_weights_balanced;
@@ -340,6 +341,12 @@ end
 scriptDir = fileparts(mfilename('fullpath'));
 repoRoot = fileparts(fileparts(scriptDir));
 
+% Prefer the local model/solver folder so the new 9-state container
+% implementation is used even when another container.m exists elsewhere.
+if isempty(strfind(path, scriptDir))
+    addpath(scriptDir, '-begin');
+end
+
 % Resolve relative output folders against repo root so logging is robust
 % even if other functions change the current working directory.
 if isempty(regexp(record_output_dir, '^[A-Za-z]:[\\/]|^\\\\', 'once'))
@@ -350,7 +357,7 @@ if isempty(regexp(terminal_log_output_dir, '^[A-Za-z]:[\\/]|^\\\\', 'once'))
 end
 
 run_timestamp = datestr(now, 'yyyymmdd_HHMMSS');
-terminal_log_file = '';
+terminal_log_file = ''; %#ok<NASGU>
 if enable_terminal_log_recording
     if ~exist(terminal_log_output_dir, 'dir')
         mkdir(terminal_log_output_dir);
@@ -363,8 +370,8 @@ if enable_terminal_log_recording
 end
 
 %% ===== Sanity check on container.m ======================================
-x_test = [7; 0; 0; 0; 0; 0; 100; 0];
-u_test = [0; 0; 100; 0];
+x_test = [7; 0; 0; 0; 0; 0; 100; 100; 0];
+u_test = [0; 0; 100; 100; 0];
 [xdot_test, U_test] = container(x_test, u_test);
 fprintf('  container.m check: u_dot=%.4f, r_dot=%.6f, U=%.2f m/s\n\n', ...
     xdot_test(1), xdot_test(3), U_test);
@@ -511,8 +518,8 @@ fprintf('    (T_hor=%.1f s, u_max=%.2f m/s, v_max=%.2f m/s)\n', ...
 %% ===== Initial state ====================================================
 x0_heading = atan2(waypoints(2,2) - waypoints(1,2), ...
                    waypoints(2,1) - waypoints(1,1));
-% State: [u, v, r, x, y, psi, n1, n2]
-x = [7; 0; 0; waypoints(1,1); waypoints(1,2); x0_heading; n1_cruise; n2_cruise];
+% State: [u, v, r, x, y, psi, n1, n2, n3]
+x = [7; 0; 0; waypoints(1,1); waypoints(1,2); x0_heading; n1_cruise; n2_cruise; n3_cruise];
 
 %% ===== Simulation setup =================================================
 dt = nmpc_cfg_transit.dt;
@@ -525,8 +532,8 @@ safe_terminal_steps_needed = max(1, ceil(safe_terminal_hold_s / dt));
 terminal_mode_announced = false;
 
 % Preallocate logging
-traj     = zeros(8, length(t)+1);
-ctrl     = zeros(4, length(t));
+traj     = zeros(9, length(t)+1);
+ctrl     = zeros(5, length(t));
 solve_ok = false(1, length(t));
 xte_log  = zeros(1, length(t));
 fallback = false(1, length(t));
@@ -562,7 +569,7 @@ psi_err_int = 0;
 psi_err_prev = 0;
 
 % Previous control for NMPC rate limiting (NEW!)
-u_prev = [0; 0; n1_cruise; n2_cruise];
+u_prev = [0; 0; n1_cruise; n2_cruise; n3_cruise];
 
 % Tight corridor mode state tracking
 loose_prev_was_tight = false;
@@ -607,12 +614,11 @@ for i = 1:length(t)
     % Phase A = transit, Phase B = precision berth.
     if phase_switch_cfg.enabled
         if on_final_leg && phase_mode_prev
-            % Keep precision-berth mode latched on final leg once entered.
+            % Keep precision-berth mode latched once the final-leg mode is entered.
             phase_mode_is_berth = true;
         else
-            phase_gate_enter = (d_prefinal_gate <= phase_switch_cfg.prefinal_entry_radius_m);
-            phase_mode_is_berth = on_final_leg && ( ...
-                (d_final_now <= phase_switch_cfg.R_s_m) || phase_gate_enter);
+            % Only enter berth mode near the final waypoint, not just near the pre-final gate.
+            phase_mode_is_berth = on_final_leg && (d_final_now <= phase_switch_cfg.R_s_m);
         end
     else
         phase_mode_is_berth = terminal_precision_cfg.enabled && on_final_leg && ...
@@ -753,10 +759,16 @@ for i = 1:length(t)
 
     if on_final_leg
         U_now_ship = hypot(x(1), x(2));
+        nearest_clear = inf;
+        for kk = 1:length(obs_local)
+            d_cent = norm(x(4:5) - obs_local(kk).position(1:2));
+            d_clear = d_cent - obs_local(kk).radius;
+            nearest_clear = min(nearest_clear, d_clear);
+        end
         
         % ----- FINAL APPROACH SPEED LIMITING (CRITICAL FIX) -----
-        % Assume max deceleration ~0.02 m/s┬▓ for large vessel
-        a_decel_max = 0.02;  % m/s┬▓ - conservative for container ship
+        % Assume max deceleration ~0.02 m/s┬ for large vessel
+        a_decel_max = 0.02;  % m/s┬ - conservative for container ship
         stopping_distance_estimate = (U_now_ship^2) / (2 * a_decel_max) + 50;  % +50m safety
         
         % Hard speed caps based on distance to final waypoint
@@ -771,6 +783,16 @@ for i = 1:length(t)
         end
         if d_final_now < 100
             U_d = min(U_d, 0.8);   % Final creep speed
+        end
+
+        % Once the vessel has cleared the immediate obstacle cluster, let the
+        % commanded speed climb back up instead of staying stuck at creep speed.
+        if ~terminal_precision_mode_active && ~dyn_threat_active && isfinite(nearest_clear)
+            if nearest_clear > 180 && U_now_ship < 0.85 * cruise_speed_mps
+                recovery_factor = min(1.0, (nearest_clear - 180) / 220);
+                U_recover = 0.55 * cruise_speed_mps + 0.35 * U_now_ship + 0.80 * recovery_factor;
+                U_d = max(U_d, min(cruise_speed_mps, U_recover));
+            end
         end
         
         % Proactive deceleration: if stopping distance > distance to target, SLOW DOWN NOW
@@ -994,7 +1016,7 @@ for i = 1:length(t)
     end
 
     x_ref = buildObstacleAwareRef8(x, chi_d, U_d, nmpc_active.N, dt, ...
-                                   n1_cruise, n2_cruise, obs_for_ref, avoid_ref_step);
+                                   n1_cruise, n2_cruise, n3_cruise, obs_for_ref, avoid_ref_step);
     ref_time_log(i) = toc(t_seg);
 
     % ---- 4) Solve NMPC (MODIFIED - now passes u_prev) -------------------
@@ -1005,6 +1027,11 @@ for i = 1:length(t)
          (nmpc_fail_streak >= soft_obstacle_cfg.fail_streak_trigger));
     solve_opts.enable_soft_obstacles = enable_soft_here;
     solve_opts.soft_obs_max_m = soft_obstacle_cfg.max_slack_m;
+    if terminal_precision_mode_active
+        solve_opts.n3_max = nmpc_active.n_bow_max;
+    else
+        solve_opts.n3_max = 0;
+    end
 
     [u_opt, ~, info] = nmpc_active.solve(x, x_ref, obs_local, u_prev, desired_u_min_forward, solve_opts);
     solve_call_log(i) = toc(t_seg);
@@ -1043,7 +1070,7 @@ for i = 1:length(t)
         n1_cmd = n1_cruise * (U_d / max(cruise_speed_mps, 1e-3));
         n1_cmd = max(0, min(160, n1_cmd));
         
-        u_opt = [alpha; 0; n1_cmd; 0];
+        u_opt = [alpha; alpha; n1_cmd; n1_cmd; 0];
         fallback(i) = true;
         
         if sum(fallback(1:i)) <= 3
@@ -1055,7 +1082,7 @@ for i = 1:length(t)
 
     % ---- 6) Simulate plant (RK4) ----------------------------------------
     t_seg = tic;
-    x = rk4Step8(x, u_opt, dt, desired_u_min_forward);
+    x = rk4Step9(x, u_opt, dt, desired_u_min_forward);
     integr_time_log(i) = toc(t_seg);
     du_surge = x(1) - u_prev_ship;
     brake_margin_log(i) = du_surge + max_brake_rate * dt;
@@ -1297,21 +1324,23 @@ plot(t_ctrl, rad2deg(ctrl(1,:)), 'b-', 'LineWidth', 1.5); hold on;
 plot(t_ctrl, rad2deg(ctrl(2,:)), 'r--', 'LineWidth', 1.5);
 xlabel('Time [s]'); ylabel('Azimuth [deg]');
 title('Azimuth Angles'); grid on;
-legend('\alpha_1 (aft)', '\alpha_2 (fwd)', 'Location', 'best');
+legend('\alpha_1 (port stern)', '\alpha_2 (starboard stern)', 'Location', 'best');
 
 subplot(3,2,3);
 plot(t_ctrl, ctrl(3,:), 'b-', 'LineWidth', 1.5); hold on;
 plot(t_ctrl, ctrl(4,:), 'r--', 'LineWidth', 1.5);
+plot(t_ctrl, ctrl(5,:), 'g-', 'LineWidth', 1.5);
 xlabel('Time [s]'); ylabel('Commanded rpm');
 title('Shaft Speed Commands'); grid on;
-legend('n_{1,c}', 'n_{2,c}', 'Location', 'best');
+legend('n_{1,c}', 'n_{2,c}', 'n_{3,c}', 'Location', 'best');
 
 subplot(3,2,4);
 plot(t_sim, traj(7,:), 'b-', 'LineWidth', 1.5); hold on;
 plot(t_sim, traj(8,:), 'r--', 'LineWidth', 1.5);
+plot(t_sim, traj(9,:), 'g-', 'LineWidth', 1.5);
 xlabel('Time [s]'); ylabel('Actual rpm');
 title('Actual Shaft Speeds'); grid on;
-legend('n_1', 'n_2', 'Location', 'best');
+legend('n_1', 'n_2', 'n_3', 'Location', 'best');
 
 subplot(3,2,5);
 t_xte = (0:length(xte_log)-1)*dt;
@@ -1416,7 +1445,7 @@ fprintf('==============================================================\n');
 %  LOCAL FUNCTIONS
 
 function [chi_d, U_d, wp_idx] = simpleWaypointGuidance(x, wp, cruise_speed_mps, wp_idx, R_accept, terminal_cfg)
-% Simple waypoint steering for 8-state model
+% Simple waypoint steering for 9-state model
     if nargin < 6 || isempty(terminal_cfg)
         terminal_cfg = struct();
     end
@@ -1844,16 +1873,16 @@ function xte = computeXTE(x, wp, wp_idx)
     xte = ((pos(1)-p1(1))*seg(2) - (pos(2)-p1(2))*seg(1)) / seg_len;
 end
 
-function x_ref = buildSimpleRef8(x0, chi_d, U_d, N, dt, n1_ref, n2_ref, turn_cfg)
-% Build 8-state reference trajectory
-    if nargin < 8 || isempty(turn_cfg)
+function x_ref = buildSimpleRef8(x0, chi_d, U_d, N, dt, n1_ref, n2_ref, n3_ref, turn_cfg)
+% Build 9-state reference trajectory
+    if nargin < 9 || isempty(turn_cfg)
         turn_cfg = struct();
     end
     r_gain = getOr(turn_cfg, 'r_gain', 0.35);
     r_ref_max = getOr(turn_cfg, 'r_ref_max', 0.10);
     ramp_r_scale = getOr(turn_cfg, 'ramp_r_scale', 0.15);
 
-    x_ref = zeros(8, N+1);
+    x_ref = zeros(9, N+1);
     x_ref(:, 1) = x0;
     
     psi_err = atan2(sin(chi_d - x0(6)), cos(chi_d - x0(6)));
@@ -1868,6 +1897,7 @@ function x_ref = buildSimpleRef8(x0, chi_d, U_d, N, dt, n1_ref, n2_ref, turn_cfg
         x_ref(2, k) = 0;
         x_ref(7, k) = n1_ref;
         x_ref(8, k) = n2_ref;
+        x_ref(9, k) = n3_ref;
         
         % NEW: Smooth ramp for heading instead of step change
         if k <= n_ramp + 1
@@ -1898,17 +1928,17 @@ function x_ref = buildSimpleRef8(x0, chi_d, U_d, N, dt, n1_ref, n2_ref, turn_cfg
     end
 end     
 
-function x_ref = buildObstacleAwareRef8(x0, chi_d, U_d, N, dt, n1_ref, n2_ref, obstacles, avoid_cfg)
+function x_ref = buildObstacleAwareRef8(x0, chi_d, U_d, N, dt, n1_ref, n2_ref, n3_ref, obstacles, avoid_cfg)
 % Reference trajectory with obstacle deflection
-    if nargin < 9 || isempty(avoid_cfg)
+    if nargin < 10 || isempty(avoid_cfg)
         avoid_cfg = struct('base_margin_m', 80, 'speed_gain_s', 0.0, ...
             'obs_radius_gain', 0.5, 'deflect_sigma', 0.22, 'r_ref_max', 0.10);
     end
     safety_margin = avoid_cfg.base_margin_m + avoid_cfg.speed_gain_s * max(0, U_d);
     turn_cfg = struct('r_gain', 0.35, 'r_ref_max', 0.10, 'ramp_r_scale', 0.15);
-    x_ref = buildSimpleRef8(x0, chi_d, U_d, N, dt, n1_ref, n2_ref, turn_cfg);
+    x_ref = buildSimpleRef8(x0, chi_d, U_d, N, dt, n1_ref, n2_ref, n3_ref, turn_cfg);
 
-    if nargin < 8 || isempty(obstacles)
+    if nargin < 9 || isempty(obstacles)
         return;
     end
 
@@ -1971,31 +2001,27 @@ function x_ref = buildObstacleAwareRef8(x0, chi_d, U_d, N, dt, n1_ref, n2_ref, o
     end
 end
 
-function x_next = rk4Step8(x, u_ctrl, dt_s, u_min_step)
-% RK4 integration for 8-state container model
+function x_next = rk4Step9(x, u_ctrl, dt_s, u_min_step)
+% RK4 integration for 9-state container model
     if nargin < 4
         u_min_step = 0.5;
     end
 
     % Enforce minimum forward speed constraint in integration
     x(1) = max(x(1), u_min_step);
-    x(7) = max(x(7), 0);
     
     [k1, ~] = container(x, u_ctrl);
     
     x2 = x + k1*dt_s/2;
     x2(1) = max(x2(1), u_min_step);
-    x2(7) = max(x2(7), 0);
     [k2, ~] = container(x2, u_ctrl);
     
     x3 = x + k2*dt_s/2;
     x3(1) = max(x3(1), u_min_step);
-    x3(7) = max(x3(7), 0);
     [k3, ~] = container(x3, u_ctrl);
     
     x4 = x + k3*dt_s;
     x4(1) = max(x4(1), u_min_step);
-    x4(7) = max(x4(7), 0);
     [k4, ~] = container(x4, u_ctrl);
     
     x_next = x + dt_s/6 * (k1 + 2*k2 + 2*k3 + k4);

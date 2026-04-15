@@ -1,8 +1,8 @@
 classdef NMPC_Container_final < handle
-    % NMPC_Container_final  NMPC for container ship with dual azipod thrusters
+    % NMPC_Container_final  NMPC for container ship with twin stern azipods + bow thruster
     %
-    %   States:  x = [u v r x y psi n1 n2]'           (8)
-    %   Controls: u = [alpha1 alpha2 n1_c n2_c]'      (4)
+%   States:  x = [u v r x y psi n1 n2 n3]'        (9)
+%   Controls: u = [alpha1 alpha2 n1_c n2_c n3_c]' (5)
 
     properties
         N
@@ -10,8 +10,8 @@ classdef NMPC_Container_final < handle
         Q
         R
         R_rate
-        nx = 8
-        nu = 4
+        nx = 9
+        nu = 5
 
         % Ship parameters
         L = 175
@@ -22,13 +22,20 @@ classdef NMPC_Container_final < handle
         wp = 0.184
         wp_fwd = 0.0552
         x_azi1 = -78.75
-        x_azi2 = 61.25
+        x_azi2 = -78.75
+        x_azi3 = 29.75
+        y_azi1 = -12.7
+        y_azi2 = 12.7
+        y_azi3 = 0
 
         % Actuator limits
         n_max = 160
         n_min = -80
+        n_bow_max = 140
+        n_bow_min = -80
         alpha_max = pi
         Dn_max = 10
+        Dn_bow_max = 8
         alpha_rate_max = 0.21  % Max azimuth rate [rad/s] = 12 deg/s (ABB spec)
 
         % Obstacle settings
@@ -84,9 +91,9 @@ classdef NMPC_Container_final < handle
 
             obj.N  = getOr(cfg, 'N',  20);
             obj.dt = getOr(cfg, 'dt', 1.0);
-            obj.Q = getOr(cfg, 'Q', diag([2.0, 0.1, 0.8, 3.0, 3.0, 6.0, 0.001, 0.001]));
-            obj.R = getOr(cfg, 'R', diag([0.1, 0.1, 0.01, 0.01]));
-            obj.R_rate = getOr(cfg, 'R_rate', diag([0.05, 0.05, 0.005, 0.005]));
+            obj.Q = padDiag(getOr(cfg, 'Q', diag([2.0, 0.1, 0.8, 3.0, 3.0, 6.0, 0.001, 0.001, 0.001])), 9);
+            obj.R = padDiag(getOr(cfg, 'R', diag([0.1, 0.1, 0.01, 0.01, 0.01])), 5);
+            obj.R_rate = padDiag(getOr(cfg, 'R_rate', diag([0.05, 0.05, 0.005, 0.005, 0.005])), 5);
             obj.max_obs = getOr(cfg, 'max_obs', 5);
             obj.r_safety = getOr(cfg, 'r_safety', 30);
             obj.collision_model = lower(strtrim(getOr(cfg, 'collision_model', 'point')));
@@ -108,8 +115,8 @@ classdef NMPC_Container_final < handle
 
             fprintf('NMPC_Container_final: N=%d, dt=%.2f, obs_slots=%d\n', ...
                 obj.N, obj.dt, obj.max_obs);
-            fprintf('  8-state model: [u v r x y psi n1 n2]\n');
-            fprintf('  4 controls: [alpha1 alpha2 n1_c n2_c]\n');
+            fprintf('  9-state model: [u v r x y psi n1 n2 n3]\n');
+            fprintf('  5 controls: [alpha1 alpha2 n1_c n2_c n3_c]\n');
             fprintf('  forward speed constraint: u >= %.2f m/s\n', obj.u_min_forward);
             fprintf('  max brake rate: %.2f m/s²\n', obj.max_brake_rate);
             fprintf('  soft obstacle slack: weight=%.1f, default_max=%.2f m\n', ...
@@ -128,23 +135,23 @@ classdef NMPC_Container_final < handle
             import casadi.*
 
             N_h = obj.N;
-            nx = obj.nx;
-            nu = obj.nu;
+            n_state = obj.nx;
+            n_ctrl = obj.nu;
             n_obs = obj.max_obs;
 
             %  DECISION VARIABLES
-            X = SX.sym('X', nx, N_h+1);
-            U = SX.sym('U', nu, N_h);
+            X = SX.sym('X', n_state, N_h+1);
+            U = SX.sym('U', n_ctrl, N_h);
             S_obs = SX.sym('S_obs', n_obs, N_h+1); % Soft obstacle slack [m]
 
             %  PARAMETERS
-            P_x0       = SX.sym('P_x0', nx, 1);
-            P_xref     = SX.sym('P_xref', nx, N_h+1);
-            P_uref     = SX.sym('P_uref', nu, N_h);
+            P_x0       = SX.sym('P_x0', n_state, 1);
+            P_xref     = SX.sym('P_xref', n_state, N_h+1);
+            P_uref     = SX.sym('P_uref', n_ctrl, N_h);
             P_n_obs_real = SX.sym('P_n_obs_real', 1, 1);
             P_obs_pos  = SX.sym('P_obs_pos', 2, n_obs);
             P_obs_rad  = SX.sym('P_obs_rad', n_obs, 1);
-            P_u_prev   = SX.sym('P_u_prev', nu, 1);  % NEW: Previous applied control
+            P_u_prev   = SX.sym('P_u_prev', n_ctrl, 1);  % NEW: Previous applied control
             P_max_brake_rate = SX.sym('P_max_brake_rate', 1, 1);  % NEW: Max deceleration rate
 
             P_all = vertcat(P_x0, P_xref(:), P_uref(:), P_n_obs_real, ...
@@ -154,7 +161,7 @@ classdef NMPC_Container_final < handle
             %  COST FUNCTION
             Q_u   = obj.Q(1,1);  Q_v   = obj.Q(2,2);  Q_r   = obj.Q(3,3);
             Q_x   = obj.Q(4,4);  Q_y   = obj.Q(5,5);  Q_psi = obj.Q(6,6);
-            Q_n1  = obj.Q(7,7);  Q_n2  = obj.Q(8,8);
+            Q_n1  = obj.Q(7,7);  Q_n2  = obj.Q(8,8);  Q_n3  = obj.Q(9,9);
 
             J = 0;
 
@@ -171,10 +178,11 @@ classdef NMPC_Container_final < handle
                 J = J + Q_psi * psi_err^2;
                 J = J + Q_n1  * (X(7,k) - P_xref(7,k))^2;
                 J = J + Q_n2  * (X(8,k) - P_xref(8,k))^2;
+                J = J + Q_n3  * (X(9,k) - P_xref(9,k))^2;
 
                 % NEW: Actuator force penalty (reduces thruster swaying)
                 % Penalizes the magnitude of RPM commands to discourage excessive actuation
-                J = J + obj.actuator_force_weight * (X(7,k)^2 + X(8,k)^2);
+                J = J + obj.actuator_force_weight * (X(7,k)^2 + X(8,k)^2 + X(9,k)^2);
 
                 % NEW: Forward velocity encouragement (makes bow go forward)
                 % Penalizes negative forward speed to naturally prefer forward motion
@@ -204,7 +212,7 @@ classdef NMPC_Container_final < handle
             J = J + 2*Q_y   * (X(5,N_h+1) - P_xref(5,N_h+1))^2;
             J = J + 2*Q_psi * psi_err_N^2;
             % NEW: Terminal actuator force and forward incentive penalties
-            J = J + 2 * obj.actuator_force_weight * (X(7,N_h+1)^2 + X(8,N_h+1)^2);
+            J = J + 2 * obj.actuator_force_weight * (X(7,N_h+1)^2 + X(8,N_h+1)^2 + X(9,N_h+1)^2);
             u_back_N = min(0, X(1,N_h+1));
             J = J + 2 * obj.forward_incentive_weight * u_back_N^2;
             for j = 1:n_obs
@@ -214,10 +222,10 @@ classdef NMPC_Container_final < handle
             %  CONSTRAINTS
             g = [];
 
-            % --- Initial condition (nx equalities) ---
+            % --- Initial condition (n_state equalities) ---
             g = vertcat(g, X(:,1) - P_x0);
 
-            % --- Dynamics (nx * N_h equalities) ---
+            % --- Dynamics (n_state * N_h equalities) ---
             for k = 1:N_h
                 xdot_k = obj.dynamicsCasADi(X(:,k), U(:,k));
                 x_next = X(:,k) + xdot_k * obj.dt;
@@ -296,7 +304,7 @@ classdef NMPC_Container_final < handle
 
             % State bounds
             for k = 1:(N_h+1)
-                base = (k-1)*nx;
+                base = (k-1)*n_state;
                 lbx(base+1) = obj.u_min_forward;  ubx(base+1) = 12;  % NEW: Hard minimum forward speed
                 lbx(base+2) = -3;         ubx(base+2) = 3;
                 lbx(base+3) = -0.15;      ubx(base+3) = 0.15;
@@ -305,12 +313,13 @@ classdef NMPC_Container_final < handle
                 lbx(base+6) = -inf;       ubx(base+6) = inf;
                 lbx(base+7) = obj.n_min;  ubx(base+7) = obj.n_max;
                 lbx(base+8) = obj.n_min;  ubx(base+8) = obj.n_max;
+                lbx(base+9) = obj.n_bow_min;  ubx(base+9) = obj.n_bow_max;
             end
 
             % Control bounds
-            u_off = nx * (N_h+1);
+            u_off = n_state * (N_h+1);
             for k = 1:N_h
-                base = u_off + (k-1)*nu;
+                base = u_off + (k-1)*n_ctrl;
                 lbx(base+1) = -obj.alpha_max;  ubx(base+1) = obj.alpha_max;
                 lbx(base+2) = -obj.alpha_max;  ubx(base+2) = obj.alpha_max;
                 lbx(base+3) = obj.n_min;       ubx(base+3) = obj.n_max;
@@ -318,7 +327,7 @@ classdef NMPC_Container_final < handle
             end
 
             % Obstacle slack bounds (can be tightened to zero per solve call).
-            s_off = nx * (N_h+1) + nu * N_h;
+            s_off = n_state * (N_h+1) + n_ctrl * N_h;
             for k = 1:(N_h+1)
                 for j = 1:n_obs
                     idx_s = s_off + (k-1)*n_obs + j;
@@ -328,7 +337,7 @@ classdef NMPC_Container_final < handle
             end
 
             %  CONSTRAINT BOUNDS
-            n_eq        = nx + nx*N_h;
+            n_eq        = n_state + n_state*N_h;
             n_obs_ineq  = n_obs * (N_h+1);
             n_rate_ineq = 4 + 4*(N_h-1);  % 4 for first step + 4*(N-1) for rest
             n_brake_ineq = 1 + N_h;       % NEW: 1 for first step + N for subsequent steps
@@ -422,8 +431,8 @@ classdef NMPC_Container_final < handle
             end
 
             N_h = obj.N;
-            nx = obj.nx;
-            nu = obj.nu;
+            n_state = obj.nx;
+            n_ctrl = obj.nu;
             n_obs = obj.max_obs;
 
             if nargin < 6 || isempty(u_min_forward_override)
@@ -440,6 +449,10 @@ classdef NMPC_Container_final < handle
                 soft_obs_max_m = max(0.0, getOr(solve_opts, 'soft_obs_max_m', 0.0));
             else
                 soft_obs_max_m = 0.0;
+            end
+            n3_max_local = obj.n_bow_max;
+            if isfield(solve_opts, 'n3_max') && ~isempty(solve_opts.n3_max)
+                n3_max_local = max(0.0, min(obj.n_bow_max, solve_opts.n3_max));
             end
 
             % Handle previous control
@@ -465,19 +478,20 @@ classdef NMPC_Container_final < handle
             end
 
             % Reference control
-            u_ref = zeros(nu, N_h);
+            u_ref = zeros(n_ctrl, N_h);
             u_ref(3,:) = x0(7);
             u_ref(4,:) = x0(8);
+            u_ref(5,:) = min(max(x0(9), obj.n_bow_min), n3_max_local);
 
             % Build parameter vector (now includes u_prev and max_brake_rate)
             p_val = [x0(:); x_ref(:); u_ref(:); n_real; obs_pos(:); obs_rad(:); u_prev(:); obj.max_brake_rate];
 
             % Initial guess (warm start)
             if ~isempty(obj.prev_sol)
-                X_prev = reshape(obj.prev_sol(1:nx*(N_h+1)), nx, N_h+1);
-                u_s = nx*(N_h+1) + 1;
-                U_prev = reshape(obj.prev_sol(u_s:u_s+nu*N_h-1), nu, N_h);
-                s_s = nx*(N_h+1) + nu*N_h + 1;
+                X_prev = reshape(obj.prev_sol(1:n_state*(N_h+1)), n_state, N_h+1);
+                u_s = n_state*(N_h+1) + 1;
+                U_prev = reshape(obj.prev_sol(u_s:u_s+n_ctrl*N_h-1), n_ctrl, N_h);
+                s_s = n_state*(N_h+1) + n_ctrl*N_h + 1;
                 S_prev = reshape(obj.prev_sol(s_s:s_s+n_obs*(N_h+1)-1), n_obs, N_h+1);
 
                 X_init = [X_prev(:,2:end), X_prev(:,end)];
@@ -513,16 +527,27 @@ classdef NMPC_Container_final < handle
             lbx_local = obj.lbx_vec;
             ubx_local = obj.ubx_vec;
             for k = 2:(N_h+1)
-                idx_u = (k-1)*nx + 1;
+                idx_u = (k-1)*n_state + 1;
                 lbx_local(idx_u) = u_min_local;
             end
-            for i = 1:nx
+            lbx_local(9:n_state:end) = obj.n_bow_min;
+            ubx_local(9:n_state:end) = n3_max_local;
+            for i = 1:n_state
                 lbx_local(i) = x0(i);
                 ubx_local(i) = x0(i);
             end
+            lbx_local(9) = x0(9);
+            ubx_local(9) = x0(9);
+
+            u_off = n_state * (N_h+1);
+            for k = 1:N_h
+                base = u_off + (k-1)*n_ctrl;
+                lbx_local(base+5) = obj.n_bow_min;
+                ubx_local(base+5) = n3_max_local;
+            end
 
             % Per-step selective soft obstacle constraints.
-            s_off = nx*(N_h+1) + nu*N_h;
+            s_off = n_state*(N_h+1) + n_ctrl*N_h;
             s_idx = (s_off + 1):(s_off + n_obs*(N_h+1));
             lbx_local(s_idx) = 0;
             ubx_local(s_idx) = soft_obs_max_m;
@@ -545,10 +570,10 @@ classdef NMPC_Container_final < handle
                 sol = obj.solver(solver_args{:});
 
                 sol_x = full(sol.x);
-                X_sol = reshape(sol_x(1:nx*(N_h+1)), nx, N_h+1);
-                u_s = nx*(N_h+1) + 1;
-                U_sol = reshape(sol_x(u_s:u_s+nu*N_h-1), nu, N_h);
-                s_s = nx*(N_h+1) + nu*N_h + 1;
+                X_sol = reshape(sol_x(1:n_state*(N_h+1)), n_state, N_h+1);
+                u_s = n_state*(N_h+1) + 1;
+                U_sol = reshape(sol_x(u_s:u_s+n_ctrl*N_h-1), n_ctrl, N_h);
+                s_s = n_state*(N_h+1) + n_ctrl*N_h + 1;
                 S_sol = reshape(sol_x(s_s:s_s+n_obs*(N_h+1)-1), n_obs, N_h+1);
 
                 u_opt = U_sol(:,1);
@@ -598,12 +623,23 @@ classdef NMPC_Container_final < handle
         function xdot = dynamicsCasADi(obj, x, u_in)
             import casadi.*
 
-            L = obj.L;  rho = obj.rho;  nabla = obj.nabla;
-            D = obj.D;  t_ded = obj.t_ded;  wp = obj.wp;  wp_fwd = obj.wp_fwd;
-            x_azi1 = obj.x_azi1;  x_azi2 = obj.x_azi2;
+            L_ship = obj.L;
+            rho_w = obj.rho;
+            nabla_ship = obj.nabla;
+            D_stern = obj.D;
+            D_bow = 4.5;
+            t_stern = obj.t_ded;
+            t_bow = 0.15;
+            wp_stern = obj.wp;
+            stern_port_x = obj.x_azi1;
+            stern_starboard_x = obj.x_azi2;
+            bow_x = obj.x_azi3;
+            stern_port_y = obj.y_azi1;
+            stern_starboard_y = obj.y_azi2;
+            bow_y = obj.y_azi3;
 
-            m_ship = rho * nabla;
-            Izz_ship = 0.1 * m_ship * L^2;
+            m_ship = rho_w * nabla_ship;
+            Izz_ship = 0.1 * m_ship * L_ship^2;
 
             m_nd = 0.00792;  mx = 0.000238;  my = 0.007049;
             Iz_nd = 0.000456;  Jz = 0.000419;
@@ -616,13 +652,13 @@ classdef NMPC_Container_final < handle
 
             m11 = m_nd + mx;  m22 = m_nd + my;  m66 = Iz_nd + Jz;
 
-            u = x(1);  v = x(2);  r = x(3);  psi = x(6);  n1 = x(7);  n2 = x(8);
-            alpha1 = u_in(1);  alpha2 = u_in(2);  n1_c = u_in(3);  n2_c = u_in(4);
+            u = x(1);  v = x(2);  r = x(3);  psi = x(6);  n1 = x(7);  n2 = x(8);  n3 = x(9);
+            alpha1 = u_in(1);  alpha2 = u_in(2);  n1_c = u_in(3);  n2_c = u_in(4);  n3_c = u_in(5);
 
             U = sqrt(u^2 + v^2);
             U = if_else(U < 0.1, 0.1, U);
 
-            u_nd = u / U;  v_nd = v / U;  r_nd = r * L / U;
+            u_nd = u / U;  v_nd = v / U;  r_nd = r * L_ship / U;
 
             X_hyd = Xuu*u_nd^2 + Xvr*v_nd*r_nd + Xvv*v_nd^2 + Xrr*r_nd^2;
             Y_hyd = Yv*v_nd + Yr*r_nd + Yvvv*v_nd^3 + Yrrr*r_nd^3 + Yvvr*v_nd^2*r_nd + Yvrr*v_nd*r_nd^2;
@@ -631,49 +667,60 @@ classdef NMPC_Container_final < handle
             X_hyd = X_hyd + (m_nd + my) * v_nd * r_nd;
             Y_hyd = Y_hyd - (m_nd + mx) * u_nd * r_nd;
 
-            n1_rps = n1 / 60;
-            v_local1 = v + r * x_azi1;
-            u_inflow1 = u * cos(alpha1) + v_local1 * sin(alpha1);
-            u_a1 = u_inflow1 * (1 - wp);
+            KT0 = 0.527;  KT1 = -0.455;
 
+            n1_rps = n1 / 60;
+            v_local1 = v + r * stern_port_y;
+            u_inflow1 = u * cos(alpha1) + v_local1 * sin(alpha1);
+            u_a1 = u_inflow1 * (1 - wp_stern);
             n1_abs = if_else(n1_rps >= 0, n1_rps, -n1_rps);
             n1_safe = if_else(n1_abs < 0.01, 0.01, n1_abs);
-            J1 = u_a1 / (n1_safe * D);
+            J1 = u_a1 / (n1_safe * D_stern);
             J1 = if_else(J1 > 1.2, 1.2, if_else(J1 < -0.5, -0.5, J1));
-
-            KT0 = 0.527;  KT1 = -0.455;
             KT1_val = KT0 + KT1 * J1;
             KT1_val = if_else(KT1_val < 0.05, 0.05, KT1_val);
-
-            T1_gross = rho * D^4 * n1_rps * n1_abs * KT1_val;
-            T1 = (1 - t_ded) * T1_gross;
+            T1_gross = rho_w * D_stern^4 * n1_rps * n1_abs * KT1_val;
+            T1 = (1 - t_stern) * T1_gross;
 
             n2_rps = n2 / 60;
-            v_local2 = v + r * x_azi2;
+            v_local2 = v + r * stern_starboard_y;
             u_inflow2 = u * cos(alpha2) + v_local2 * sin(alpha2);
-            u_a2 = u_inflow2 * (1 - wp_fwd);
-
+            u_a2 = u_inflow2 * (1 - wp_stern);
             n2_abs = if_else(n2_rps >= 0, n2_rps, -n2_rps);
             n2_safe = if_else(n2_abs < 0.01, 0.01, n2_abs);
-            J2 = u_a2 / (n2_safe * D);
+            J2 = u_a2 / (n2_safe * D_stern);
             J2 = if_else(J2 > 1.2, 1.2, if_else(J2 < -0.5, -0.5, J2));
-
             KT2_val = KT0 + KT1 * J2;
             KT2_val = if_else(KT2_val < 0.05, 0.05, KT2_val);
+            T2_gross = rho_w * D_stern^4 * n2_rps * n2_abs * KT2_val;
+            T2 = (1 - t_stern) * T2_gross;
 
-            T2_gross = rho * D^4 * n2_rps * n2_abs * KT2_val;
-            T2 = (1 - t_ded) * T2_gross;
+            n3_rps = n3 / 60;
+            v_local3 = v - r * bow_x;
+            u_inflow3 = v_local3;
+            u_a3 = u_inflow3 * (1 - t_bow);
+            n3_abs = if_else(n3_rps >= 0, n3_rps, -n3_rps);
+            n3_safe = if_else(n3_abs < 0.01, 0.01, n3_abs);
+            J3 = u_a3 / (n3_safe * D_bow);
+            J3 = if_else(J3 > 1.2, 1.2, if_else(J3 < -0.5, -0.5, J3));
+            KT3_val = 0.527 * 0.30 + (-0.455 * 0.30) * J3;
+            KT3_val = if_else(KT3_val < 0.05 * 0.30, 0.05 * 0.30, KT3_val);
+            speed_decay_factor = max(0.3, 1 - 0.08 * max(0.1, u));
+            T3_gross = rho_w * D_bow^4 * n3_rps * n3_abs * KT3_val;
+            T3 = (1 - t_bow) * T3_gross * speed_decay_factor;
 
             Fx1 = T1 * cos(alpha1);  Fy1 = T1 * sin(alpha1);
             Fx2 = T2 * cos(alpha2);  Fy2 = T2 * sin(alpha2);
+            Fx3 = 0;
+            Fy3 = T3;
 
-            X_thrust = Fx1 + Fx2;
-            Y_thrust = Fy1 + Fy2;
-            N_thrust = x_azi1 * Fy1 + x_azi2 * Fy2;
+            X_thrust = Fx1 + Fx2 + Fx3;
+            Y_thrust = Fy1 + Fy2 + Fy3;
+            N_thrust = stern_port_x * Fy1 - stern_port_y * Fx1 + stern_starboard_x * Fy2 - stern_starboard_y * Fx2 + bow_x * Fy3 - bow_y * Fx3;
 
-            X_hyd_dim = X_hyd * 0.5 * rho * L^2 * U^2;
-            Y_hyd_dim = Y_hyd * 0.5 * rho * L^2 * U^2;
-            N_hyd_dim = N_hyd * 0.5 * rho * L^3 * U^2;
+            X_hyd_dim = X_hyd * 0.5 * rho_w * L_ship^2 * U^2;
+            Y_hyd_dim = Y_hyd * 0.5 * rho_w * L_ship^2 * U^2;
+            N_hyd_dim = N_hyd * 0.5 * rho_w * L_ship^3 * U^2;
 
             X_total = X_hyd_dim + X_thrust;
             Y_total = Y_hyd_dim + Y_thrust;
@@ -689,22 +736,28 @@ classdef NMPC_Container_final < handle
 
             n1_abs_rpm = if_else(n1 >= 0, n1, -n1);
             n2_abs_rpm = if_else(n2 >= 0, n2, -n2);
+            n3_abs_rpm = if_else(n3 >= 0, n3, -n3);
 
             Tm1 = if_else(n1_abs_rpm > 18, 5.65 / (n1_abs_rpm/60 + 1e-6), 18.83);
             Tm2 = if_else(n2_abs_rpm > 18, 5.65 / (n2_abs_rpm/60 + 1e-6), 18.83);
+            Tm3 = if_else(n3_abs_rpm > 18, 5.65 / (n3_abs_rpm/60 + 1e-6), 18.83) * 1.5;
             Tm1 = if_else(Tm1 > 20, 20, if_else(Tm1 < 1, 1, Tm1));
             Tm2 = if_else(Tm2 > 20, 20, if_else(Tm2 < 1, 1, Tm2));
+            Tm3 = if_else(Tm3 > 20, 20, if_else(Tm3 < 1, 1, Tm3));
 
             n1_c_sat = if_else(n1_c > obj.n_max, obj.n_max, if_else(n1_c < obj.n_min, obj.n_min, n1_c));
             n2_c_sat = if_else(n2_c > obj.n_max, obj.n_max, if_else(n2_c < obj.n_min, obj.n_min, n2_c));
+            n3_c_sat = if_else(n3_c > obj.n_bow_max, obj.n_bow_max, if_else(n3_c < obj.n_bow_min, obj.n_bow_min, n3_c));
 
             n1_dot = (n1_c_sat - n1) / Tm1;
             n2_dot = (n2_c_sat - n2) / Tm2;
+            n3_dot = (n3_c_sat - n3) / Tm3;
 
             n1_dot = if_else(n1_dot > obj.Dn_max, obj.Dn_max, if_else(n1_dot < -obj.Dn_max, -obj.Dn_max, n1_dot));
             n2_dot = if_else(n2_dot > obj.Dn_max, obj.Dn_max, if_else(n2_dot < -obj.Dn_max, -obj.Dn_max, n2_dot));
+            n3_dot = if_else(n3_dot > obj.Dn_bow_max, obj.Dn_bow_max, if_else(n3_dot < -obj.Dn_bow_max, -obj.Dn_bow_max, n3_dot));
 
-            xdot = [u_dot; v_dot; r_dot; x_dot; y_dot; psi_dot; n1_dot; n2_dot];
+            xdot = [u_dot; v_dot; r_dot; x_dot; y_dot; psi_dot; n1_dot; n2_dot; n3_dot];
         end
 
     end
@@ -716,4 +769,19 @@ function v = getOr(s, name, default)
     else
         v = default;
     end
+end
+
+function M = padDiag(M, n)
+    if isempty(M)
+        M = zeros(n, n);
+        return;
+    end
+    if size(M,1) == n && size(M,2) == n
+        return;
+    end
+    M_pad = zeros(n, n);
+    r = min(n, size(M,1));
+    c = min(n, size(M,2));
+    M_pad(1:r, 1:c) = M(1:r, 1:c);
+    M = M_pad;
 end

@@ -135,9 +135,9 @@ else
 end
 
 %  2. Prepare trajectory data — extract x/y/psi from state matrix, apply frame-skip for animation
-if size(traj, 1) ~= 6
+if size(traj, 1) < 6
     error('animateSimResult:InvalidTrajectorySize', ...
-        'Expected traj to be 6xN [u v r x y psi]. Got %dx%d.', size(traj,1), size(traj,2));
+    'Expected traj to have at least 6 rows [u v r x y psi]. Got %dx%d.', size(traj,1), size(traj,2));
 end
 
 N     = size(traj, 2);
