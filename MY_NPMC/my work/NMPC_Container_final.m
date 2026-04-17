@@ -50,15 +50,28 @@ classdef NMPC_Container_final < handle
         hull_half_beam_m = 0
         hull_clearance_m = 0
         hull_smooth_eps = 1e-4
+        azimuth_split_max_default = pi          % Default max azimuth angle split between port/starboard [rad]
+        stern_cmd_split_max_default = 40        % Default max RPM split between port/starboard stern [rpm]
+
 
         % NEW: Actuator and forward motion control
         actuator_force_weight = 0.05     % Penalty on RPM magnitude (reduces swaying) — increased 25x
         forward_incentive_weight = 2.5   % Penalty on backward motion (encourages forward bow) — increased 5x
         waypoint_heading_weight = 0.0    % Extra heading penalty at waypoints (0=disabled)
-        u_min_forward = 0.5              % Minimum forward speed constraint [m/s] (hard constraint)
+        u_min_forward = 0.5              % Default surge lower bound [m/s] (forward-only unless overridden)
         max_brake_rate = 0.3             % Max deceleration rate [m/s²] to minimize braking fuel costs
         soft_obs_weight = 2e5            % Large penalty when soft obstacle slack is enabled
         soft_obs_default_max_m = 0.0     % Default obstacle slack cap [m] (0 disables softening)
+        terminal_pose_slack_weight = 8e4 % Penalty for terminal-pose soft slack
+        terminal_pose_slack_default_max = 0.0 % Default max terminal slack (0 disables by default)
+        stage_state_cost_scale = 1.0  % Scale on stage state-tracking penalties
+        stage_input_tracking_scale = 1.0 % Scale on stage input-tracking (U-uref) penalties
+        terminal_speed_weight = NaN   % Override terminal speed weight (NaN -> use 2*Q_u)
+        terminal_pos_weight = NaN     % Override terminal position weight (NaN -> use 2*Q_x and 2*Q_y)
+        terminal_heading_weight = NaN % Override terminal heading weight (NaN -> use 2*Q_psi)
+        terminal_cost_scale = 1.0     % Global scale on terminal state-tracking cost
+        terminal_actuator_cost_scale = 1.0 % Scale on terminal actuator effort penalty
+        terminal_forward_cost_scale = 1.0  % Scale on terminal reverse-motion penalty
 
         % Solver internals
         solver
@@ -104,6 +117,16 @@ classdef NMPC_Container_final < handle
             obj.max_brake_rate = getOr(cfg, 'max_brake_rate', 0.3);
             obj.soft_obs_weight = getOr(cfg, 'soft_obs_weight', 2e5);
             obj.soft_obs_default_max_m = getOr(cfg, 'soft_obs_default_max_m', 0.0);
+            obj.terminal_pose_slack_weight = getOr(cfg, 'terminal_pose_slack_weight', 8e4);
+            obj.terminal_pose_slack_default_max = getOr(cfg, 'terminal_pose_slack_default_max', 0.0);
+            obj.stage_state_cost_scale = getOr(cfg, 'stage_state_cost_scale', 1.0);
+            obj.stage_input_tracking_scale = getOr(cfg, 'stage_input_tracking_scale', 1.0);
+            obj.terminal_speed_weight = getOr(cfg, 'terminal_speed_weight', NaN);
+            obj.terminal_pos_weight = getOr(cfg, 'terminal_pos_weight', NaN);
+            obj.terminal_heading_weight = getOr(cfg, 'terminal_heading_weight', NaN);
+            obj.terminal_cost_scale = getOr(cfg, 'terminal_cost_scale', 1.0);
+            obj.terminal_actuator_cost_scale = getOr(cfg, 'terminal_actuator_cost_scale', 1.0);
+            obj.terminal_forward_cost_scale = getOr(cfg, 'terminal_forward_cost_scale', 1.0);
 
             obj.hull_length_m = getOr(cfg, 'hull_length_m', 36);
             obj.hull_beam_m = getOr(cfg, 'hull_beam_m', 12);
@@ -117,11 +140,15 @@ classdef NMPC_Container_final < handle
                 obj.N, obj.dt, obj.max_obs);
             fprintf('  9-state model: [u v r x y psi n1 n2 n3]\n');
             fprintf('  5 controls: [alpha1 alpha2 n1_c n2_c n3_c]\n');
-            fprintf('  forward speed constraint: u >= %.2f m/s\n', obj.u_min_forward);
+            fprintf('  surge lower bound: u >= %.2f m/s\n', obj.u_min_forward);
             fprintf('  azimuth rate limit: %.2f deg/s\n', rad2deg(obj.alpha_rate_max));
             fprintf('  max brake rate: %.2f m/s²\n', obj.max_brake_rate);
             fprintf('  soft obstacle slack: weight=%.1f, default_max=%.2f m\n', ...
                 obj.soft_obs_weight, obj.soft_obs_default_max_m);
+            fprintf('  terminal-pose slack: weight=%.1f, default_max=%.2f\n', ...
+                obj.terminal_pose_slack_weight, obj.terminal_pose_slack_default_max);
+            fprintf('  stage scales: state=%.2f, input-track=%.2f\n', ...
+                obj.stage_state_cost_scale, obj.stage_input_tracking_scale);
             fprintf('  actuator penalty: %.4f | forward incentive: %.2f\n', ...
                 obj.actuator_force_weight, obj.forward_incentive_weight);
             if strcmpi(obj.collision_model, 'oriented-rectangle')
@@ -139,11 +166,13 @@ classdef NMPC_Container_final < handle
             n_state = obj.nx;
             n_ctrl = obj.nu;
             n_obs = obj.max_obs;
+            n_term_slack = 6;
 
             %  DECISION VARIABLES
             X = SX.sym('X', n_state, N_h+1);
             U = SX.sym('U', n_ctrl, N_h);
             S_obs = SX.sym('S_obs', n_obs, N_h+1); % Soft obstacle slack [m]
+            S_term = SX.sym('S_term', n_term_slack, 1); % Terminal pose/velocity soft slack
 
             %  PARAMETERS
             P_x0       = SX.sym('P_x0', n_state, 1);
@@ -154,15 +183,40 @@ classdef NMPC_Container_final < handle
             P_obs_rad  = SX.sym('P_obs_rad', n_obs, 1);
             P_u_prev   = SX.sym('P_u_prev', n_ctrl, 1);  % NEW: Previous applied control
             P_max_brake_rate = SX.sym('P_max_brake_rate', 1, 1);  % NEW: Max deceleration rate
+            P_term_pose_eps = SX.sym('P_term_pose_eps', 3, 1); % [eps_x eps_y eps_psi]
+            P_term_vel_max = SX.sym('P_term_vel_max', 3, 1);   % [|u| |v| |r|] terminal bounds
+            P_berth_corr = SX.sym('P_berth_corr', 7, 1); % [x0 y0 psi half_w along_min along_max enable]
+            P_sync_limits = SX.sym('P_sync_limits', 2, 1); % [max_azimuth_split_rad max_stern_cmd_split_rpm]
 
             P_all = vertcat(P_x0, P_xref(:), P_uref(:), P_n_obs_real, ...
-                            P_obs_pos(:), P_obs_rad, P_u_prev, P_max_brake_rate);
+                            P_obs_pos(:), P_obs_rad, P_u_prev, P_max_brake_rate, ...
+                            P_term_pose_eps, P_term_vel_max, P_berth_corr, P_sync_limits);
             obj.np_total = size(P_all, 1);
 
             %  COST FUNCTION
             Q_u   = obj.Q(1,1);  Q_v   = obj.Q(2,2);  Q_r   = obj.Q(3,3);
             Q_x   = obj.Q(4,4);  Q_y   = obj.Q(5,5);  Q_psi = obj.Q(6,6);
             Q_n1  = obj.Q(7,7);  Q_n2  = obj.Q(8,8);  Q_n3  = obj.Q(9,9);
+            w_stage_state = obj.stage_state_cost_scale;
+            w_stage_input = obj.stage_input_tracking_scale;
+
+            if isnan(obj.terminal_speed_weight)
+                w_term_u = 2 * Q_u;
+            else
+                w_term_u = obj.terminal_speed_weight;
+            end
+            if isnan(obj.terminal_pos_weight)
+                w_term_x = 2 * Q_x;
+                w_term_y = 2 * Q_y;
+            else
+                w_term_x = obj.terminal_pos_weight;
+                w_term_y = obj.terminal_pos_weight;
+            end
+            if isnan(obj.terminal_heading_weight)
+                w_term_psi = 2 * Q_psi;
+            else
+                w_term_psi = obj.terminal_heading_weight;
+            end
 
             J = 0;
 
@@ -171,15 +225,17 @@ classdef NMPC_Container_final < handle
                 dpsi = X(6,k) - P_xref(6,k);
                 psi_err = atan2(sin(dpsi), cos(dpsi));
 
-                J = J + Q_u   * (X(1,k) - P_xref(1,k))^2;
-                J = J + Q_v   * (X(2,k) - P_xref(2,k))^2;
-                J = J + Q_r   * (X(3,k) - P_xref(3,k))^2;
-                J = J + Q_x   * (X(4,k) - P_xref(4,k))^2;
-                J = J + Q_y   * (X(5,k) - P_xref(5,k))^2;
-                J = J + Q_psi * psi_err^2;
-                J = J + Q_n1  * (X(7,k) - P_xref(7,k))^2;
-                J = J + Q_n2  * (X(8,k) - P_xref(8,k))^2;
-                J = J + Q_n3  * (X(9,k) - P_xref(9,k))^2;
+                stage_state_cost = 0;
+                stage_state_cost = stage_state_cost + Q_u   * (X(1,k) - P_xref(1,k))^2;
+                stage_state_cost = stage_state_cost + Q_v   * (X(2,k) - P_xref(2,k))^2;
+                stage_state_cost = stage_state_cost + Q_r   * (X(3,k) - P_xref(3,k))^2;
+                stage_state_cost = stage_state_cost + Q_x   * (X(4,k) - P_xref(4,k))^2;
+                stage_state_cost = stage_state_cost + Q_y   * (X(5,k) - P_xref(5,k))^2;
+                stage_state_cost = stage_state_cost + Q_psi * psi_err^2;
+                stage_state_cost = stage_state_cost + Q_n1  * (X(7,k) - P_xref(7,k))^2;
+                stage_state_cost = stage_state_cost + Q_n2  * (X(8,k) - P_xref(8,k))^2;
+                stage_state_cost = stage_state_cost + Q_n3  * (X(9,k) - P_xref(9,k))^2;
+                J = J + w_stage_state * stage_state_cost;
 
                 % NEW: Actuator force penalty (reduces thruster swaying)
                 % Penalizes the magnitude of RPM commands to discourage excessive actuation
@@ -191,7 +247,7 @@ classdef NMPC_Container_final < handle
                 J = J + obj.forward_incentive_weight * u_back^2;
 
                 du = U(:,k) - P_uref(:,k);
-                J = J + du' * obj.R * du;
+                J = J + w_stage_input * (du' * obj.R * du);
 
                 % Obstacle-softening penalty (active only if slack bounds permit >0 values).
                 for j = 1:n_obs
@@ -208,17 +264,21 @@ classdef NMPC_Container_final < handle
             % Terminal cost
             dpsi_N = X(6,N_h+1) - P_xref(6,N_h+1);
             psi_err_N = atan2(sin(dpsi_N), cos(dpsi_N));
-            J = J + 2*Q_u   * (X(1,N_h+1) - P_xref(1,N_h+1))^2;
-            J = J + 2*Q_x   * (X(4,N_h+1) - P_xref(4,N_h+1))^2;
-            J = J + 2*Q_y   * (X(5,N_h+1) - P_xref(5,N_h+1))^2;
-            J = J + 2*Q_psi * psi_err_N^2;
+            terminal_state_cost = 0;
+            terminal_state_cost = terminal_state_cost + w_term_u * (X(1,N_h+1) - P_xref(1,N_h+1))^2;
+            terminal_state_cost = terminal_state_cost + w_term_x * (X(4,N_h+1) - P_xref(4,N_h+1))^2;
+            terminal_state_cost = terminal_state_cost + w_term_y * (X(5,N_h+1) - P_xref(5,N_h+1))^2;
+            terminal_state_cost = terminal_state_cost + w_term_psi * psi_err_N^2;
+            J = J + obj.terminal_cost_scale * terminal_state_cost;
             % NEW: Terminal actuator force and forward incentive penalties
-            J = J + 2 * obj.actuator_force_weight * (X(7,N_h+1)^2 + X(8,N_h+1)^2 + X(9,N_h+1)^2);
+            J = J + obj.terminal_actuator_cost_scale * 2 * obj.actuator_force_weight * ...
+                (X(7,N_h+1)^2 + X(8,N_h+1)^2 + X(9,N_h+1)^2);
             u_back_N = min(0, X(1,N_h+1));
-            J = J + 2 * obj.forward_incentive_weight * u_back_N^2;
+            J = J + obj.terminal_forward_cost_scale * 2 * obj.forward_incentive_weight * u_back_N^2;
             for j = 1:n_obs
                 J = J + obj.soft_obs_weight * S_obs(j,N_h+1)^2;
             end
+            J = J + obj.terminal_pose_slack_weight * (S_term' * S_term);
 
             %  CONSTRAINTS
             g = [];
@@ -296,8 +356,61 @@ classdef NMPC_Container_final < handle
                 g = vertcat(g, du_brake + P_max_brake_rate * obj.dt);
             end
 
+            % --- Terminal pose and velocity envelope (soft inequalities) ---
+            % Pose envelope centered on terminal reference at k=N+1.
+            dx_N = X(4,N_h+1) - P_xref(4,N_h+1);
+            dy_N = X(5,N_h+1) - P_xref(5,N_h+1);
+            dpsi_N_c = atan2(sin(X(6,N_h+1) - P_xref(6,N_h+1)), cos(X(6,N_h+1) - P_xref(6,N_h+1)));
+
+            g = vertcat(g, dx_N - P_term_pose_eps(1) - S_term(1));
+            g = vertcat(g, -dx_N - P_term_pose_eps(1) - S_term(1));
+            g = vertcat(g, dy_N - P_term_pose_eps(2) - S_term(2));
+            g = vertcat(g, -dy_N - P_term_pose_eps(2) - S_term(2));
+            g = vertcat(g, dpsi_N_c - P_term_pose_eps(3) - S_term(3));
+            g = vertcat(g, -dpsi_N_c - P_term_pose_eps(3) - S_term(3));
+
+            % Optional terminal velocity envelope (absolute-value bounds).
+            g = vertcat(g, abs(X(1,N_h+1)) - P_term_vel_max(1) - S_term(4));
+            g = vertcat(g, abs(X(2,N_h+1)) - P_term_vel_max(2) - S_term(5));
+            g = vertcat(g, abs(X(3,N_h+1)) - P_term_vel_max(3) - S_term(6));
+
+            % --- Berth corridor hard constraints in berth-local frame ---
+            % Local frame origin is berth point, x-axis aligned with berth heading.
+            corr_origin_x = P_berth_corr(1);
+            corr_origin_y = P_berth_corr(2);
+            corr_psi = P_berth_corr(3);
+            corr_half_w = P_berth_corr(4);
+            corr_along_min = P_berth_corr(5);
+            corr_along_max = P_berth_corr(6);
+            corr_enable = P_berth_corr(7);
+            corr_big_relax = (1 - corr_enable) * 1e6;
+
+            for k = 1:(N_h+1)
+                dx_b = X(4,k) - corr_origin_x;
+                dy_b = X(5,k) - corr_origin_y;
+                x_local = cos(corr_psi) * dx_b + sin(corr_psi) * dy_b;
+                y_local = -sin(corr_psi) * dx_b + cos(corr_psi) * dy_b;
+
+                g = vertcat(g, y_local - corr_half_w - corr_big_relax);
+                g = vertcat(g, -y_local - corr_half_w - corr_big_relax);
+                g = vertcat(g, corr_along_min - x_local - corr_big_relax);
+                g = vertcat(g, x_local - corr_along_max - corr_big_relax);
+            end
+
+            % --- Twin-stern azipod synchrony constraints (phase-tunable) ---
+            max_azi_split = P_sync_limits(1);
+            max_stern_split = P_sync_limits(2);
+            for k = 1:N_h
+                d_alpha_sync = U(1,k) - U(2,k);
+                d_stern_sync = U(3,k) - U(4,k);
+                g = vertcat(g, d_alpha_sync - max_azi_split);
+                g = vertcat(g, -d_alpha_sync - max_azi_split);
+                g = vertcat(g, d_stern_sync - max_stern_split);
+                g = vertcat(g, -d_stern_sync - max_stern_split);
+            end
+
             %  VARIABLE BOUNDS
-            OPT = vertcat(X(:), U(:), S_obs(:));
+            OPT = vertcat(X(:), U(:), S_obs(:), S_term(:));
             n_vars = size(OPT, 1);
 
             lbx = -inf(n_vars, 1);
@@ -306,7 +419,7 @@ classdef NMPC_Container_final < handle
             % State bounds
             for k = 1:(N_h+1)
                 base = (k-1)*n_state;
-                lbx(base+1) = obj.u_min_forward;  ubx(base+1) = 12;  % Hard minimum forward speed
+                lbx(base+1) = obj.u_min_forward;  ubx(base+1) = 12;
                 lbx(base+2) = -3;         ubx(base+2) = 3;
                 lbx(base+3) = -0.25;      ubx(base+3) = 0.25;
                 lbx(base+4) = -1e5;       ubx(base+4) = 1e5;
@@ -325,8 +438,6 @@ classdef NMPC_Container_final < handle
                 lbx(base+2) = -obj.alpha_max;  ubx(base+2) = obj.alpha_max;
                 lbx(base+3) = obj.n_min;       ubx(base+3) = obj.n_max;
                 lbx(base+4) = obj.n_min;       ubx(base+4) = obj.n_max;
-                lbx(base+3) = obj.n_min;       ubx(base+3) = obj.n_max;
-                lbx(base+4) = obj.n_min;       ubx(base+4) = obj.n_max;
                 lbx(base+5) = obj.n_bow_min;   ubx(base+5) = obj.n_bow_max;
             end
 
@@ -340,37 +451,68 @@ classdef NMPC_Container_final < handle
                 end
             end
 
+            % Terminal slack bounds (can be relaxed per solve call).
+            t_off = s_off + n_obs * (N_h+1);
+            for j = 1:n_term_slack
+                idx_t = t_off + j;
+                lbx(idx_t) = 0;
+                ubx(idx_t) = obj.terminal_pose_slack_default_max;
+            end
+
             %  CONSTRAINT BOUNDS
             n_eq        = n_state + n_state*N_h;
             n_obs_ineq  = n_obs * (N_h+1);
             n_rate_ineq = 4 + 4*(N_h-1);  % 4 for first step + 4*(N-1) for rest
             n_brake_ineq = 1 + N_h;       % NEW: 1 for first step + N for subsequent steps
-            n_constraints = n_eq + n_obs_ineq + n_rate_ineq + n_brake_ineq;
+            n_term_ineq = 9;
+            n_corr_ineq = 4 * (N_h + 1);
+            n_sync_ineq = 4 * N_h;
+            n_constraints = n_eq + n_obs_ineq + n_rate_ineq + n_brake_ineq + n_term_ineq + n_corr_ineq + n_sync_ineq;
 
             lbg = zeros(n_constraints, 1);
             ubg = zeros(n_constraints, 1);
 
             % Equalities: g = 0
-            lbg(1:n_eq) = 0;
-            ubg(1:n_eq) = 0;
+            eq_start = 1;
+            eq_end   = n_eq;
+            lbg(eq_start:eq_end) = 0;
+            ubg(eq_start:eq_end) = 0;
 
-            % Obstacle: g >= 0
-            obs_start = n_eq + 1;
-            obs_end   = n_eq + n_obs_ineq;
+            % Obstacle avoidance: g >= 0
+            obs_start = eq_end + 1;
+            obs_end   = eq_end + n_obs_ineq;
             lbg(obs_start:obs_end) = 0;
             ubg(obs_start:obs_end) = inf;
 
-            % Rate: g <= 0
+            % Azimuth rate: g <= 0
             rate_start = obs_end + 1;
             rate_end   = obs_end + n_rate_ineq;
             lbg(rate_start:rate_end) = -inf;
             ubg(rate_start:rate_end) = 0;
 
-            % Brake: g >= 0  (du_brake + max_brake_rate * dt >= 0)
+            % Brake deceleration: g >= 0
             brake_start = rate_end + 1;
-            brake_end   = n_constraints;
+            brake_end   = rate_end + n_brake_ineq;
             lbg(brake_start:brake_end) = 0;
             ubg(brake_start:brake_end) = inf;
+
+            % Terminal pose/velocity: g <= 0
+            term_start = brake_end + 1;
+            term_end   = brake_end + n_term_ineq;
+            lbg(term_start:term_end) = -inf;
+            ubg(term_start:term_end) = 0;
+
+            % Berth corridor: g <= 0
+            corr_start = term_end + 1;
+            corr_end   = term_end + n_corr_ineq;
+            lbg(corr_start:corr_end) = -inf;
+            ubg(corr_start:corr_end) = 0;
+
+            % Twin-stern sync: g <= 0
+            sync_start = corr_end + 1;
+            sync_end   = corr_end + n_sync_ineq;
+            lbg(sync_start:sync_end) = -inf;
+            ubg(sync_start:sync_end) = 0;
 
             %  BUILD SOLVER
             nlp = struct('f', J, 'x', OPT, 'g', g, 'p', P_all);
@@ -405,6 +547,9 @@ classdef NMPC_Container_final < handle
             fprintf('    - Obstacle:   %d (slots × horizon)\n', n_obs_ineq);
             fprintf('    - Rate:       %d (first-step + consecutive)\n', n_rate_ineq);
             fprintf('    - Brake:      %d (first-step + consecutive)\n', n_brake_ineq);
+            fprintf('    - Terminal:   %d (pose + velocity envelope)\n', n_term_ineq);
+            fprintf('    - Corridor:   %d (berth-local lateral/along bounds)\n', n_corr_ineq);
+            fprintf('    - Sync:       %d (twin-stern azimuth + RPM split)\n', n_sync_ineq);
         end
 
 
@@ -422,6 +567,21 @@ classdef NMPC_Container_final < handle
             %       solve_opts - Optional struct:
             %                    .enable_soft_obstacles (logical)
             %                    .soft_obs_max_m (nonnegative scalar)
+            %                    .enable_terminal_pose (logical)
+            %                    .term_pose_eps_xy_m (nonnegative scalar)
+            %                    .term_pose_eps_psi_rad (nonnegative scalar)
+            %                    .term_vel_max_u_mps (nonnegative scalar)
+            %                    .term_vel_max_v_mps (nonnegative scalar)
+            %                    .term_vel_max_r_radps (nonnegative scalar)
+            %                    .term_pose_slack_max (nonnegative scalar)
+            %                    .enable_berth_corridor (logical)
+            %                    .berth_corridor_origin_xy ([x; y])
+            %                    .berth_corridor_heading_rad (scalar)
+            %                    .berth_corridor_half_width_m (nonnegative scalar)
+            %                    .berth_corridor_along_min_m (scalar)
+            %                    .berth_corridor_along_max_m (scalar)
+            %                    .max_azimuth_split (nonnegative scalar, rad)
+            %                    .max_stern_cmd_split (nonnegative scalar, rpm)
             %
             %   Outputs:
             %       u_opt  - Optimal control for current step (4x1)
@@ -438,11 +598,12 @@ classdef NMPC_Container_final < handle
             n_state = obj.nx;
             n_ctrl = obj.nu;
             n_obs = obj.max_obs;
+            n_term_slack = 6;
 
             if nargin < 6 || isempty(u_min_forward_override)
                 u_min_local = obj.u_min_forward;
             else
-                u_min_local = max(0.0, min(12.0, u_min_forward_override));
+                u_min_local = max(-4.0, min(12.0, u_min_forward_override));
             end
 
             if nargin < 7 || isempty(solve_opts)
@@ -458,6 +619,71 @@ classdef NMPC_Container_final < handle
             if isfield(solve_opts, 'n3_max') && ~isempty(solve_opts.n3_max)
                 n3_max_local = max(0.0, min(obj.n_bow_max, solve_opts.n3_max));
             end
+
+            term_enable = logical(getOr(solve_opts, 'enable_terminal_pose', false));
+            if term_enable
+                term_eps_xy_raw = getOr(solve_opts, 'term_pose_eps_xy_m', 8.0);
+                if isscalar(term_eps_xy_raw)
+                    term_eps_x = max(0.0, term_eps_xy_raw);
+                    term_eps_y = term_eps_x;
+                else
+                    term_eps_x = max(0.0, term_eps_xy_raw(1));
+                    term_eps_y = max(0.0, term_eps_xy_raw(min(2, numel(term_eps_xy_raw))));
+                end
+                term_eps_psi = max(0.0, getOr(solve_opts, 'term_pose_eps_psi_rad', deg2rad(8.0)));
+                term_vel_u = max(0.0, getOr(solve_opts, 'term_vel_max_u_mps', inf));
+                term_vel_v = max(0.0, getOr(solve_opts, 'term_vel_max_v_mps', inf));
+                term_vel_r = max(0.0, getOr(solve_opts, 'term_vel_max_r_radps', inf));
+                term_slack_max = max(0.0, getOr(solve_opts, 'term_pose_slack_max', obj.terminal_pose_slack_default_max));
+            else
+                term_eps_x = 1e6;
+                term_eps_y = 1e6;
+                term_eps_psi = pi;
+                term_vel_u = 1e6;
+                term_vel_v = 1e6;
+                term_vel_r = 1e6;
+                term_slack_max = 0.0;
+            end
+
+            term_pose_eps_vec = [term_eps_x; term_eps_y; term_eps_psi];
+            term_vel_max_vec = [term_vel_u; term_vel_v; term_vel_r];
+
+            corr_enable = logical(getOr(solve_opts, 'enable_berth_corridor', false));
+            if corr_enable
+                corr_origin_raw = getOr(solve_opts, 'berth_corridor_origin_xy', [0; 0]);
+                if numel(corr_origin_raw) < 2
+                    corr_origin_raw = [0; 0];
+                end
+                corr_origin_x = corr_origin_raw(1);
+                corr_origin_y = corr_origin_raw(2);
+                corr_psi = getOr(solve_opts, 'berth_corridor_heading_rad', 0.0);
+                corr_half_w = max(0.0, getOr(solve_opts, 'berth_corridor_half_width_m', 1e6));
+                corr_along_min = getOr(solve_opts, 'berth_corridor_along_min_m', -1e6);
+                corr_along_max = getOr(solve_opts, 'berth_corridor_along_max_m', 1e6);
+                if corr_along_max < corr_along_min
+                    tmp = corr_along_min;
+                    corr_along_min = corr_along_max;
+                    corr_along_max = tmp;
+                end
+                corr_enable_scalar = 1.0;
+            else
+                corr_origin_x = 0.0;
+                corr_origin_y = 0.0;
+                corr_psi = 0.0;
+                corr_half_w = 1e6;
+                corr_along_min = -1e6;
+                corr_along_max = 1e6;
+                corr_enable_scalar = 0.0;
+            end
+            berth_corridor_vec = [corr_origin_x; corr_origin_y; corr_psi; corr_half_w; ...
+                corr_along_min; corr_along_max; corr_enable_scalar];
+
+            % Twin-stern azipod synchrony limits (enforced as NLP inequalities)
+            max_az_split_local = max(0.0, min(2*obj.alpha_max, ...
+                getOr(solve_opts, 'max_azimuth_split', obj.azimuth_split_max_default)));
+            max_stern_split_local = max(0.0, min(obj.n_max - obj.n_min, ...
+                getOr(solve_opts, 'max_stern_cmd_split', obj.stern_cmd_split_max_default)));
+            sync_limits_vec = [max_az_split_local; max_stern_split_local];
 
             % Handle previous control
             if nargin < 5 || isempty(u_prev)
@@ -488,7 +714,8 @@ classdef NMPC_Container_final < handle
             u_ref(5,:) = min(max(x0(9), obj.n_bow_min), n3_max_local);
 
             % Build parameter vector (now includes u_prev and max_brake_rate)
-            p_val = [x0(:); x_ref(:); u_ref(:); n_real; obs_pos(:); obs_rad(:); u_prev(:); obj.max_brake_rate];
+            p_val = [x0(:); x_ref(:); u_ref(:); n_real; obs_pos(:); obs_rad(:); u_prev(:); obj.max_brake_rate; ...
+                term_pose_eps_vec; term_vel_max_vec; berth_corridor_vec; sync_limits_vec];
 
             % Initial guess (warm start)
             if ~isempty(obj.prev_sol)
@@ -497,21 +724,23 @@ classdef NMPC_Container_final < handle
                 U_prev = reshape(obj.prev_sol(u_s:u_s+n_ctrl*N_h-1), n_ctrl, N_h);
                 s_s = n_state*(N_h+1) + n_ctrl*N_h + 1;
                 S_prev = reshape(obj.prev_sol(s_s:s_s+n_obs*(N_h+1)-1), n_obs, N_h+1);
+                t_s = s_s + n_obs*(N_h+1);
+                T_prev = obj.prev_sol(t_s:t_s+n_term_slack-1);
 
                 X_init = [X_prev(:,2:end), X_prev(:,end)];
                 X_init(:,1) = x0;
                 U_init = [U_prev(:,2:end), U_prev(:,end)];
                 S_init = [S_prev(:,2:end), S_prev(:,end)];
 
-                x0_guess = [X_init(:); U_init(:); S_init(:)];
+                x0_guess = [X_init(:); U_init(:); S_init(:); T_prev(:)];
             else
                 X_init = repmat(x0, 1, N_h+1);
                 U_init = u_ref;
                 S_init = zeros(n_obs, N_h+1);
+                T_init = zeros(n_term_slack, 1);
 
                 for k = 1:N_h
                     xk = X_init(:,k);
-                    xk(1) = max(xk(1), 0.1);
                     try
                         [xdot_k, ~] = container(xk, U_init(:,k));
                         if any(isnan(xdot_k)) || any(isinf(xdot_k))
@@ -524,7 +753,7 @@ classdef NMPC_Container_final < handle
                     end
                 end
 
-                x0_guess = [X_init(:); U_init(:); S_init(:)];
+                x0_guess = [X_init(:); U_init(:); S_init(:); T_init(:)];
             end
 
             % Fix initial state bounds
@@ -556,6 +785,11 @@ classdef NMPC_Container_final < handle
             lbx_local(s_idx) = 0;
             ubx_local(s_idx) = soft_obs_max_m;
 
+            t_off = s_off + n_obs*(N_h+1);
+            t_idx = (t_off + 1):(t_off + n_term_slack);
+            lbx_local(t_idx) = 0;
+            ubx_local(t_idx) = term_slack_max;
+
             % Solve
             try
                 use_dual_warm_start = ~isempty(obj.prev_lam_x) && ~isempty(obj.prev_lam_g) && ...
@@ -579,6 +813,8 @@ classdef NMPC_Container_final < handle
                 U_sol = reshape(sol_x(u_s:u_s+n_ctrl*N_h-1), n_ctrl, N_h);
                 s_s = n_state*(N_h+1) + n_ctrl*N_h + 1;
                 S_sol = reshape(sol_x(s_s:s_s+n_obs*(N_h+1)-1), n_obs, N_h+1);
+                t_s = s_s + n_obs*(N_h+1);
+                T_sol = sol_x(t_s:t_s+n_term_slack-1);
 
                 u_opt = U_sol(:,1);
                 X_pred = X_sol;
@@ -598,6 +834,11 @@ classdef NMPC_Container_final < handle
                 info.soft_obs_max_m = soft_obs_max_m;
                 info.max_soft_slack_m = max(S_sol(:));
                 info.sum_soft_slack_m = sum(S_sol(:));
+                info.terminal_pose_enabled = term_enable;
+                info.max_terminal_slack = max(T_sol(:));
+                info.berth_corridor_enabled = corr_enable;
+                info.max_azimuth_split_rad = max_az_split_local;
+                info.max_stern_cmd_split_rpm = max_stern_split_local;
                 obj.solve_ok = obj.solve_ok + 1;
 
             catch ME
@@ -612,6 +853,11 @@ classdef NMPC_Container_final < handle
                 info.soft_obs_max_m = soft_obs_max_m;
                 info.max_soft_slack_m = nan;
                 info.sum_soft_slack_m = nan;
+                info.terminal_pose_enabled = term_enable;
+                info.max_terminal_slack = nan;
+                info.berth_corridor_enabled = corr_enable;
+                info.max_azimuth_split_rad = max_az_split_local;
+                info.max_stern_cmd_split_rpm = max_stern_split_local;
                 obj.solve_fail = obj.solve_fail + 1;
                 obj.prev_lam_x = [];
                 obj.prev_lam_g = [];

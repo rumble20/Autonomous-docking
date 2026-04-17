@@ -71,8 +71,8 @@ The speed-up came from reducing NLP size and simplifying online workload while p
 
 At discretization/problem-size level:
 
-- Prediction horizon is currently $N=25$ with $\Delta t = 1.0$ s.
-- Active map-obstacle slots are capped at 3 (`max_map_obstacles = 3`).
+- The prediction horizon is kept moderate for real-time use.
+- Active map-obstacle slots are capped to a small, runtime-safe number.
 
 At solver level (IPOPT):
 
@@ -114,8 +114,8 @@ Hard constraints currently include:
 - Euler-discretized model equations are enforced at every horizon step.
 
 3. Obstacle-avoidance inequalities
-- In the active mode (`oriented-rectangle`), obstacle clearance is enforced between circular obstacles and a yawed rectangular vessel footprint.
-- This supersedes a pure point-distance model in the default configuration.
+- In the active mode, obstacle clearance is enforced between circular obstacles and a yawed rectangular vessel footprint.
+- This is used in both transit and terminal phases.
 
 4. State/input bounds
 - Box constraints on surge/sway/yaw rates, azimuth angles, and shaft states/commands are hard.
@@ -124,7 +124,7 @@ Hard constraints currently include:
 - First-step and consecutive azimuth-rate constraints are hard.
 - Deceleration-rate constraint is hard and active.
 
-Selective soft constraints are now included for obstacle inequalities in precision-berthing mode. In nominal transit conditions, obstacle constraints remain hard. Near tight terminal situations, bounded slack variables with high penalty are enabled to preserve feasibility without relaxing safety intent globally.
+Selective soft constraints are included for obstacle inequalities in precision-berthing mode. In nominal transit conditions, obstacle constraints remain hard. Near tight terminal situations, bounded slack variables with high penalty are enabled to preserve feasibility without relaxing safety intent globally.
 
 Thesis framing note:
 
@@ -149,16 +149,15 @@ Guidance and NMPC are coordinated, but not identical in how limits are applied. 
 Main limits in the current setup:
 
 1. Surge speed (NMPC hard bound)
-- $u_{min} = 0.5$ m/s
-- $u_{max} = 12$ m/s
+- The lower bound is phase-dependent: forward-biased in transit, reverse-capable in terminal berthing when needed.
+- The upper bound remains hard.
 
 2. Sway speed
 - $v_{min} = -3$ m/s
 - $v_{max} = +3$ m/s
 
 3. Yaw rate
-- $r_{min} = -0.15$ rad/s
-- $r_{max} = +0.15$ rad/s
+- Yaw rate remains hard-bounded in NMPC.
 
 4. Shaft speeds (both azipods)
 - $n_{min} = -80$ rpm
@@ -252,7 +251,7 @@ The following updates improved physical realism and operational plausibility in 
 - Implemented in: `run_nmpc.m`, `NMPC_Container_final.m`.
 
 2. Forward-motion realism enforced through hard constraints
-- NMPC imposes a hard lower bound on surge speed ($u \ge 0.5$ m/s in current active settings).
+- NMPC uses a phase-dependent surge lower bound: forward-biased in transit, reverse-capable in terminal berthing when needed.
 - The RK4 plant integration step also enforces a matching floor.
 - Implemented in: `run_nmpc.m`, `NMPC_Container_final.m`.
 
@@ -281,7 +280,7 @@ Explicitly excluded from this realism changelog:
 
 ## Tight corridor mode
 
-The architecture contains tight-corridor detection and corridor-specific behavior (speed capping and reference-shaping adjustments). In the current default run configuration, this mode is present but disabled (`enable_tight_corridor_mode = false`).
+The architecture contains tight-corridor detection and corridor-specific behavior (speed capping and reference-shaping adjustments). In the current default run configuration, this mode is present and enabled.
 
 This can still be justified as a safety-performance extension provided transitions preserve deterministic behavior and identical hard safety constraints.
 
@@ -313,8 +312,8 @@ Combined effect: substantial runtime improvement while preserving closed-loop op
 The following runtime-oriented ideas were tracked and should be stated explicitly with implementation status:
 
 1. Horizon/constraint-size reduction (implemented)
-- Horizon reduced from larger experimental values to $N=25$ in active runs.
-- Active map obstacle slots are capped (`max_map_obstacles = 3`), and total obstacle slots are bounded before NLP build.
+- The horizon is kept moderate for real-time operation.
+- Map obstacle slots are bounded before NLP build.
 
 2. Persistent solver object (implemented)
 - The CasADi/IPOPT solver is built once per run and reused at each control step.
@@ -360,13 +359,17 @@ The controller now uses an explicit two-phase maneuver policy:
 
 1. Phase A: transit
 - Objective: efficient progression along route segments.
-- NMPC model: lighter obstacle formulation (point-collision constraints) with lower map-obstacle slot count.
+- NMPC model: lighter obstacle workload for open-water progress.
 - Role: keep compute time low while preserving obstacle-aware behavior.
 
 2. Phase B: precision berth
 - Objective: accurate terminal convergence (position and heading) with smooth low-speed control.
-- NMPC model: strongest obstacle geometry (oriented rectangular hull) and increased map-obstacle slot count.
+- NMPC model: stronger terminal focus with oriented rectangular hull constraints.
 - Cost shaping: increased terminal position/heading importance and stronger yaw/control-rate smoothing.
+
+3. PHASE_BERTH: terminal docking
+- Objective: final capture and heading alignment with a terminal-specific corridor.
+- Role: provide a tighter endgame stage when the route reaches the final docking area.
 
 The phase switch is explicit and logged online using a speed-authority radius:
 
@@ -428,7 +431,157 @@ Interpretation in thesis:
 
 The updated implementation was checked with MATLAB Code Analyzer and executed through MCP in a shortened run configuration. The run confirmed:
 
-- Dual solver build (Phase A and Phase B configurations)
+- Multiple solver configurations for transit, berth, and terminal docking
 - Explicit phase-switch radius reporting
 - Runtime phase labeling in progress logs
 - Soft-slack metrics available in summary output
+
+## Two major updates completed after initial two-phase rollout (2026-04-16)
+
+This subsection documents two substantial control-architecture updates that were implemented, tested, and iteratively corrected.
+
+### Update 1: phase-dependent reverse-motion policy (forward-biased transit, reverse-capable berth)
+
+### Motivation
+
+The previous setup effectively behaved as forward-only in too many situations. This was caused by a combination of lower-bound constraints and integration-level surge clamping. As a result, the vessel could become over-constrained in terminal maneuvers where short reverse actions are physically useful.
+
+### What was changed
+
+1. Hard forward-only behavior was removed from plant integration.
+- The RK4 step no longer applies a forced per-step surge floor, so simulated plant dynamics can realize reverse commands when NMPC selects them.
+
+2. Reverse capability was made phase-dependent instead of globally enabled.
+- Phase A (transit): a strict forward lower bound is retained ($u_{min}=0.5$ m/s) to preserve navigation progress.
+- Phase B (precision berth): per-step surge lower-bound override allows reverse ($u_{min}$ down to approximately $-1.2$ m/s) when needed.
+
+3. Cost shaping was split by phase.
+- Transit keeps stronger forward incentive.
+- Berth reduces that penalty to allow controlled reverse/lateral repositioning.
+
+4. Guidance remained forward-oriented.
+- Reverse authority was intentionally placed in NMPC (actuation-level decision), not in waypoint-guidance geometry.
+
+### Technical rationale for thesis
+
+This is a constrained-hybrid maneuver policy, not a simple "allow reverse" toggle:
+
+- Progress phase uses directional bias for efficiency and predictability.
+- Terminal phase relaxes directional bias for feasibility and precision.
+
+This supports the claim that the controller uses context-dependent constraint activation rather than one global motion rule.
+
+### Update 2: explicit terminal pose constraints with soft feasibility and terminal heading sourcing
+
+### Motivation
+
+Distance-only terminal capture was not sufficient for precise docking claims. Final position/orientation regulation needed to be represented directly in the optimization problem.
+
+### What was changed in NMPC formulation
+
+At the terminal prediction node ($k=N+1$), explicit inequalities were added for:
+
+- Position envelope:
+	$$|x_N - x_d| \le \epsilon_x, \quad |y_N - y_d| \le \epsilon_y$$
+- Heading envelope:
+	$$|\mathrm{wrap}(\psi_N-\psi_d)| \le \epsilon_\psi$$
+- Optional terminal-velocity envelope:
+	$$|u_N|\le u_{max}^{term}, \ |v_N|\le v_{max}^{term}, \ |r_N|\le r_{max}^{term}$$
+
+The constraints are softened through bounded nonnegative slack variables with strong quadratic penalty:
+
+$$
+J \leftarrow J + w_{term}\,\|s_{term}\|_2^2,\quad 0 \le s_{term} \le s_{max}
+$$
+
+This preserves solver feasibility in tight terminal geometry while still driving the optimizer toward strict terminal compliance.
+
+### Activation strategy
+
+- Terminal-pose constraints are configured as Phase-B-only by default.
+
+## Scenario-adaptive Phase-B triggering (2026-04-17)
+
+### Why this change was needed
+
+In busy harbor scenarios, relying only on "final-leg proximity" to enter precision mode can be too late or inconsistent. Some routes include several intermediate waypoints before the final berth corridor, and constrained navigation may already require berth-grade caution and authority.
+
+### Implemented change
+
+Phase-B activation was extended from purely terminal-distance logic to a hybrid trigger:
+
+1. Final-approach trigger (existing)
+- Enter precision mode when final-leg and terminal-distance conditions are met.
+
+2. Tight-scenario trigger (new)
+- Enter precision mode when online corridor tightness is detected (local clearance/crowding criterion).
+- Keep precision mode latched for a short hold window (hysteresis in steps) to avoid mode flapping.
+
+Conceptually, the phase decision can be expressed as:
+
+$$
+	ext{PhaseB} = \text{FinalApproachTrigger} \;\lor\; \text{TightScenarioTrigger}
+$$
+
+with a bounded hold counter for robustness against noisy switching.
+
+### Additional control-policy refinements tied to this update
+
+- Reverse allowance in Phase B is no longer globally active at all distances; reverse authority is enabled mainly near terminal distance or under dynamic threat.
+- Mid-speed floor policy is retained in clear-water transit to avoid unnecessary crawl.
+- Environment override was added for animation recording to improve long-run debugging stability.
+
+### Test evidence (MCP MATLAB runs)
+
+Observed across repeated dynamic-obstacle runs:
+
+- Precision mode can now activate earlier in constrained segments (nonzero Phase-B occupancy in runs that previously stayed in Phase A).
+- Collision behavior improved in several tests (collision-free runs obtained under the same map/obstacle setup).
+- Remaining limitation: final-capture convergence is still scenario-sensitive in some long runs; additional guidance/phase-coupling refinement is still required before claiming fully general terminal convergence.
+
+Thesis interpretation:
+
+- The architecture shifted from terminal-only staging toward context-aware maneuver staging.
+- This is a robustness improvement in supervisory logic, but not yet the final convergence solution for all busy-scenario permutations.
+- Transit solves keep terminal slack effectively disabled (upper bound zero) to avoid unnecessary burden.
+
+### Terminal heading source integration
+
+Final desired heading is now resolved with explicit precedence:
+
+1. Explicit desired terminal heading override, if enabled.
+2. Final waypoint heading in the third column, if provided.
+3. Fallback to geometric course-based heading.
+
+Guidance blends into this desired final heading as distance decreases, instead of relying only on course-to-point direction.
+
+### Additional corrective tuning done after validation
+
+During testing, Phase B initially activated too early due to entry-gate logic. The switch condition was corrected so entry is bounded by a final-distance cap, avoiding premature berthing-mode lock and restoring transit behavior before the terminal region.
+
+### Instrumentation added for transparency
+
+To support thesis-level evidence, terminal slack usage is now logged explicitly and summarized in run output:
+
+- per-step maximum terminal slack,
+- run-level maximum terminal slack.
+
+This enables objective reporting of when soft feasibility was actually used.
+
+### Validation observations worth reporting
+
+1. The updated implementation consistently solved all NMPC steps in tested runs (no optimizer fallback required in those logs).
+2. Terminal slack became active in constrained endgame cases, confirming the new terminal block is engaged.
+3. Phase-entry gating strongly affected behavior:
+- too-loose gate: early Phase B and unnecessary terminal-mode exposure,
+- too-strict gate: delayed/absent Phase B and increased corridor risk,
+- corrected capped gate: balanced transition with collision-free 400 s validation run.
+
+### Thesis interpretation
+
+These two updates collectively strengthen the contribution from a control-design perspective:
+
+- Update 1 introduces context-aware directional feasibility (forward-biased transit, reverse-capable berth).
+- Update 2 introduces explicit terminal-state regulation (position + heading + optional velocity) with controlled softening and measurable slack diagnostics.
+
+Together, they move the method from "safe waypoint tracking" toward a more rigorous "precision docking under constrained feasibility" formulation.
