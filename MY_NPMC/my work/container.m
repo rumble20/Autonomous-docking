@@ -1,4 +1,4 @@
-function [xdot, U] = container_new(x, ui)
+function [xdot, U] = container(x, ui)
 % Simplified 6-DOF container ship model with twin stern azipods + bow tunnel thruster
 % Based on Son & Nomoto (1982) with roll dynamics removed
 % Compatible with MATLAB and GNU Octave (www.octave.org)
@@ -278,8 +278,8 @@ if abs(n) < 0.01
 end
 
 % Local velocity at thruster position (accounting for yaw rotation)
-u_local = u + r * y_pos;            % Surge component affected by yaw, sway distance
-v_local = v - r * x_pos;            % Sway component affected by yaw, surge distance
+u_local = u - r * y_pos;            % Surge component affected by yaw, lateral distance
+v_local = v + r * x_pos;            % Sway component affected by yaw, surge distance
 
 % Velocity into the propeller (considering azimuth angle)
 u_inflow = u_local * cos(alpha) + v_local * sin(alpha);
@@ -346,8 +346,8 @@ if abs(n) < 0.01
 end
 
 % Local velocity at thruster position (accounting for yaw rotation)
-u_local = u + r * y_pos;            % Surge component affected by yaw, sway distance
-v_local = v - r * x_pos;            % Sway component affected by yaw, surge distance
+u_local = u - r * y_pos;            % Surge component affected by yaw, lateral distance
+v_local = v + r * x_pos;            % Sway component affected by yaw, surge distance
 
 % BOW THRUSTER: Primarily affected by sway velocity (lateral inflow)
 % The bow tunnel thruster matrix: primarily responds to sway, affected by yaw

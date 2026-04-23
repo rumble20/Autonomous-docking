@@ -26,7 +26,7 @@ fprintf('═══════════════════════�
 %  USER CONFIGURATION — EDIT THIS SECTION
 
 % ---- WAYPOINTS (rows = [x, y] in meters, NED frame) ----
-waypoints = [-3000 -2600; -2400 -2800; -1900 -2450];
+waypoints = [-3000 -2600; -2600 -2700; -2400, -2500; -2350 -2200; -2350, -2050; -2500, -1850];
 
 % ---- CRUISE SPEED TARGET (m/s) ----
 % Guidance now uses one global cruise speed and lets the speed governor +
@@ -122,7 +122,7 @@ map_half_width_min_m = 220;    % Clamp lower bound for corridor width [m]
 map_half_width_max_m = 420;    % Clamp upper bound for corridor width [m]
 
 % ---- DYNAMIC OBSTACLES (forward motion, no turning) ----
-enable_dynamic_obstacles = true;      % Master switch for moving obstacles
+enable_dynamic_obstacles = false;      % Master switch for moving obstacles
 dynamic_obs_speed_mps    = 10;       % Constant speed [m/s]
 dynamic_obs_radius_m     = 25;        % Circular obstacle radius [m]
 dynamic_obs_boundary_policy = 'deactivate'; % deactivate | clip | wrap
@@ -164,7 +164,7 @@ speed_governor.dcpa_trigger_m = 130;           % DCPA threshold for slowdown (ea
 speed_governor.tcpa_risk_gain = 1.60;          % >1 to counter strong speed-tracking weight
 
 % ---- NMPC TUNING ----
-nmpc_N  = 25;           % Prediction horizon steps (runtime/accuracy compromise)
+nmpc_N  = 50;           % Prediction horizon steps (runtime/accuracy compromise)
 nmpc_dt = 1.0;          % Sample time [s]
 r_safety = 40;          % Safety margin around obstacles [m]
 
