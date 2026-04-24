@@ -36,7 +36,7 @@ classdef NMPC_Container_final < handle
         alpha_max = pi
         Dn_max = 10
         Dn_bow_max = 8
-        alpha_rate_max = 0.21  % Max azimuth rate [rad/s] = 12 deg/s (ABB spec)
+        alpha_rate_max = 0.20944  % Max azimuth rate [rad/s] = 12 deg/s (ABB spec)
 
         % Obstacle settings
         max_obs = 5
@@ -92,8 +92,8 @@ classdef NMPC_Container_final < handle
             obj.N  = getOr(cfg, 'N',  20);
             obj.dt = getOr(cfg, 'dt', 1.0);
             obj.Q = padDiag(getOr(cfg, 'Q', diag([2.0, 0.1, 0.8, 3.0, 3.0, 6.0, 0.001, 0.001, 0.001])), 9);
-            obj.R = padDiag(getOr(cfg, 'R', diag([0.1, 0.1, 0.01, 0.01, 0.01])), 5);
-            obj.R_rate = padDiag(getOr(cfg, 'R_rate', diag([0.05, 0.05, 0.005, 0.005, 0.005])), 5);
+            obj.R = padDiag(getOr(cfg, 'R', diag([0.3, 0.3, 0.01, 0.01, 0.01])), 5);
+            obj.R_rate = padDiag(getOr(cfg, 'R_rate', diag([0.15, 0.15, 0.005, 0.005, 0.005])), 5);
             obj.max_obs = getOr(cfg, 'max_obs', 5);
             obj.r_safety = getOr(cfg, 'r_safety', 30);
             obj.collision_model = lower(strtrim(getOr(cfg, 'collision_model', 'point')));
@@ -118,6 +118,7 @@ classdef NMPC_Container_final < handle
             fprintf('  9-state model: [u v r x y psi n1 n2 n3]\n');
             fprintf('  5 controls: [alpha1 alpha2 n1_c n2_c n3_c]\n');
             fprintf('  forward speed constraint: u >= %.2f m/s\n', obj.u_min_forward);
+            fprintf('  azimuth rate limit: %.2f deg/s\n', rad2deg(obj.alpha_rate_max));
             fprintf('  max brake rate: %.2f m/s²\n', obj.max_brake_rate);
             fprintf('  soft obstacle slack: weight=%.1f, default_max=%.2f m\n', ...
                 obj.soft_obs_weight, obj.soft_obs_default_max_m);
@@ -675,8 +676,8 @@ classdef NMPC_Container_final < handle
             %% FIX #1: PORT STERN AZIPOD (n1) - CORRECT LOCAL VELOCITY KINEMATICS
             n1_rps = n1 / 60;
             u_local1 = u - r * stern_port_y;
-            v_local1 = v + r * stern_port_x;              % ✅ FIX: was stern_port_y
-            u_inflow1 = u_local1 * cos(alpha1) + v_local1 * sin(alpha1);  % ✅ FIX: use u_local1
+            v_local1 = v + r * stern_port_x;              % FIX: was stern_port_y
+            u_inflow1 = u_local1 * cos(alpha1) + v_local1 * sin(alpha1);  % FIX: use u_local1
             u_a1 = u_inflow1 * (1 - wp_stern);
             n1_abs = if_else(n1_rps >= 0, n1_rps, -n1_rps);
             n1_safe = if_else(n1_abs < 0.01, 0.01, n1_abs);
@@ -689,9 +690,9 @@ classdef NMPC_Container_final < handle
 
             %% FIX #2: STARBOARD STERN AZIPOD (n2) - CORRECT LOCAL VELOCITY KINEMATICS
             n2_rps = n2 / 60;
-            u_local2 = u - r * stern_starboard_y;        % ✅ FIX: was missing
-            v_local2 = v + r * stern_starboard_x;        % ✅ FIX: was stern_starboard_y
-            u_inflow2 = u_local2 * cos(alpha2) + v_local2 * sin(alpha2);  % ✅ FIX: use u_local2
+            u_local2 = u - r * stern_starboard_y;        % FIX: was missing
+            v_local2 = v + r * stern_starboard_x;        % FIX: was stern_starboard_y
+            u_inflow2 = u_local2 * cos(alpha2) + v_local2 * sin(alpha2);  % FIX: use u_local2
             u_a2 = u_inflow2 * (1 - wp_stern);
             n2_abs = if_else(n2_rps >= 0, n2_rps, -n2_rps);
             n2_safe = if_else(n2_abs < 0.01, 0.01, n2_abs);
@@ -704,10 +705,10 @@ classdef NMPC_Container_final < handle
 
             %% FIX #3: BOW TUNNEL THRUSTER (n3) - CORRECT YAW COUPLING & WAKE FRACTION
             n3_rps = n3 / 60;
-            u_local3 = u - r * bow_y;                    % ✅ FIX: was missing
-            v_local3 = v + r * bow_x;                    % ✅ FIX: was minus sign (v - r*bow_x)
+            u_local3 = u - r * bow_y;                    % FIX: was missing
+            v_local3 = v + r * bow_x;                    % FIX: was minus sign (v - r*bow_x)
             u_inflow3 = v_local3;  % Primarily lateral inflow for tunnel thruster
-            u_a3 = u_inflow3 * (1 - wp_bow);             % ✅ CORRECT: uses wp_bow not t_bow
+            u_a3 = u_inflow3 * (1 - wp_bow);             %   CORRECT: uses wp_bow not t_bow
             n3_abs = if_else(n3_rps >= 0, n3_rps, -n3_rps);
             n3_safe = if_else(n3_abs < 0.01, 0.01, n3_abs);
             J3 = u_a3 / (n3_safe * D_bow);

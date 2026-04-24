@@ -1,0 +1,857 @@
+══════════════════════════════════════════════════════════════
+  NMPC HARBOR NAVIGATION — Unified Test (9-State Azipod + Bow Thruster)
+══════════════════════════════════════════════════════════════
+
+  Terminal log recording to: C:\Users\SERILEG\OneDrive - ABB\Autonomous-docking\MY_NPMC\my work\plots in development process\logs\nmpc_run_20260424_090719_log.txt
+  container.m check: u_dot=0.0956, r_dot=0.000000, U=7.00 m/s
+
+  Harbor map loaded: 60 polygons
+  Final waypoint is outside mapped forbidden zones
+  Map sample points: 3729
+  Final waypoint -> nearest map sample: 94.1 m (nominal keepout 121.0 m)
+Warning: Final waypoint is close to virtual map keep-out. Terminal relaxation may be required to avoid circling.
+> In run_nmpc (line 426)
+  Dynamic obstacles disabled
+
+--- Building NMPC solver (Phase A transit, 2 obstacle slots) ---
+  Transit collision model: point, r_safety=28.0 m
+NMPC_Container_final: N=50, dt=1.00, obs_slots=2
+  9-state model: [u v r x y psi n1 n2 n3]
+  5 controls: [alpha1 alpha2 n1_c n2_c n3_c]
+  forward speed constraint: u >= 0.35 m/s
+  max brake rate: 0.40 m/s²
+  soft obstacle slack: weight=250000.0, default_max=0.00 m
+  actuator penalty: 0.0150 | forward incentive: 1.20
+  collision: point model (r_safety 28.0 m)
+  nlpsol built: 811 vars, 812 constraints
+    - Equalities: 459 (initial + dynamics)
+    - Obstacle:   102 (slots × horizon)
+    - Rate:       200 (first-step + consecutive)
+    - Brake:      51 (first-step + consecutive)
+
+--- Building NMPC solver (Phase B precision-berth, 6 obstacle slots) ---
+  Berth collision model: oriented rectangle 87.5 m x 12.7 m (clearance 2.0 m)
+NMPC_Container_final: N=50, dt=1.00, obs_slots=6
+  9-state model: [u v r x y psi n1 n2 n3]
+  5 controls: [alpha1 alpha2 n1_c n2_c n3_c]
+  forward speed constraint: u >= 0.35 m/s
+  max brake rate: 0.40 m/s²
+  soft obstacle slack: weight=250000.0, default_max=0.00 m
+  actuator penalty: 0.0150 | forward incentive: 1.20
+  collision: oriented rectangle 87.5 x 12.7 m (clearance 2.0 m)
+  nlpsol built: 1015 vars, 1016 constraints
+    - Equalities: 459 (initial + dynamics)
+    - Obstacle:   306 (slots × horizon)
+    - Rate:       200 (first-step + consecutive)
+    - Brake:      51 (first-step + consecutive)
+
+  Phase switching radius: R_s = T_hor * sqrt(u_max^2 + v_max^2) = 254.0 m
+    (T_hor=50.0 s, u_max=5.00 m/s, v_max=0.90 m/s)
+
+  Waypoints: (-3000, -2600) (-2600, -2700) (-2400, -2500) (-2350, -2200) (-2350, -2050) (-2500, -1850)   [t=  0.0] phase=A pos=(-2993.2,-2601.7) psi= -14.0deg wp=1 xte=-0.0m obs_d=117m ok=1 comp=4100.2ms solve=3869.3ms RT=4.10 obs=2 slack=0.00m fb=0
+  [t=  1.0] phase=A pos=(-2986.3,-2603.4) psi= -14.1deg wp=1 xte=-0.0m obs_d=119m ok=1 comp=3834.9ms solve=3800.9ms RT=3.83 obs=2 slack=0.00m fb=0
+  [t=  2.0] phase=A pos=(-2979.3,-2605.1) psi= -14.1deg wp=1 xte=-0.0m obs_d=121m ok=1 comp=4979.6ms solve=4952.2ms RT=4.98 obs=2 slack=0.00m fb=0
+  [t=  3.0] phase=A pos=(-2972.4,-2606.8) psi= -14.2deg wp=1 xte=-0.1m obs_d=125m ok=1 comp=3621.4ms solve=3602.5ms RT=3.62 obs=2 slack=0.00m fb=0
+  [t=  4.0] phase=A pos=(-2965.4,-2608.5) psi= -14.3deg wp=1 xte=-0.1m obs_d=127m ok=1 comp=4129.8ms solve=3974.3ms RT=4.13 obs=2 slack=0.00m fb=0
+  [t=  5.0] phase=A pos=(-2958.4,-2610.1) psi= -14.4deg wp=1 xte=-0.2m obs_d=133m ok=1 comp=3517.3ms solve=3501.4ms RT=3.52 obs=2 slack=0.00m fb=0
+  [t=  6.0] phase=A pos=(-2951.4,-2611.8) psi= -14.5deg wp=1 xte=-0.3m obs_d=135m ok=1 comp=3714.3ms solve=3712.6ms RT=3.71 obs=2 slack=0.00m fb=0
+  [t=  7.0] phase=A pos=(-2944.5,-2613.5) psi= -14.6deg wp=1 xte=-0.3m obs_d=138m ok=1 comp=3640.3ms solve=3638.1ms RT=3.64 obs=2 slack=0.00m fb=0
+  [t=  8.0] phase=A pos=(-2937.5,-2615.1) psi= -14.6deg wp=1 xte=-0.4m obs_d=137m ok=1 comp=3443.0ms solve=3440.0ms RT=3.44 obs=2 slack=0.00m fb=0
+  [t=  9.0] phase=A pos=(-2930.6,-2616.8) psi= -14.7deg wp=1 xte=-0.5m obs_d=136m ok=1 comp=3529.4ms solve=3527.3ms RT=3.53 obs=2 slack=0.00m fb=0
+  [t= 10.0] phase=A pos=(-2923.6,-2618.4) psi= -14.8deg wp=1 xte=-0.6m obs_d=135m ok=1 comp=4228.8ms solve=4226.0ms RT=4.23 obs=2 slack=0.00m fb=0
+  [t= 11.0] phase=A pos=(-2916.7,-2620.1) psi= -14.9deg wp=1 xte=-0.6m obs_d=135m ok=1 comp=4074.2ms solve=4071.1ms RT=4.07 obs=2 slack=0.00m fb=0
+  [t= 12.0] phase=A pos=(-2909.8,-2621.8) psi= -15.0deg wp=1 xte=-0.7m obs_d=135m ok=1 comp=3120.1ms solve=3118.4ms RT=3.12 obs=2 slack=0.00m fb=0
+  [t= 13.0] phase=A pos=(-2902.9,-2623.4) psi= -15.1deg wp=1 xte=-0.8m obs_d=136m ok=1 comp=3063.1ms solve=3061.3ms RT=3.06 obs=2 slack=0.00m fb=0
+  [t= 14.0] phase=A pos=(-2896.0,-2625.1) psi= -15.1deg wp=1 xte=-0.8m obs_d=137m ok=1 comp=3989.6ms solve=3988.1ms RT=3.99 obs=2 slack=0.00m fb=0
+  [t= 15.0] phase=A pos=(-2889.1,-2626.9) psi= -15.1deg wp=1 xte=-0.8m obs_d=138m ok=1 comp=3457.0ms solve=3454.1ms RT=3.46 obs=2 slack=0.00m fb=0
+  [t= 16.0] phase=A pos=(-2882.2,-2628.6) psi= -15.1deg wp=1 xte=-0.8m obs_d=140m ok=1 comp=3781.2ms solve=3778.6ms RT=3.78 obs=2 slack=0.00m fb=0
+  [t= 17.0] phase=A pos=(-2875.3,-2630.4) psi= -15.0deg wp=1 xte=-0.8m obs_d=145m ok=1 comp=5106.2ms solve=5104.1ms RT=5.11 obs=2 slack=0.00m fb=0
+  [t= 18.0] phase=A pos=(-2868.4,-2632.2) psi= -14.9deg wp=1 xte=-0.7m obs_d=143m ok=1 comp=3942.0ms solve=3940.1ms RT=3.94 obs=2 slack=0.00m fb=0
+  [t= 19.0] phase=A pos=(-2861.5,-2634.1) psi= -14.8deg wp=1 xte=-0.7m obs_d=140m ok=1 comp=3642.5ms solve=3640.1ms RT=3.64 obs=2 slack=0.00m fb=0
+  [t= 20.0] phase=A pos=(-2854.7,-2635.9) psi= -14.7deg wp=1 xte=-0.5m obs_d=139m ok=1 comp=3335.6ms solve=3333.0ms RT=3.34 obs=2 slack=0.00m fb=0
+  [t= 21.0] phase=A pos=(-2848.0,-2637.9) psi= -14.4deg wp=1 xte=-0.4m obs_d=137m ok=1 comp=3325.2ms solve=3322.7ms RT=3.33 obs=2 slack=0.00m fb=0
+  [t= 22.0] phase=A pos=(-2841.3,-2639.9) psi= -14.0deg wp=1 xte=-0.1m obs_d=137m ok=1 comp=3757.4ms solve=3755.1ms RT=3.76 obs=2 slack=0.00m fb=0
+  [t= 23.0] phase=A pos=(-2834.9,-2641.9) psi= -13.6deg wp=1 xte=+0.2m obs_d=136m ok=1 comp=3606.4ms solve=3604.0ms RT=3.61 obs=2 slack=0.00m fb=0
+  [t= 24.0] phase=A pos=(-2828.6,-2644.0) psi= -13.0deg wp=1 xte=+0.6m obs_d=136m ok=1 comp=3738.0ms solve=3735.8ms RT=3.74 obs=2 slack=0.00m fb=0
+  [t= 25.0] phase=A pos=(-2822.4,-2646.0) psi= -12.5deg wp=1 xte=+1.1m obs_d=135m ok=1 comp=3300.3ms solve=3298.0ms RT=3.30 obs=2 slack=0.00m fb=0
+  [t= 26.0] phase=A pos=(-2816.4,-2648.1) psi= -11.9deg wp=1 xte=+1.6m obs_d=134m ok=1 comp=3801.6ms solve=3799.5ms RT=3.80 obs=2 slack=0.00m fb=0
+  [t= 27.0] phase=A pos=(-2810.6,-2650.2) psi= -11.2deg wp=1 xte=+2.2m obs_d=134m ok=1 comp=3150.9ms solve=3148.7ms RT=3.15 obs=2 slack=0.00m fb=0
+  [t= 28.0] phase=A pos=(-2804.9,-2652.3) psi= -10.5deg wp=1 xte=+2.8m obs_d=134m ok=1 comp=3225.4ms solve=3223.1ms RT=3.23 obs=2 slack=0.00m fb=0
+  [t= 29.0] phase=A pos=(-2799.4,-2654.3) psi=  -9.9deg wp=1 xte=+3.4m obs_d=134m ok=1 comp=3412.6ms solve=3410.4ms RT=3.41 obs=2 slack=0.00m fb=0
+  [t= 30.0] phase=A pos=(-2794.2,-2656.3) psi=  -9.2deg wp=1 xte=+4.0m obs_d=134m ok=1 comp=3728.3ms solve=3725.7ms RT=3.73 obs=2 slack=0.00m fb=0
+  [t= 31.0] phase=A pos=(-2789.2,-2658.3) psi=  -8.5deg wp=1 xte=+4.7m obs_d=134m ok=1 comp=3117.1ms solve=3115.0ms RT=3.12 obs=2 slack=0.00m fb=0
+  [t= 32.0] phase=A pos=(-2784.3,-2660.2) psi=  -7.7deg wp=1 xte=+5.4m obs_d=135m ok=1 comp=4023.8ms solve=4020.4ms RT=4.02 obs=2 slack=0.00m fb=0
+  [t= 33.0] phase=A pos=(-2779.7,-2662.2) psi=  -6.9deg wp=1 xte=+6.1m obs_d=136m ok=1 comp=2913.2ms solve=2910.3ms RT=2.91 obs=2 slack=0.00m fb=0
+  [t= 34.0] phase=A pos=(-2775.3,-2664.1) psi=  -6.1deg wp=1 xte=+6.9m obs_d=137m ok=1 comp=3806.2ms solve=3804.0ms RT=3.81 obs=2 slack=0.00m fb=0
+  [t= 35.0] phase=A pos=(-2771.1,-2666.0) psi=  -5.3deg wp=1 xte=+7.7m obs_d=138m ok=1 comp=4269.7ms solve=4266.4ms RT=4.27 obs=2 slack=0.00m fb=0
+  [t= 36.0] phase=A pos=(-2767.0,-2667.9) psi=  -4.4deg wp=1 xte=+8.5m obs_d=140m ok=1 comp=3876.8ms solve=3874.6ms RT=3.88 obs=2 slack=0.00m fb=0
+  [t= 37.0] phase=A pos=(-2763.0,-2669.8) psi=  -3.5deg wp=1 xte=+9.4m obs_d=141m ok=1 comp=4037.8ms solve=4035.7ms RT=4.04 obs=2 slack=0.00m fb=0
+  [t= 38.0] phase=A pos=(-2759.1,-2671.6) psi=  -2.6deg wp=1 xte=+10.2m obs_d=143m ok=1 comp=3369.0ms solve=3366.8ms RT=3.37 obs=2 slack=0.00m fb=0
+  [t= 39.0] phase=A pos=(-2755.3,-2673.3) psi=  -1.8deg wp=1 xte=+11.0m obs_d=144m ok=1 comp=3979.6ms solve=3977.9ms RT=3.98 obs=2 slack=0.00m fb=0
+  [t= 40.0] phase=A pos=(-2751.5,-2675.0) psi=  -1.0deg wp=1 xte=+11.8m obs_d=146m ok=1 comp=3481.8ms solve=3479.5ms RT=3.48 obs=2 slack=0.00m fb=0
+  [t= 41.0] phase=A pos=(-2747.8,-2676.6) psi=  -0.2deg wp=1 xte=+12.5m obs_d=148m ok=1 comp=3406.2ms solve=3403.3ms RT=3.41 obs=2 slack=0.00m fb=0
+  [t= 42.0] phase=A pos=(-2744.2,-2678.3) psi=  +0.6deg wp=1 xte=+13.2m obs_d=150m ok=1 comp=3477.3ms solve=3474.6ms RT=3.48 obs=2 slack=0.00m fb=0
+  [t= 43.0] phase=A pos=(-2740.7,-2679.8) psi=  +1.4deg wp=1 xte=+13.9m obs_d=151m ok=1 comp=4274.8ms solve=4271.5ms RT=4.27 obs=2 slack=0.00m fb=0
+  [t= 44.0] phase=A pos=(-2737.2,-2681.3) psi=  +2.2deg wp=1 xte=+14.5m obs_d=153m ok=1 comp=3623.8ms solve=3621.6ms RT=3.62 obs=2 slack=0.00m fb=0
+  [t= 45.0] phase=A pos=(-2733.8,-2682.8) psi=  +3.0deg wp=1 xte=+15.2m obs_d=155m ok=1 comp=3523.4ms solve=3516.9ms RT=3.52 obs=2 slack=0.00m fb=0
+  [t= 46.0] phase=A pos=(-2730.5,-2684.2) psi=  +3.8deg wp=1 xte=+15.8m obs_d=157m ok=1 comp=3678.9ms solve=3674.8ms RT=3.68 obs=2 slack=0.00m fb=0
+  [t= 47.0] phase=A pos=(-2727.4,-2685.6) psi=  +4.6deg wp=1 xte=+16.4m obs_d=159m ok=1 comp=3508.0ms solve=3506.0ms RT=3.51 obs=2 slack=0.00m fb=0
+  [t= 48.0] phase=A pos=(-2724.4,-2687.0) psi=  +5.3deg wp=1 xte=+17.0m obs_d=161m ok=1 comp=3409.1ms solve=3407.0ms RT=3.41 obs=2 slack=0.00m fb=0
+  [t= 49.0] phase=A pos=(-2721.5,-2688.3) psi=  +6.1deg wp=1 xte=+17.5m obs_d=162m ok=1 comp=3558.5ms solve=3556.4ms RT=3.56 obs=2 slack=0.00m fb=0
+  [t= 50.0] phase=A pos=(-2718.6,-2689.5) psi=  +6.7deg wp=1 xte=+18.1m obs_d=164m ok=1 comp=3542.7ms solve=3541.1ms RT=3.54 obs=2 slack=0.00m fb=0
+  [t= 51.0] phase=A pos=(-2715.9,-2690.7) psi=  +7.4deg wp=1 xte=+18.6m obs_d=166m ok=1 comp=4362.2ms solve=4359.5ms RT=4.36 obs=2 slack=0.00m fb=0
+  [t= 52.0] phase=A pos=(-2713.4,-2691.8) psi=  +8.1deg wp=1 xte=+19.1m obs_d=168m ok=1 comp=3863.4ms solve=3860.7ms RT=3.86 obs=2 slack=0.00m fb=0
+  [t= 53.0] phase=A pos=(-2711.0,-2692.9) psi=  +8.7deg wp=1 xte=+19.5m obs_d=169m ok=1 comp=3995.1ms solve=3993.0ms RT=4.00 obs=2 slack=0.00m fb=0
+  [t= 54.0] phase=A pos=(-2708.7,-2694.0) psi=  +9.3deg wp=1 xte=+20.0m obs_d=171m ok=1 comp=3960.8ms solve=3959.1ms RT=3.96 obs=2 slack=0.00m fb=0
+  [t= 55.0] phase=A pos=(-2706.5,-2695.1) psi=  +9.9deg wp=1 xte=+20.6m obs_d=173m ok=1 comp=3990.9ms solve=3988.7ms RT=3.99 obs=2 slack=0.00m fb=0
+  [t= 56.0] phase=A pos=(-2704.5,-2696.1) psi= +10.6deg wp=1 xte=+21.1m obs_d=174m ok=1 comp=2932.6ms solve=2931.0ms RT=2.93 obs=2 slack=0.00m fb=0
+  [t= 57.0] phase=A pos=(-2702.5,-2697.1) psi= +11.1deg wp=1 xte=+21.6m obs_d=176m ok=1 comp=3148.6ms solve=3146.1ms RT=3.15 obs=2 slack=0.00m fb=0
+  [t= 58.0] phase=A pos=(-2700.5,-2698.1) psi= +11.7deg wp=1 xte=+22.1m obs_d=177m ok=1 comp=3289.0ms solve=3286.9ms RT=3.29 obs=2 slack=0.00m fb=0
+  [t= 59.0] phase=A pos=(-2698.7,-2699.0) psi= +12.3deg wp=1 xte=+22.5m obs_d=179m ok=1 comp=3600.6ms solve=3597.6ms RT=3.60 obs=2 slack=0.00m fb=0
+  [t= 60.0] phase=A pos=(-2696.9,-2699.9) psi= +12.9deg wp=1 xte=+23.0m obs_d=180m ok=1 comp=3580.0ms solve=3578.3ms RT=3.58 obs=2 slack=0.00m fb=0
+  [t= 61.0] phase=A pos=(-2695.2,-2700.8) psi= +13.4deg wp=1 xte=+23.4m obs_d=181m ok=1 comp=4627.5ms solve=4625.3ms RT=4.63 obs=2 slack=0.00m fb=0
+  [t= 62.0] phase=A pos=(-2693.5,-2701.7) psi= +14.0deg wp=1 xte=+23.9m obs_d=183m ok=1 comp=4065.2ms solve=4063.0ms RT=4.07 obs=2 slack=0.00m fb=0
+  [t= 63.0] phase=A pos=(-2691.8,-2702.5) psi= +14.6deg wp=1 xte=+24.3m obs_d=184m ok=1 comp=3912.9ms solve=3911.2ms RT=3.91 obs=2 slack=0.00m fb=0
+  [t= 64.0] phase=A pos=(-2690.1,-2703.3) psi= +15.2deg wp=1 xte=+24.7m obs_d=185m ok=1 comp=4182.5ms solve=4178.9ms RT=4.18 obs=2 slack=0.00m fb=0
+  [t= 65.0] phase=A pos=(-2688.5,-2704.1) psi= +15.8deg wp=1 xte=+25.1m obs_d=187m ok=1 comp=4104.2ms solve=4102.0ms RT=4.10 obs=2 slack=0.00m fb=0
+  [wp-advance] 1 -> 2 (proj=0.79, d_wp=88.6 m, xte=25.5 m)
+  [xte-recapture] emergency waypoint recapture ON (xte=-59.7 m)
+  [t= 66.0] phase=A pos=(-2686.9,-2704.9) psi= +16.3deg wp=2 xte=-59.7m obs_d=Infm ok=1 comp=4761.6ms solve=4710.0ms RT=4.76 obs=0 slack=0.00m fb=0
+  [t= 67.0] phase=A pos=(-2685.3,-2705.6) psi= +16.9deg wp=2 xte=-58.0m obs_d=Infm ok=1 comp=3864.7ms solve=3841.6ms RT=3.86 obs=0 slack=0.00m fb=0
+  [t= 68.0] phase=A pos=(-2683.7,-2706.2) psi= +17.4deg wp=2 xte=-56.4m obs_d=Infm ok=1 comp=3425.4ms solve=3419.2ms RT=3.43 obs=0 slack=0.00m fb=0
+  [t= 69.0] phase=A pos=(-2682.2,-2706.8) psi= +17.9deg wp=2 xte=-54.8m obs_d=Infm ok=1 comp=3545.6ms solve=3540.3ms RT=3.55 obs=0 slack=0.00m fb=0
+  [t= 70.0] phase=A pos=(-2680.7,-2707.4) psi= +18.3deg wp=2 xte=-53.3m obs_d=Infm ok=1 comp=3769.8ms solve=3741.3ms RT=3.77 obs=0 slack=0.00m fb=0
+  [t= 71.0] phase=A pos=(-2679.2,-2708.0) psi= +18.8deg wp=2 xte=-51.8m obs_d=Infm ok=1 comp=3492.7ms solve=3487.2ms RT=3.49 obs=0 slack=0.00m fb=0
+  [t= 72.0] phase=A pos=(-2677.6,-2708.5) psi= +19.2deg wp=2 xte=-50.3m obs_d=Infm ok=1 comp=3567.0ms solve=3558.2ms RT=3.57 obs=0 slack=0.00m fb=0
+  [t= 73.0] phase=A pos=(-2676.1,-2708.9) psi= +19.6deg wp=2 xte=-48.9m obs_d=Infm ok=1 comp=4841.5ms solve=4839.1ms RT=4.84 obs=0 slack=0.00m fb=0
+  [t= 74.0] phase=A pos=(-2674.5,-2709.3) psi= +20.0deg wp=2 xte=-47.5m obs_d=Infm ok=1 comp=3889.7ms solve=3886.9ms RT=3.89 obs=0 slack=0.00m fb=0
+  [t= 75.0] phase=A pos=(-2672.9,-2709.7) psi= +20.4deg wp=2 xte=-46.1m obs_d=Infm ok=1 comp=3866.0ms solve=3863.2ms RT=3.87 obs=0 slack=0.00m fb=0
+  [t= 76.0] phase=A pos=(-2671.3,-2710.1) psi= +20.8deg wp=2 xte=-44.7m obs_d=199m ok=1 comp=3354.0ms solve=3293.3ms RT=3.35 obs=1 slack=0.00m fb=0
+  [t= 77.0] phase=A pos=(-2669.6,-2710.4) psi= +21.2deg wp=2 xte=-43.3m obs_d=200m ok=1 comp=4081.8ms solve=4034.7ms RT=4.08 obs=1 slack=0.00m fb=0
+  [t= 78.0] phase=A pos=(-2668.0,-2710.7) psi= +21.5deg wp=2 xte=-41.9m obs_d=201m ok=1 comp=3533.2ms solve=3530.7ms RT=3.53 obs=1 slack=0.00m fb=0
+  [t= 79.0] phase=A pos=(-2666.3,-2710.9) psi= +21.8deg wp=2 xte=-40.5m obs_d=202m ok=1 comp=3791.9ms solve=3790.1ms RT=3.79 obs=1 slack=0.00m fb=0
+  [t= 80.0] phase=A pos=(-2664.6,-2711.1) psi= +22.2deg wp=2 xte=-39.2m obs_d=202m ok=1 comp=3510.0ms solve=3508.0ms RT=3.51 obs=1 slack=0.00m fb=0
+  [t= 81.0] phase=A pos=(-2662.9,-2711.3) psi= +22.5deg wp=2 xte=-37.8m obs_d=203m ok=1 comp=3555.0ms solve=3552.0ms RT=3.55 obs=1 slack=0.00m fb=0
+  [t= 82.0] phase=A pos=(-2661.2,-2711.4) psi= +22.7deg wp=2 xte=-36.5m obs_d=204m ok=1 comp=4630.2ms solve=4628.8ms RT=4.63 obs=1 slack=0.00m fb=0
+  [t= 83.0] phase=A pos=(-2659.6,-2711.6) psi= +23.0deg wp=2 xte=-35.2m obs_d=205m ok=1 comp=3591.5ms solve=3589.0ms RT=3.59 obs=1 slack=0.00m fb=0
+  [t= 84.0] phase=A pos=(-2657.8,-2711.7) psi= +23.3deg wp=2 xte=-33.9m obs_d=206m ok=1 comp=3424.6ms solve=3422.4ms RT=3.42 obs=1 slack=0.00m fb=0
+  [t= 85.0] phase=A pos=(-2656.1,-2711.7) psi= +23.5deg wp=2 xte=-32.7m obs_d=207m ok=1 comp=3470.5ms solve=3468.0ms RT=3.47 obs=1 slack=0.00m fb=0
+  [t= 86.0] phase=A pos=(-2654.4,-2711.8) psi= +23.7deg wp=2 xte=-31.4m obs_d=208m ok=1 comp=3760.5ms solve=3756.8ms RT=3.76 obs=1 slack=0.00m fb=0
+  [t= 87.0] phase=A pos=(-2652.7,-2711.8) psi= +23.9deg wp=2 xte=-30.2m obs_d=209m ok=1 comp=3397.6ms solve=3395.2ms RT=3.40 obs=1 slack=0.00m fb=0
+  [t= 88.0] phase=A pos=(-2650.9,-2711.8) psi= +24.1deg wp=2 xte=-28.9m obs_d=209m ok=1 comp=3212.1ms solve=3208.6ms RT=3.21 obs=1 slack=0.00m fb=0
+  [t= 89.0] phase=A pos=(-2649.2,-2711.7) psi= +24.3deg wp=2 xte=-27.7m obs_d=210m ok=1 comp=3561.7ms solve=3559.4ms RT=3.56 obs=1 slack=0.00m fb=0
+  [t= 90.0] phase=A pos=(-2647.4,-2711.6) psi= +24.4deg wp=2 xte=-26.5m obs_d=211m ok=1 comp=3880.0ms solve=3876.8ms RT=3.88 obs=1 slack=0.00m fb=0
+  [t= 91.0] phase=A pos=(-2645.7,-2711.4) psi= +24.5deg wp=2 xte=-25.3m obs_d=212m ok=1 comp=3544.6ms solve=3542.7ms RT=3.54 obs=1 slack=0.00m fb=0
+  [t= 92.0] phase=A pos=(-2644.0,-2711.3) psi= +24.6deg wp=2 xte=-24.2m obs_d=212m ok=1 comp=3386.1ms solve=3383.8ms RT=3.39 obs=1 slack=0.00m fb=0
+  [t= 93.0] phase=A pos=(-2642.2,-2711.2) psi= +24.7deg wp=2 xte=-23.1m obs_d=213m ok=1 comp=3549.0ms solve=3546.6ms RT=3.55 obs=1 slack=0.00m fb=0
+  [xte-recapture] emergency waypoint recapture OFF
+  [t= 94.0] phase=A pos=(-2640.5,-2711.1) psi= +24.9deg wp=2 xte=-22.0m obs_d=214m ok=1 comp=3692.9ms solve=3686.5ms RT=3.69 obs=1 slack=0.00m fb=0
+  [t= 95.0] phase=A pos=(-2638.8,-2711.0) psi= +25.0deg wp=2 xte=-20.8m obs_d=215m ok=1 comp=3833.6ms solve=3830.0ms RT=3.83 obs=1 slack=0.00m fb=0
+  [t= 96.0] phase=A pos=(-2637.1,-2710.9) psi= +25.2deg wp=2 xte=-19.7m obs_d=216m ok=1 comp=3704.3ms solve=3702.5ms RT=3.70 obs=1 slack=0.00m fb=0
+  [t= 97.0] phase=A pos=(-2635.3,-2710.8) psi= +25.4deg wp=2 xte=-18.5m obs_d=217m ok=1 comp=3781.2ms solve=3778.6ms RT=3.78 obs=1 slack=0.00m fb=0
+  [t= 98.0] phase=A pos=(-2633.5,-2710.6) psi= +25.6deg wp=2 xte=-17.3m obs_d=217m ok=1 comp=4189.2ms solve=4186.1ms RT=4.19 obs=1 slack=0.00m fb=0
+  [t= 99.0] phase=A pos=(-2631.6,-2710.4) psi= +25.9deg wp=2 xte=-16.2m obs_d=218m ok=1 comp=3680.1ms solve=3677.4ms RT=3.68 obs=1 slack=0.00m fb=0
+  [t=100.0] phase=A pos=(-2629.8,-2710.2) psi= +26.1deg wp=2 xte=-15.0m obs_d=219m ok=1 comp=3040.3ms solve=3038.2ms RT=3.04 obs=1 slack=0.00m fb=0
+  [t=101.0] phase=A pos=(-2627.8,-2710.0) psi= +26.3deg wp=2 xte=-13.8m obs_d=220m ok=1 comp=3897.4ms solve=3894.7ms RT=3.90 obs=1 slack=0.00m fb=0
+  [t=102.0] phase=A pos=(-2625.8,-2709.7) psi= +26.5deg wp=2 xte=-12.6m obs_d=221m ok=1 comp=2833.2ms solve=2831.0ms RT=2.83 obs=1 slack=0.00m fb=0
+  [t=103.0] phase=A pos=(-2623.7,-2709.3) psi= +26.7deg wp=2 xte=-11.4m obs_d=Infm ok=1 comp=4242.1ms solve=4224.6ms RT=4.24 obs=0 slack=0.00m fb=0
+  [t=104.0] phase=A pos=(-2621.5,-2708.9) psi= +26.9deg wp=2 xte=-10.2m obs_d=Infm ok=1 comp=3856.7ms solve=3852.6ms RT=3.86 obs=0 slack=0.00m fb=0
+  [t=105.0] phase=A pos=(-2619.2,-2708.3) psi= +27.0deg wp=2 xte=-8.9m obs_d=Infm ok=1 comp=3378.7ms solve=3375.8ms RT=3.38 obs=0 slack=0.00m fb=0
+  [t=106.0] phase=A pos=(-2616.7,-2707.7) psi= +27.2deg wp=2 xte=-7.7m obs_d=Infm ok=1 comp=4207.2ms solve=4204.7ms RT=4.21 obs=0 slack=0.00m fb=0
+  [t=107.0] phase=A pos=(-2614.2,-2707.1) psi= +27.4deg wp=2 xte=-6.4m obs_d=Infm ok=1 comp=3884.6ms solve=3881.9ms RT=3.88 obs=0 slack=0.00m fb=0
+  [t=108.0] phase=A pos=(-2611.7,-2706.5) psi= +27.7deg wp=2 xte=-5.0m obs_d=Infm ok=1 comp=3794.3ms solve=3791.9ms RT=3.79 obs=0 slack=0.00m fb=0
+  [t=109.0] phase=A pos=(-2609.0,-2705.8) psi= +27.9deg wp=2 xte=-3.7m obs_d=Infm ok=1 comp=3682.5ms solve=3679.8ms RT=3.68 obs=0 slack=0.00m fb=0
+  [t=110.0] phase=A pos=(-2606.3,-2705.1) psi= +28.2deg wp=2 xte=-2.3m obs_d=447m ok=1 comp=3890.4ms solve=3886.1ms RT=3.89 obs=1 slack=0.00m fb=0
+  [t=111.0] phase=A pos=(-2603.6,-2704.4) psi= +28.6deg wp=2 xte=-0.8m obs_d=444m ok=1 comp=4030.0ms solve=4027.7ms RT=4.03 obs=1 slack=0.00m fb=0
+  [t=112.0] phase=A pos=(-2600.8,-2703.7) psi= +28.9deg wp=2 xte=+0.6m obs_d=441m ok=1 comp=3721.6ms solve=3718.5ms RT=3.72 obs=1 slack=0.00m fb=0
+  [t=113.0] phase=A pos=(-2598.0,-2703.0) psi= +29.3deg wp=2 xte=+2.1m obs_d=439m ok=1 comp=4043.1ms solve=4040.2ms RT=4.04 obs=1 slack=0.00m fb=0
+  [t=114.0] phase=A pos=(-2595.1,-2702.2) psi= +29.7deg wp=2 xte=+3.6m obs_d=Infm ok=1 comp=4743.4ms solve=4740.9ms RT=4.74 obs=0 slack=0.00m fb=0
+  [t=115.0] phase=A pos=(-2592.2,-2701.5) psi= +30.1deg wp=2 xte=+5.1m obs_d=252m ok=1 comp=3985.8ms solve=3959.5ms RT=3.99 obs=2 slack=0.00m fb=0
+  [t=116.0] phase=A pos=(-2589.3,-2700.7) psi= +30.5deg wp=2 xte=+6.6m obs_d=253m ok=1 comp=3427.2ms solve=3424.9ms RT=3.43 obs=1 slack=0.00m fb=0
+  [t=117.0] phase=A pos=(-2586.4,-2699.9) psi= +31.0deg wp=2 xte=+8.1m obs_d=253m ok=1 comp=3876.1ms solve=3874.0ms RT=3.88 obs=2 slack=0.00m fb=0
+  [t=118.0] phase=A pos=(-2583.5,-2699.1) psi= +31.4deg wp=2 xte=+9.6m obs_d=240m ok=1 comp=3541.7ms solve=3539.6ms RT=3.54 obs=2 slack=0.00m fb=0
+  [t=119.0] phase=A pos=(-2580.6,-2698.3) psi= +31.8deg wp=2 xte=+11.1m obs_d=242m ok=1 comp=3541.8ms solve=3539.3ms RT=3.54 obs=2 slack=0.00m fb=0
+  [t=120.0] phase=A pos=(-2577.6,-2697.5) psi= +32.3deg wp=2 xte=+12.6m obs_d=243m ok=1 comp=4024.8ms solve=4022.1ms RT=4.02 obs=2 slack=0.00m fb=0
+  [t=121.0] phase=A pos=(-2574.7,-2696.7) psi= +32.8deg wp=2 xte=+14.1m obs_d=245m ok=1 comp=3757.9ms solve=3755.4ms RT=3.76 obs=2 slack=0.00m fb=0
+  [t=122.0] phase=A pos=(-2571.7,-2696.0) psi= +33.3deg wp=2 xte=+15.6m obs_d=246m ok=1 comp=3970.7ms solve=3968.1ms RT=3.97 obs=2 slack=0.00m fb=0
+  [t=123.0] phase=A pos=(-2568.8,-2695.2) psi= +33.9deg wp=2 xte=+17.1m obs_d=248m ok=1 comp=3814.7ms solve=3812.9ms RT=3.81 obs=2 slack=0.00m fb=0
+  [t=124.0] phase=A pos=(-2565.9,-2694.4) psi= +34.4deg wp=2 xte=+18.7m obs_d=250m ok=1 comp=3170.0ms solve=3167.1ms RT=3.17 obs=2 slack=0.00m fb=0
+  [t=125.0] phase=A pos=(-2563.0,-2693.7) psi= +35.0deg wp=2 xte=+20.2m obs_d=251m ok=1 comp=3832.6ms solve=3830.1ms RT=3.83 obs=2 slack=0.00m fb=0
+  [t=126.0] phase=A pos=(-2560.1,-2692.9) psi= +35.6deg wp=2 xte=+21.7m obs_d=253m ok=1 comp=3413.0ms solve=3411.1ms RT=3.41 obs=2 slack=0.00m fb=0
+  [t=127.0] phase=A pos=(-2557.2,-2692.2) psi= +36.1deg wp=2 xte=+23.2m obs_d=255m ok=1 comp=3925.9ms solve=3923.4ms RT=3.93 obs=2 slack=0.00m fb=0
+  [t=128.0] phase=A pos=(-2554.4,-2691.4) psi= +36.7deg wp=2 xte=+24.7m obs_d=257m ok=1 comp=3642.2ms solve=3639.9ms RT=3.64 obs=2 slack=0.00m fb=0
+  [t=129.0] phase=A pos=(-2551.6,-2690.6) psi= +37.3deg wp=2 xte=+26.2m obs_d=258m ok=1 comp=3641.5ms solve=3638.9ms RT=3.64 obs=2 slack=0.00m fb=0
+  [t=130.0] phase=A pos=(-2548.8,-2689.8) psi= +37.8deg wp=2 xte=+27.6m obs_d=260m ok=1 comp=3695.4ms solve=3693.4ms RT=3.70 obs=2 slack=0.00m fb=0
+  [t=131.0] phase=A pos=(-2546.1,-2689.1) psi= +38.4deg wp=2 xte=+29.0m obs_d=262m ok=1 comp=3461.6ms solve=3459.5ms RT=3.46 obs=2 slack=0.00m fb=0
+  [t=132.0] phase=A pos=(-2543.5,-2688.4) psi= +39.0deg wp=2 xte=+30.4m obs_d=263m ok=1 comp=3561.1ms solve=3554.2ms RT=3.56 obs=2 slack=0.00m fb=0
+  [t=133.0] phase=A pos=(-2540.9,-2687.7) psi= +39.5deg wp=2 xte=+31.8m obs_d=265m ok=1 comp=3255.7ms solve=3253.3ms RT=3.26 obs=2 slack=0.00m fb=0
+  [t=134.0] phase=A pos=(-2538.4,-2687.1) psi= +40.1deg wp=2 xte=+33.1m obs_d=266m ok=1 comp=3044.9ms solve=3041.8ms RT=3.04 obs=2 slack=0.00m fb=0
+  [t=135.0] phase=A pos=(-2536.0,-2686.4) psi= +40.6deg wp=2 xte=+34.4m obs_d=268m ok=1 comp=3036.2ms solve=3033.9ms RT=3.04 obs=2 slack=0.00m fb=0
+  [t=136.0] phase=A pos=(-2533.8,-2685.9) psi= +41.2deg wp=2 xte=+35.6m obs_d=270m ok=1 comp=3315.7ms solve=3313.5ms RT=3.32 obs=2 slack=0.00m fb=0
+  [t=137.0] phase=A pos=(-2531.6,-2685.5) psi= +41.7deg wp=2 xte=+36.9m obs_d=271m ok=1 comp=3764.0ms solve=3761.5ms RT=3.76 obs=2 slack=0.00m fb=0
+  [t=138.0] phase=A pos=(-2529.6,-2685.1) psi= +42.2deg wp=2 xte=+38.1m obs_d=272m ok=1 comp=4182.3ms solve=4179.7ms RT=4.18 obs=2 slack=0.00m fb=0
+  [t=139.0] phase=A pos=(-2527.7,-2684.8) psi= +42.7deg wp=2 xte=+39.2m obs_d=272m ok=1 comp=4141.9ms solve=4139.6ms RT=4.14 obs=2 slack=0.00m fb=0
+  [t=140.0] phase=A pos=(-2525.9,-2684.5) psi= +43.2deg wp=2 xte=+40.3m obs_d=273m ok=1 comp=3990.3ms solve=3988.0ms RT=3.99 obs=2 slack=0.00m fb=0
+  [t=141.0] phase=A pos=(-2524.2,-2684.3) psi= +43.7deg wp=2 xte=+41.4m obs_d=274m ok=1 comp=3420.0ms solve=3417.8ms RT=3.42 obs=2 slack=0.00m fb=0
+  [t=142.0] phase=A pos=(-2522.6,-2684.2) psi= +44.2deg wp=2 xte=+42.5m obs_d=275m ok=1 comp=3544.6ms solve=3542.2ms RT=3.54 obs=2 slack=0.00m fb=0
+  [t=143.0] phase=A pos=(-2521.1,-2684.0) psi= +44.6deg wp=2 xte=+43.5m obs_d=276m ok=1 comp=3657.7ms solve=3654.5ms RT=3.66 obs=2 slack=0.00m fb=0
+  [t=144.0] phase=A pos=(-2519.6,-2684.0) psi= +45.1deg wp=2 xte=+44.5m obs_d=277m ok=1 comp=4519.7ms solve=4517.3ms RT=4.52 obs=2 slack=0.00m fb=0
+  [t=145.0] phase=A pos=(-2518.3,-2684.0) psi= +45.5deg wp=2 xte=+45.5m obs_d=278m ok=1 comp=3984.6ms solve=3982.2ms RT=3.98 obs=2 slack=0.00m fb=0
+  [t=146.0] phase=A pos=(-2517.0,-2684.0) psi= +45.9deg wp=2 xte=+46.5m obs_d=279m ok=1 comp=3426.5ms solve=3423.2ms RT=3.43 obs=2 slack=0.00m fb=0
+  [t=147.0] phase=A pos=(-2515.8,-2684.1) psi= +46.4deg wp=2 xte=+47.4m obs_d=280m ok=1 comp=3646.6ms solve=3643.9ms RT=3.65 obs=2 slack=0.00m fb=0
+  [t=148.0] phase=A pos=(-2514.7,-2684.3) psi= +46.9deg wp=2 xte=+48.3m obs_d=281m ok=1 comp=5580.0ms solve=5576.6ms RT=5.58 obs=2 slack=0.00m fb=0
+  [t=149.0] phase=A pos=(-2513.6,-2684.6) psi= +47.4deg wp=2 xte=+49.3m obs_d=281m ok=1 comp=4555.1ms solve=4552.6ms RT=4.56 obs=2 slack=0.00m fb=0
+  [t=150.0] phase=A pos=(-2512.6,-2684.8) psi= +47.8deg wp=2 xte=+50.2m obs_d=282m ok=1 comp=4228.2ms solve=4224.8ms RT=4.23 obs=2 slack=0.00m fb=0
+  [t=151.0] phase=A pos=(-2511.6,-2685.1) psi= +48.3deg wp=2 xte=+51.1m obs_d=283m ok=1 comp=2879.0ms solve=2876.7ms RT=2.88 obs=2 slack=0.00m fb=0
+  [t=152.0] phase=A pos=(-2510.7,-2685.3) psi= +48.8deg wp=2 xte=+52.0m obs_d=284m ok=1 comp=3239.0ms solve=3236.7ms RT=3.24 obs=2 slack=0.00m fb=0
+  [t=153.0] phase=A pos=(-2509.8,-2685.6) psi= +49.3deg wp=2 xte=+52.8m obs_d=285m ok=1 comp=3485.2ms solve=3482.5ms RT=3.49 obs=2 slack=0.00m fb=0
+  [t=154.0] phase=A pos=(-2508.9,-2685.8) psi= +49.9deg wp=2 xte=+53.6m obs_d=286m ok=1 comp=3270.7ms solve=3268.4ms RT=3.27 obs=2 slack=0.00m fb=0
+  [t=155.0] phase=A pos=(-2508.0,-2686.1) psi= +50.4deg wp=2 xte=+54.4m obs_d=286m ok=1 comp=3535.5ms solve=3533.4ms RT=3.54 obs=2 slack=0.00m fb=0
+  [xte-recapture] emergency waypoint recapture ON (xte=55.2 m)
+  [t=156.0] phase=A pos=(-2507.1,-2686.3) psi= +51.0deg wp=2 xte=+55.2m obs_d=287m ok=1 comp=3449.1ms solve=3439.9ms RT=3.45 obs=2 slack=0.00m fb=0
+  [t=157.0] phase=A pos=(-2506.2,-2686.5) psi= +51.5deg wp=2 xte=+56.0m obs_d=288m ok=1 comp=3292.8ms solve=3287.7ms RT=3.29 obs=2 slack=0.00m fb=0
+  [t=158.0] phase=A pos=(-2505.3,-2686.6) psi= +52.2deg wp=2 xte=+56.7m obs_d=288m ok=1 comp=3271.0ms solve=3269.1ms RT=3.27 obs=2 slack=0.00m fb=0
+  [t=159.0] phase=A pos=(-2504.5,-2686.8) psi= +52.8deg wp=2 xte=+57.5m obs_d=289m ok=1 comp=3979.4ms solve=3976.7ms RT=3.98 obs=2 slack=0.00m fb=0
+  [t=160.0] phase=A pos=(-2503.6,-2686.9) psi= +53.4deg wp=2 xte=+58.2m obs_d=290m ok=1 comp=4042.4ms solve=4039.1ms RT=4.04 obs=2 slack=0.00m fb=0
+  [t=161.0] phase=A pos=(-2502.8,-2686.9) psi= +54.0deg wp=2 xte=+58.9m obs_d=290m ok=1 comp=3565.3ms solve=3563.0ms RT=3.57 obs=2 slack=0.00m fb=0
+  [t=162.0] phase=A pos=(-2502.0,-2687.0) psi= +54.6deg wp=2 xte=+59.5m obs_d=291m ok=1 comp=4490.1ms solve=4487.8ms RT=4.49 obs=2 slack=0.00m fb=0
+  [t=163.0] phase=A pos=(-2501.2,-2687.0) psi= +55.1deg wp=2 xte=+60.1m obs_d=292m ok=1 comp=3449.4ms solve=3447.2ms RT=3.45 obs=2 slack=0.00m fb=0
+  [t=164.0] phase=A pos=(-2500.4,-2686.9) psi= +55.6deg wp=2 xte=+60.7m obs_d=292m ok=1 comp=3554.7ms solve=3551.7ms RT=3.55 obs=2 slack=0.00m fb=0
+  [t=165.0] phase=A pos=(-2499.7,-2686.9) psi= +56.1deg wp=2 xte=+61.2m obs_d=292m ok=1 comp=3381.1ms solve=3378.4ms RT=3.38 obs=2 slack=0.00m fb=0
+  [t=166.0] phase=A pos=(-2498.9,-2686.8) psi= +56.7deg wp=2 xte=+61.7m obs_d=293m ok=1 comp=1590.0ms solve=1587.5ms RT=1.59 obs=2 slack=0.00m fb=0
+  [t=167.0] phase=A pos=(-2498.2,-2686.7) psi= +57.2deg wp=2 xte=+62.1m obs_d=293m ok=1 comp=4116.4ms solve=4112.8ms RT=4.12 obs=2 slack=0.00m fb=0
+  [t=168.0] phase=A pos=(-2497.4,-2686.6) psi= +57.7deg wp=2 xte=+62.6m obs_d=294m ok=1 comp=3889.5ms solve=3887.8ms RT=3.89 obs=2 slack=0.00m fb=0
+  [t=169.0] phase=A pos=(-2496.7,-2686.5) psi= +58.3deg wp=2 xte=+63.0m obs_d=294m ok=1 comp=3534.0ms solve=3531.2ms RT=3.53 obs=2 slack=0.00m fb=0
+  [t=170.0] phase=A pos=(-2496.0,-2686.4) psi= +58.8deg wp=2 xte=+63.5m obs_d=295m ok=1 comp=5299.3ms solve=5296.5ms RT=5.30 obs=2 slack=0.00m fb=0
+  [t=171.0] phase=A pos=(-2495.3,-2686.3) psi= +59.4deg wp=2 xte=+63.9m obs_d=295m ok=1 comp=3920.3ms solve=3917.9ms RT=3.92 obs=2 slack=0.00m fb=0
+  [t=172.0] phase=A pos=(-2494.6,-2686.1) psi= +60.0deg wp=2 xte=+64.3m obs_d=295m ok=1 comp=3938.6ms solve=3936.2ms RT=3.94 obs=2 slack=0.00m fb=0
+  [t=173.0] phase=A pos=(-2493.9,-2685.9) psi= +60.6deg wp=2 xte=+64.7m obs_d=296m ok=1 comp=4771.1ms solve=4768.0ms RT=4.77 obs=2 slack=0.00m fb=0
+  [t=174.0] phase=A pos=(-2493.2,-2685.7) psi= +61.1deg wp=2 xte=+65.1m obs_d=296m ok=1 comp=4344.4ms solve=4340.6ms RT=4.34 obs=2 slack=0.00m fb=0
+  [t=175.0] phase=A pos=(-2492.6,-2685.4) psi= +61.6deg wp=2 xte=+65.4m obs_d=296m ok=1 comp=5058.2ms solve=5055.6ms RT=5.06 obs=2 slack=0.00m fb=0
+  [t=176.0] phase=A pos=(-2491.9,-2685.1) psi= +62.2deg wp=2 xte=+65.7m obs_d=297m ok=1 comp=4391.2ms solve=4388.2ms RT=4.39 obs=2 slack=0.00m fb=0
+  [t=177.0] phase=A pos=(-2491.2,-2684.6) psi= +62.7deg wp=2 xte=+65.9m obs_d=297m ok=1 comp=4507.5ms solve=4504.6ms RT=4.51 obs=2 slack=0.00m fb=0
+  [t=178.0] phase=A pos=(-2490.4,-2684.2) psi= +63.2deg wp=2 xte=+66.1m obs_d=297m ok=1 comp=4028.8ms solve=4025.7ms RT=4.03 obs=2 slack=0.00m fb=0
+  [t=179.0] phase=A pos=(-2489.7,-2683.7) psi= +63.7deg wp=2 xte=+66.3m obs_d=297m ok=1 comp=3704.7ms solve=3702.0ms RT=3.70 obs=2 slack=0.00m fb=0
+  [t=180.0] phase=A pos=(-2488.9,-2683.1) psi= +64.2deg wp=2 xte=+66.5m obs_d=297m ok=1 comp=3950.1ms solve=3947.6ms RT=3.95 obs=2 slack=0.00m fb=0
+  [t=181.0] phase=A pos=(-2488.1,-2682.6) psi= +64.8deg wp=2 xte=+66.6m obs_d=297m ok=1 comp=4027.0ms solve=4024.7ms RT=4.03 obs=2 slack=0.00m fb=0
+  [t=182.0] phase=A pos=(-2487.4,-2682.0) psi= +65.4deg wp=2 xte=+66.8m obs_d=298m ok=1 comp=3864.9ms solve=3862.4ms RT=3.86 obs=2 slack=0.00m fb=0
+  [t=183.0] phase=A pos=(-2486.6,-2681.5) psi= +66.0deg wp=2 xte=+66.9m obs_d=298m ok=1 comp=3779.1ms solve=3775.2ms RT=3.78 obs=2 slack=0.00m fb=0
+  [t=184.0] phase=A pos=(-2485.8,-2681.0) psi= +66.6deg wp=2 xte=+67.1m obs_d=298m ok=1 comp=4960.2ms solve=4957.0ms RT=4.96 obs=2 slack=0.00m fb=0
+  [t=185.0] phase=A pos=(-2485.1,-2680.4) psi= +67.2deg wp=2 xte=+67.3m obs_d=298m ok=1 comp=3858.1ms solve=3855.5ms RT=3.86 obs=2 slack=0.00m fb=0
+  [t=186.0] phase=A pos=(-2484.3,-2679.9) psi= +67.9deg wp=2 xte=+67.4m obs_d=298m ok=1 comp=3773.5ms solve=3771.7ms RT=3.77 obs=2 slack=0.00m fb=0
+  [t=187.0] phase=A pos=(-2483.6,-2679.3) psi= +68.5deg wp=2 xte=+67.6m obs_d=298m ok=1 comp=3384.5ms solve=3381.7ms RT=3.38 obs=2 slack=0.00m fb=0
+  [t=188.0] phase=A pos=(-2482.8,-2678.8) psi= +69.2deg wp=2 xte=+67.7m obs_d=299m ok=1 comp=3586.1ms solve=3583.0ms RT=3.59 obs=2 slack=0.00m fb=0
+  [t=189.0] phase=A pos=(-2482.2,-2678.4) psi= +69.9deg wp=2 xte=+67.9m obs_d=299m ok=1 comp=3476.3ms solve=3473.2ms RT=3.48 obs=2 slack=0.00m fb=0
+  [t=190.0] phase=A pos=(-2481.5,-2678.0) psi= +70.5deg wp=2 xte=+68.0m obs_d=299m ok=1 comp=4591.6ms solve=4589.3ms RT=4.59 obs=2 slack=0.00m fb=0
+  [t=191.0] phase=A pos=(-2480.9,-2677.6) psi= +71.2deg wp=2 xte=+68.2m obs_d=299m ok=1 comp=3913.4ms solve=3910.6ms RT=3.91 obs=2 slack=0.00m fb=0
+  [t=192.0] phase=A pos=(-2480.2,-2677.2) psi= +71.9deg wp=2 xte=+68.4m obs_d=299m ok=1 comp=3962.9ms solve=3960.3ms RT=3.96 obs=2 slack=0.00m fb=0
+  [t=193.0] phase=A pos=(-2479.6,-2676.8) psi= +72.6deg wp=2 xte=+68.5m obs_d=300m ok=1 comp=3678.0ms solve=3675.1ms RT=3.68 obs=2 slack=0.00m fb=0
+  [t=194.0] phase=A pos=(-2479.0,-2676.4) psi= +73.4deg wp=2 xte=+68.7m obs_d=300m ok=1 comp=3171.7ms solve=3168.7ms RT=3.17 obs=2 slack=0.00m fb=0
+  [t=195.0] phase=A pos=(-2478.4,-2676.0) psi= +74.2deg wp=2 xte=+68.9m obs_d=300m ok=1 comp=4204.3ms solve=4202.1ms RT=4.20 obs=2 slack=0.00m fb=0
+  [t=196.0] phase=A pos=(-2477.8,-2675.6) psi= +74.9deg wp=2 xte=+69.1m obs_d=300m ok=1 comp=3245.6ms solve=3243.7ms RT=3.25 obs=2 slack=0.00m fb=0
+  [t=197.0] phase=A pos=(-2477.2,-2675.3) psi= +75.8deg wp=2 xte=+69.2m obs_d=300m ok=1 comp=3537.2ms solve=3535.1ms RT=3.54 obs=2 slack=0.00m fb=0
+  [t=198.0] phase=A pos=(-2476.6,-2674.9) psi= +76.6deg wp=2 xte=+69.3m obs_d=301m ok=1 comp=3306.9ms solve=3304.5ms RT=3.31 obs=2 slack=0.00m fb=0
+  [t=199.0] phase=A pos=(-2476.0,-2674.6) psi= +77.5deg wp=2 xte=+69.5m obs_d=301m ok=1 comp=4057.4ms solve=4054.2ms RT=4.06 obs=2 slack=0.00m fb=0
+  [t=200.0] phase=A pos=(-2475.5,-2674.3) psi= +78.3deg wp=2 xte=+69.7m obs_d=301m ok=1 comp=4465.4ms solve=4463.1ms RT=4.47 obs=2 slack=0.00m fb=0
+  [t=201.0] phase=A pos=(-2475.0,-2673.9) psi= +79.2deg wp=2 xte=+69.9m obs_d=301m ok=1 comp=4062.8ms solve=4060.3ms RT=4.06 obs=2 slack=0.00m fb=0
+  [t=202.0] phase=A pos=(-2474.5,-2673.6) psi= +80.0deg wp=2 xte=+70.0m obs_d=301m ok=1 comp=4188.1ms solve=4185.5ms RT=4.19 obs=2 slack=0.00m fb=0
+  [t=203.0] phase=A pos=(-2474.0,-2673.2) psi= +80.8deg wp=2 xte=+70.1m obs_d=301m ok=1 comp=4551.3ms solve=4549.6ms RT=4.55 obs=2 slack=0.00m fb=0
+  [t=204.0] phase=A pos=(-2473.6,-2672.8) psi= +81.5deg wp=2 xte=+70.1m obs_d=301m ok=1 comp=3515.2ms solve=3513.3ms RT=3.52 obs=2 slack=0.00m fb=0
+  [t=205.0] phase=A pos=(-2473.2,-2672.4) psi= +82.2deg wp=2 xte=+70.1m obs_d=301m ok=1 comp=3647.8ms solve=3645.4ms RT=3.65 obs=2 slack=0.00m fb=0
+  [t=206.0] phase=A pos=(-2472.9,-2671.9) psi= +82.9deg wp=2 xte=+70.1m obs_d=301m ok=1 comp=3917.1ms solve=3914.2ms RT=3.92 obs=2 slack=0.00m fb=0
+  [t=207.0] phase=A pos=(-2472.5,-2671.4) psi= +83.6deg wp=2 xte=+70.0m obs_d=301m ok=1 comp=3952.2ms solve=3950.0ms RT=3.95 obs=2 slack=0.00m fb=0
+  [t=208.0] phase=A pos=(-2472.2,-2670.9) psi= +84.2deg wp=2 xte=+69.9m obs_d=301m ok=1 comp=3573.0ms solve=3570.5ms RT=3.57 obs=2 slack=0.00m fb=0
+  [t=209.0] phase=A pos=(-2471.8,-2670.3) psi= +84.9deg wp=2 xte=+69.8m obs_d=301m ok=1 comp=3996.5ms solve=3993.9ms RT=4.00 obs=2 slack=0.00m fb=0
+  [t=210.0] phase=A pos=(-2471.5,-2669.6) psi= +85.5deg wp=2 xte=+69.6m obs_d=301m ok=1 comp=3509.9ms solve=3507.2ms RT=3.51 obs=2 slack=0.00m fb=0
+  [t=211.0] phase=A pos=(-2471.2,-2668.9) psi= +86.1deg wp=2 xte=+69.3m obs_d=301m ok=1 comp=4085.3ms solve=4082.7ms RT=4.09 obs=2 slack=0.00m fb=0
+  [t=212.0] phase=A pos=(-2470.9,-2668.2) psi= +86.7deg wp=2 xte=+69.1m obs_d=300m ok=1 comp=3939.9ms solve=3936.6ms RT=3.94 obs=2 slack=0.00m fb=0
+  [t=213.0] phase=A pos=(-2470.6,-2667.4) psi= +87.3deg wp=2 xte=+68.8m obs_d=300m ok=1 comp=3476.5ms solve=3474.5ms RT=3.48 obs=2 slack=0.00m fb=0
+  [t=214.0] phase=A pos=(-2470.3,-2666.6) psi= +87.8deg wp=2 xte=+68.4m obs_d=300m ok=1 comp=4540.5ms solve=4537.9ms RT=4.54 obs=2 slack=0.00m fb=0
+  [t=215.0] phase=A pos=(-2470.1,-2665.7) psi= +88.4deg wp=2 xte=+68.1m obs_d=299m ok=1 comp=4268.3ms solve=4265.3ms RT=4.27 obs=2 slack=0.00m fb=0
+  [t=216.0] phase=A pos=(-2469.8,-2664.9) psi= +88.9deg wp=2 xte=+67.7m obs_d=299m ok=1 comp=3069.4ms solve=3066.5ms RT=3.07 obs=2 slack=0.00m fb=0
+  [t=217.0] phase=A pos=(-2469.6,-2664.0) psi= +89.4deg wp=2 xte=+67.2m obs_d=299m ok=1 comp=3632.6ms solve=3629.1ms RT=3.63 obs=2 slack=0.00m fb=0
+  [t=218.0] phase=A pos=(-2469.4,-2663.1) psi= +89.8deg wp=2 xte=+66.7m obs_d=298m ok=1 comp=3459.3ms solve=3456.9ms RT=3.46 obs=2 slack=0.00m fb=0
+  [t=219.0] phase=A pos=(-2469.1,-2662.1) psi= +90.3deg wp=2 xte=+66.3m obs_d=298m ok=1 comp=3690.6ms solve=3688.4ms RT=3.69 obs=2 slack=0.00m fb=0
+  [t=220.0] phase=A pos=(-2468.9,-2661.1) psi= +90.7deg wp=2 xte=+65.7m obs_d=297m ok=1 comp=4005.2ms solve=4002.3ms RT=4.01 obs=2 slack=0.00m fb=0
+  [t=221.0] phase=A pos=(-2468.8,-2660.1) psi= +91.1deg wp=2 xte=+65.2m obs_d=297m ok=1 comp=3392.8ms solve=3390.4ms RT=3.39 obs=2 slack=0.00m fb=0
+  [t=222.0] phase=A pos=(-2468.6,-2659.1) psi= +91.5deg wp=2 xte=+64.6m obs_d=296m ok=1 comp=4868.6ms solve=4865.4ms RT=4.87 obs=2 slack=0.00m fb=0
+  [t=223.0] phase=A pos=(-2468.4,-2658.1) psi= +91.9deg wp=2 xte=+64.0m obs_d=296m ok=1 comp=3572.5ms solve=3569.5ms RT=3.57 obs=2 slack=0.00m fb=0
+  [t=224.0] phase=A pos=(-2468.2,-2657.1) psi= +92.3deg wp=2 xte=+63.4m obs_d=295m ok=1 comp=3651.0ms solve=3648.7ms RT=3.65 obs=2 slack=0.00m fb=0
+  [t=225.0] phase=A pos=(-2468.1,-2656.0) psi= +92.6deg wp=2 xte=+62.8m obs_d=295m ok=1 comp=3544.2ms solve=3541.6ms RT=3.54 obs=2 slack=0.00m fb=0
+  [t=226.0] phase=A pos=(-2467.9,-2654.9) psi= +93.0deg wp=2 xte=+62.2m obs_d=294m ok=1 comp=3448.8ms solve=3446.3ms RT=3.45 obs=2 slack=0.00m fb=0
+  [t=227.0] phase=A pos=(-2467.8,-2653.7) psi= +93.3deg wp=2 xte=+61.5m obs_d=294m ok=1 comp=4474.9ms solve=4472.7ms RT=4.47 obs=2 slack=0.00m fb=0
+  [t=228.0] phase=A pos=(-2467.7,-2652.6) psi= +93.7deg wp=2 xte=+60.8m obs_d=293m ok=1 comp=3402.8ms solve=3400.2ms RT=3.40 obs=2 slack=0.00m fb=0
+  [t=229.0] phase=A pos=(-2467.5,-2651.4) psi= +94.0deg wp=2 xte=+60.0m obs_d=292m ok=1 comp=3880.4ms solve=3877.4ms RT=3.88 obs=2 slack=0.00m fb=0
+  [t=230.0] phase=A pos=(-2467.4,-2650.2) psi= +94.3deg wp=2 xte=+59.3m obs_d=292m ok=1 comp=3767.3ms solve=3763.9ms RT=3.77 obs=2 slack=0.00m fb=0
+  [t=231.0] phase=A pos=(-2467.3,-2648.9) psi= +94.6deg wp=2 xte=+58.5m obs_d=291m ok=1 comp=4034.0ms solve=4031.4ms RT=4.03 obs=2 slack=0.00m fb=0
+  [t=232.0] phase=A pos=(-2467.2,-2647.7) psi= +94.9deg wp=2 xte=+57.7m obs_d=290m ok=1 comp=4028.9ms solve=4026.9ms RT=4.03 obs=2 slack=0.00m fb=0
+  [t=233.0] phase=A pos=(-2467.1,-2646.3) psi= +95.2deg wp=2 xte=+56.9m obs_d=290m ok=1 comp=4446.3ms solve=4443.9ms RT=4.45 obs=2 slack=0.00m fb=0
+  [t=234.0] phase=A pos=(-2467.0,-2645.0) psi= +95.5deg wp=2 xte=+56.0m obs_d=289m ok=1 comp=3628.7ms solve=3626.4ms RT=3.63 obs=2 slack=0.00m fb=0
+  [t=235.0] phase=A pos=(-2467.0,-2643.6) psi= +95.8deg wp=2 xte=+55.1m obs_d=288m ok=1 comp=3971.2ms solve=3968.1ms RT=3.97 obs=2 slack=0.00m fb=0
+  [t=236.0] phase=A pos=(-2466.9,-2642.2) psi= +96.1deg wp=2 xte=+54.2m obs_d=287m ok=1 comp=3503.9ms solve=3501.3ms RT=3.50 obs=2 slack=0.00m fb=0
+  [t=237.0] phase=A pos=(-2466.8,-2640.8) psi= +96.4deg wp=2 xte=+53.3m obs_d=287m ok=1 comp=6388.3ms solve=6384.8ms RT=6.39 obs=2 slack=0.00m fb=0
+  [t=238.0] phase=A pos=(-2466.7,-2639.3) psi= +96.7deg wp=2 xte=+52.3m obs_d=286m ok=1 comp=3709.6ms solve=3705.4ms RT=3.71 obs=2 slack=0.00m fb=0
+  [t=239.0] phase=A pos=(-2466.6,-2637.8) psi= +97.0deg wp=2 xte=+51.3m obs_d=285m ok=1 comp=3740.6ms solve=3738.4ms RT=3.74 obs=2 slack=0.00m fb=0
+  [t=240.0] phase=A pos=(-2466.6,-2636.3) psi= +97.3deg wp=2 xte=+50.3m obs_d=284m ok=1 comp=3502.8ms solve=3500.5ms RT=3.50 obs=2 slack=0.00m fb=0
+  [t=241.0] phase=A pos=(-2466.5,-2634.7) psi= +97.6deg wp=2 xte=+49.3m obs_d=283m ok=1 comp=3506.1ms solve=3503.9ms RT=3.51 obs=2 slack=0.00m fb=0
+  [t=242.0] phase=A pos=(-2466.5,-2633.2) psi= +97.9deg wp=2 xte=+48.2m obs_d=283m ok=1 comp=4169.9ms solve=4167.8ms RT=4.17 obs=2 slack=0.00m fb=0
+  [t=243.0] phase=A pos=(-2466.4,-2631.6) psi= +98.1deg wp=2 xte=+47.2m obs_d=282m ok=1 comp=3405.1ms solve=3402.9ms RT=3.41 obs=2 slack=0.00m fb=0
+  [t=244.0] phase=A pos=(-2466.4,-2630.1) psi= +98.4deg wp=2 xte=+46.1m obs_d=281m ok=1 comp=3671.6ms solve=3669.5ms RT=3.67 obs=2 slack=0.00m fb=0
+  [t=245.0] phase=A pos=(-2466.3,-2628.5) psi= +98.7deg wp=2 xte=+45.1m obs_d=280m ok=1 comp=3766.7ms solve=3763.8ms RT=3.77 obs=2 slack=0.00m fb=0
+  [t=246.0] phase=A pos=(-2466.3,-2626.9) psi= +98.9deg wp=2 xte=+44.0m obs_d=279m ok=1 comp=3915.8ms solve=3913.3ms RT=3.92 obs=2 slack=0.00m fb=0
+  [t=247.0] phase=A pos=(-2466.3,-2625.3) psi= +99.1deg wp=2 xte=+42.9m obs_d=278m ok=1 comp=3586.7ms solve=3584.4ms RT=3.59 obs=2 slack=0.00m fb=0
+  [t=248.0] phase=A pos=(-2466.3,-2623.7) psi= +99.3deg wp=2 xte=+41.8m obs_d=278m ok=1 comp=4123.4ms solve=4121.1ms RT=4.12 obs=2 slack=0.00m fb=0
+  [t=249.0] phase=A pos=(-2466.3,-2622.1) psi= +99.5deg wp=2 xte=+40.6m obs_d=277m ok=1 comp=4056.1ms solve=4054.2ms RT=4.06 obs=2 slack=0.00m fb=0
+  [t=250.0] phase=A pos=(-2466.4,-2620.4) psi= +99.6deg wp=2 xte=+39.4m obs_d=276m ok=1 comp=3557.0ms solve=3554.4ms RT=3.56 obs=2 slack=0.00m fb=0
+  [t=251.0] phase=A pos=(-2466.4,-2618.8) psi= +99.7deg wp=2 xte=+38.2m obs_d=275m ok=1 comp=2958.6ms solve=2956.3ms RT=2.96 obs=2 slack=0.00m fb=0
+  [t=255.0] phase=A pos=(-2467.0,-2612.2) psi= +99.9deg wp=2 xte=+33.3m obs_d=271m ok=1 comp=2473.3ms solve=2470.3ms RT=2.47 obs=2 slack=0.00m fb=0
+  [t=259.0] phase=A pos=(-2467.7,-2605.6) psi= +99.7deg wp=2 xte=+28.1m obs_d=267m ok=1 comp=350.8ms solve=348.5ms RT=0.35 obs=2 slack=0.00m fb=0
+  [t=260.0] phase=A pos=(-2467.9,-2604.0) psi= +99.7deg wp=2 xte=+26.8m obs_d=266m ok=1 comp=2740.1ms solve=2737.7ms RT=2.74 obs=2 slack=0.00m fb=0
+  [t=261.0] phase=A pos=(-2468.1,-2602.3) psi= +99.7deg wp=2 xte=+25.5m obs_d=265m ok=1 comp=2243.2ms solve=2240.8ms RT=2.24 obs=2 slack=0.00m fb=0
+  [t=262.0] phase=A pos=(-2468.3,-2600.6) psi= +99.6deg wp=2 xte=+24.2m obs_d=264m ok=1 comp=2321.7ms solve=2319.1ms RT=2.32 obs=2 slack=0.00m fb=0
+  [t=263.0] phase=A pos=(-2468.5,-2599.0) psi= +99.6deg wp=2 xte=+22.8m obs_d=263m ok=1 comp=2229.8ms solve=2227.3ms RT=2.23 obs=2 slack=0.00m fb=0
+  [xte-recapture] emergency waypoint recapture OFF
+  [t=264.0] phase=A pos=(-2468.7,-2597.3) psi= +99.6deg wp=2 xte=+21.5m obs_d=262m ok=1 comp=2944.8ms solve=2940.4ms RT=2.94 obs=2 slack=0.00m fb=0
+  [t=265.0] phase=A pos=(-2468.9,-2595.6) psi= +99.6deg wp=2 xte=+20.2m obs_d=261m ok=1 comp=2930.2ms solve=2926.7ms RT=2.93 obs=2 slack=0.00m fb=0
+  [t=266.0] phase=A pos=(-2469.1,-2593.8) psi= +99.6deg wp=2 xte=+18.8m obs_d=260m ok=1 comp=3108.3ms solve=3105.3ms RT=3.11 obs=2 slack=0.00m fb=0
+  [t=267.0] phase=A pos=(-2469.3,-2592.1) psi= +99.6deg wp=2 xte=+17.5m obs_d=259m ok=1 comp=2992.3ms solve=2990.5ms RT=2.99 obs=2 slack=0.00m fb=0
+  [t=268.0] phase=A pos=(-2469.5,-2590.3) psi= +99.6deg wp=2 xte=+16.1m obs_d=411m ok=1 comp=3754.3ms solve=3752.5ms RT=3.75 obs=1 slack=0.00m fb=0
+  [t=269.0] phase=A pos=(-2469.7,-2588.5) psi= +99.6deg wp=2 xte=+14.7m obs_d=409m ok=1 comp=3273.0ms solve=3271.1ms RT=3.27 obs=1 slack=0.00m fb=0
+  [t=270.0] phase=A pos=(-2470.0,-2586.6) psi= +99.6deg wp=2 xte=+13.3m obs_d=385m ok=1 comp=3127.4ms solve=3125.0ms RT=3.13 obs=2 slack=0.00m fb=0
+  [t=271.0] phase=A pos=(-2470.2,-2584.6) psi= +99.6deg wp=2 xte=+11.8m obs_d=331m ok=1 comp=3387.0ms solve=3384.7ms RT=3.39 obs=2 slack=0.00m fb=0
+  [t=272.0] phase=A pos=(-2470.5,-2582.6) psi= +99.6deg wp=2 xte=+10.2m obs_d=296m ok=1 comp=3620.6ms solve=3618.4ms RT=3.62 obs=2 slack=0.00m fb=0
+  [t=273.0] phase=A pos=(-2470.8,-2580.4) psi= +99.6deg wp=2 xte=+8.6m obs_d=295m ok=1 comp=3034.9ms solve=3032.2ms RT=3.03 obs=2 slack=0.00m fb=0
+  [t=274.0] phase=A pos=(-2471.1,-2578.2) psi= +99.5deg wp=2 xte=+6.8m obs_d=295m ok=1 comp=2998.8ms solve=2996.2ms RT=3.00 obs=2 slack=0.00m fb=0
+  [t=275.0] phase=A pos=(-2471.4,-2575.9) psi= +99.6deg wp=2 xte=+5.1m obs_d=294m ok=1 comp=2302.9ms solve=2301.1ms RT=2.30 obs=2 slack=0.00m fb=0
+  [t=276.0] phase=A pos=(-2471.6,-2573.5) psi= +99.6deg wp=2 xte=+3.2m obs_d=288m ok=1 comp=1898.0ms solve=1896.8ms RT=1.90 obs=2 slack=0.00m fb=0
+  [t=277.0] phase=A pos=(-2471.9,-2571.0) psi= +99.7deg wp=2 xte=+1.3m obs_d=288m ok=1 comp=1758.6ms solve=1756.7ms RT=1.76 obs=2 slack=0.00m fb=0
+  [t=278.0] phase=A pos=(-2472.1,-2568.5) psi= +99.9deg wp=2 xte=-0.6m obs_d=288m ok=1 comp=1335.2ms solve=1334.0ms RT=1.34 obs=2 slack=0.00m fb=0
+  [t=279.0] phase=A pos=(-2472.3,-2565.8) psi=+100.1deg wp=2 xte=-2.6m obs_d=289m ok=1 comp=1171.5ms solve=1170.6ms RT=1.17 obs=2 slack=0.00m fb=0
+  [t=280.0] phase=A pos=(-2472.4,-2563.1) psi=+100.5deg wp=2 xte=-4.6m obs_d=289m ok=1 comp=1534.1ms solve=1532.7ms RT=1.53 obs=2 slack=0.00m fb=0
+  [t=281.0] phase=A pos=(-2472.5,-2560.3) psi=+101.0deg wp=2 xte=-6.6m obs_d=289m ok=1 comp=2730.7ms solve=2727.7ms RT=2.73 obs=2 slack=0.00m fb=0
+  [t=282.0] phase=A pos=(-2472.4,-2557.5) psi=+101.6deg wp=2 xte=-8.6m obs_d=289m ok=1 comp=2639.0ms solve=2636.7ms RT=2.64 obs=2 slack=0.00m fb=0
+  [t=283.0] phase=A pos=(-2472.2,-2554.7) psi=+102.3deg wp=2 xte=-10.5m obs_d=288m ok=1 comp=2555.4ms solve=2552.6ms RT=2.56 obs=2 slack=0.00m fb=0
+  [t=284.0] phase=A pos=(-2472.0,-2552.0) psi=+103.2deg wp=2 xte=-12.4m obs_d=287m ok=1 comp=2766.7ms solve=2763.7ms RT=2.77 obs=2 slack=0.00m fb=0
+  [wp-advance] 2 -> 3 (proj=0.69, d_wp=88.8 m, xte=14.2 m)
+  [xte-recapture] emergency waypoint recapture ON (xte=-62.5 m)
+  [t=285.0] phase=A pos=(-2471.7,-2549.3) psi=+104.1deg wp=3 xte=-62.5m obs_d=286m ok=1 comp=2800.8ms solve=2796.3ms RT=2.80 obs=2 slack=0.00m fb=0
+  [t=286.0] phase=A pos=(-2471.4,-2546.8) psi=+105.0deg wp=3 xte=-62.6m obs_d=285m ok=1 comp=2363.0ms solve=2360.4ms RT=2.36 obs=2 slack=0.00m fb=0
+  [t=287.0] phase=A pos=(-2471.0,-2544.4) psi=+105.9deg wp=3 xte=-62.7m obs_d=284m ok=1 comp=2530.6ms solve=2528.4ms RT=2.53 obs=2 slack=0.00m fb=0
+  [t=288.0] phase=A pos=(-2470.5,-2542.3) psi=+106.9deg wp=3 xte=-62.7m obs_d=283m ok=1 comp=2750.5ms solve=2747.9ms RT=2.75 obs=2 slack=0.00m fb=0
+  [t=289.0] phase=A pos=(-2470.0,-2540.4) psi=+107.8deg wp=3 xte=-62.6m obs_d=282m ok=1 comp=2630.9ms solve=2628.8ms RT=2.63 obs=2 slack=0.00m fb=0
+  [t=290.0] phase=A pos=(-2469.5,-2538.7) psi=+108.6deg wp=3 xte=-62.4m obs_d=281m ok=1 comp=2747.7ms solve=2744.6ms RT=2.75 obs=2 slack=0.00m fb=0
+  [t=291.0] phase=A pos=(-2468.9,-2537.3) psi=+109.3deg wp=3 xte=-62.1m obs_d=280m ok=1 comp=2033.9ms solve=2031.5ms RT=2.03 obs=2 slack=0.00m fb=0
+  [t=292.0] phase=A pos=(-2468.3,-2536.1) psi=+110.0deg wp=3 xte=-61.8m obs_d=279m ok=1 comp=2890.0ms solve=2887.7ms RT=2.89 obs=2 slack=0.00m fb=0
+  [t=293.0] phase=A pos=(-2467.7,-2535.1) psi=+110.6deg wp=3 xte=-61.4m obs_d=278m ok=1 comp=2558.0ms solve=2554.8ms RT=2.56 obs=2 slack=0.00m fb=0
+  [t=294.0] phase=A pos=(-2467.1,-2534.2) psi=+111.1deg wp=3 xte=-61.0m obs_d=278m ok=1 comp=3243.2ms solve=3241.4ms RT=3.24 obs=2 slack=0.00m fb=0
+  [t=295.0] phase=A pos=(-2466.5,-2533.5) psi=+111.6deg wp=3 xte=-60.6m obs_d=277m ok=1 comp=3838.0ms solve=3835.3ms RT=3.84 obs=2 slack=0.00m fb=0
+  [t=296.0] phase=A pos=(-2465.9,-2532.8) psi=+112.1deg wp=3 xte=-60.1m obs_d=276m ok=1 comp=3715.2ms solve=3712.5ms RT=3.72 obs=2 slack=0.00m fb=0
+  [t=297.0] phase=A pos=(-2465.2,-2532.1) psi=+112.5deg wp=3 xte=-59.6m obs_d=275m ok=1 comp=2384.0ms solve=2381.7ms RT=2.38 obs=2 slack=0.00m fb=0
+  [t=298.0] phase=A pos=(-2464.6,-2531.5) psi=+113.0deg wp=3 xte=-59.1m obs_d=275m ok=1 comp=2819.0ms solve=2816.2ms RT=2.82 obs=2 slack=0.00m fb=0
+  [t=299.0] phase=A pos=(-2464.1,-2530.8) psi=+113.3deg wp=3 xte=-58.6m obs_d=274m ok=1 comp=2427.9ms solve=2425.6ms RT=2.43 obs=2 slack=0.00m fb=0
+  [t=300.0] phase=A pos=(-2463.5,-2530.2) psi=+113.7deg wp=3 xte=-58.1m obs_d=273m ok=1 comp=2234.5ms solve=2232.1ms RT=2.23 obs=2 slack=0.00m fb=0
+  [t=301.0] phase=A pos=(-2463.0,-2529.5) psi=+114.1deg wp=3 xte=-57.7m obs_d=273m ok=1 comp=2912.2ms solve=2909.6ms RT=2.91 obs=2 slack=0.00m fb=0
+  [t=302.0] phase=A pos=(-2462.5,-2528.9) psi=+114.4deg wp=3 xte=-57.3m obs_d=272m ok=1 comp=2506.9ms solve=2504.2ms RT=2.51 obs=2 slack=0.00m fb=0
+  [t=303.0] phase=A pos=(-2461.9,-2528.2) psi=+114.8deg wp=3 xte=-56.9m obs_d=271m ok=1 comp=2654.1ms solve=2651.5ms RT=2.65 obs=2 slack=0.00m fb=0
+  [t=304.0] phase=A pos=(-2461.4,-2527.5) psi=+115.1deg wp=3 xte=-56.5m obs_d=271m ok=1 comp=2500.8ms solve=2498.4ms RT=2.50 obs=2 slack=0.00m fb=0
+  [t=305.0] phase=A pos=(-2460.9,-2526.9) psi=+115.4deg wp=3 xte=-56.1m obs_d=270m ok=1 comp=2429.1ms solve=2426.6ms RT=2.43 obs=2 slack=0.00m fb=0
+  [t=306.0] phase=A pos=(-2460.4,-2526.2) psi=+115.8deg wp=3 xte=-55.7m obs_d=269m ok=1 comp=2472.8ms solve=2470.2ms RT=2.47 obs=2 slack=0.00m fb=0
+  [t=307.0] phase=A pos=(-2459.9,-2525.5) psi=+116.1deg wp=3 xte=-55.3m obs_d=269m ok=1 comp=2380.6ms solve=2377.2ms RT=2.38 obs=2 slack=0.00m fb=0
+  [t=308.0] phase=A pos=(-2459.4,-2524.8) psi=+116.5deg wp=3 xte=-54.9m obs_d=268m ok=1 comp=2553.2ms solve=2551.4ms RT=2.55 obs=2 slack=0.00m fb=0
+  [t=309.0] phase=A pos=(-2458.8,-2524.2) psi=+116.8deg wp=3 xte=-54.5m obs_d=267m ok=1 comp=2389.6ms solve=2386.5ms RT=2.39 obs=2 slack=0.00m fb=0
+  [t=310.0] phase=A pos=(-2458.3,-2523.5) psi=+117.1deg wp=3 xte=-54.1m obs_d=267m ok=1 comp=2366.4ms solve=2364.4ms RT=2.37 obs=2 slack=0.00m fb=0
+  [t=311.0] phase=A pos=(-2457.8,-2522.8) psi=+117.4deg wp=3 xte=-53.7m obs_d=266m ok=1 comp=2381.5ms solve=2379.0ms RT=2.38 obs=2 slack=0.00m fb=0
+  [t=312.0] phase=A pos=(-2457.4,-2522.1) psi=+117.8deg wp=3 xte=-53.3m obs_d=265m ok=1 comp=2336.7ms solve=2334.0ms RT=2.34 obs=2 slack=0.00m fb=0
+  [t=313.0] phase=A pos=(-2456.9,-2521.4) psi=+118.1deg wp=3 xte=-52.9m obs_d=265m ok=1 comp=2630.7ms solve=2628.6ms RT=2.63 obs=2 slack=0.00m fb=0
+  [t=314.0] phase=A pos=(-2456.4,-2520.8) psi=+118.4deg wp=3 xte=-52.6m obs_d=264m ok=1 comp=2392.0ms solve=2390.1ms RT=2.39 obs=2 slack=0.00m fb=0
+  [t=315.0] phase=A pos=(-2455.9,-2520.1) psi=+118.7deg wp=3 xte=-52.2m obs_d=264m ok=1 comp=2507.4ms solve=2504.9ms RT=2.51 obs=2 slack=0.00m fb=0
+  [t=316.0] phase=A pos=(-2455.4,-2519.4) psi=+119.0deg wp=3 xte=-51.8m obs_d=263m ok=1 comp=2690.8ms solve=2687.9ms RT=2.69 obs=2 slack=0.00m fb=0
+  [t=317.0] phase=A pos=(-2454.9,-2518.7) psi=+119.3deg wp=3 xte=-51.5m obs_d=262m ok=1 comp=2324.5ms solve=2322.0ms RT=2.32 obs=2 slack=0.00m fb=0
+  [t=318.0] phase=A pos=(-2454.5,-2517.9) psi=+119.6deg wp=3 xte=-51.1m obs_d=262m ok=1 comp=2440.9ms solve=2438.5ms RT=2.44 obs=2 slack=0.00m fb=0
+  [t=319.0] phase=A pos=(-2454.0,-2517.2) psi=+120.0deg wp=3 xte=-50.8m obs_d=261m ok=1 comp=2288.0ms solve=2286.0ms RT=2.29 obs=2 slack=0.00m fb=0
+  [t=320.0] phase=A pos=(-2453.5,-2516.5) psi=+120.4deg wp=3 xte=-50.4m obs_d=261m ok=1 comp=2355.7ms solve=2353.7ms RT=2.36 obs=2 slack=0.00m fb=0
+  [t=321.0] phase=A pos=(-2453.0,-2515.7) psi=+120.8deg wp=3 xte=-50.1m obs_d=260m ok=1 comp=2424.7ms solve=2422.1ms RT=2.42 obs=2 slack=0.00m fb=0
+  [t=322.0] phase=A pos=(-2452.5,-2514.9) psi=+121.1deg wp=3 xte=-49.7m obs_d=259m ok=1 comp=2628.4ms solve=2625.9ms RT=2.63 obs=2 slack=0.00m fb=0
+  [t=323.0] phase=A pos=(-2452.1,-2514.1) psi=+121.5deg wp=3 xte=-49.4m obs_d=259m ok=1 comp=2451.6ms solve=2449.3ms RT=2.45 obs=2 slack=0.00m fb=0
+  [t=324.0] phase=A pos=(-2451.6,-2513.4) psi=+121.8deg wp=3 xte=-49.1m obs_d=258m ok=1 comp=2356.4ms solve=2353.8ms RT=2.36 obs=2 slack=0.00m fb=0
+  [t=325.0] phase=A pos=(-2451.2,-2512.6) psi=+122.2deg wp=3 xte=-48.7m obs_d=258m ok=1 comp=2490.3ms solve=2487.8ms RT=2.49 obs=2 slack=0.00m fb=0
+  [t=326.0] phase=A pos=(-2450.8,-2511.9) psi=+122.5deg wp=3 xte=-48.4m obs_d=257m ok=1 comp=2606.5ms solve=2603.6ms RT=2.61 obs=2 slack=0.00m fb=0
+  [t=327.0] phase=A pos=(-2450.3,-2511.2) psi=+122.8deg wp=3 xte=-48.1m obs_d=257m ok=1 comp=2779.2ms solve=2776.3ms RT=2.78 obs=2 slack=0.00m fb=0
+  [t=328.0] phase=A pos=(-2449.9,-2510.5) psi=+123.0deg wp=3 xte=-47.8m obs_d=256m ok=1 comp=2731.0ms solve=2727.6ms RT=2.73 obs=2 slack=0.00m fb=0
+  [t=329.0] phase=A pos=(-2449.5,-2509.8) psi=+123.3deg wp=3 xte=-47.5m obs_d=255m ok=1 comp=2441.4ms solve=2438.3ms RT=2.44 obs=2 slack=0.00m fb=0
+  [t=330.0] phase=A pos=(-2449.0,-2509.1) psi=+123.6deg wp=3 xte=-47.2m obs_d=255m ok=1 comp=2533.4ms solve=2530.4ms RT=2.53 obs=2 slack=0.00m fb=0
+  [t=331.0] phase=A pos=(-2448.6,-2508.3) psi=+123.8deg wp=3 xte=-46.9m obs_d=254m ok=1 comp=2580.0ms solve=2578.3ms RT=2.58 obs=2 slack=0.00m fb=0
+  [t=332.0] phase=A pos=(-2448.2,-2507.6) psi=+124.1deg wp=3 xte=-46.6m obs_d=254m ok=1 comp=2642.4ms solve=2639.7ms RT=2.64 obs=2 slack=0.00m fb=0
+  [t=333.0] phase=A pos=(-2447.8,-2506.9) psi=+124.4deg wp=3 xte=-46.3m obs_d=253m ok=1 comp=2341.0ms solve=2339.0ms RT=2.34 obs=2 slack=0.00m fb=0
+  [t=334.0] phase=A pos=(-2447.4,-2506.2) psi=+124.6deg wp=3 xte=-46.0m obs_d=253m ok=1 comp=2540.4ms solve=2538.1ms RT=2.54 obs=2 slack=0.00m fb=0
+  [t=335.0] phase=A pos=(-2447.0,-2505.5) psi=+124.9deg wp=3 xte=-45.7m obs_d=252m ok=1 comp=2372.7ms solve=2369.6ms RT=2.37 obs=2 slack=0.00m fb=0
+  [t=336.0] phase=A pos=(-2446.6,-2504.8) psi=+125.1deg wp=3 xte=-45.4m obs_d=252m ok=1 comp=2835.2ms solve=2832.5ms RT=2.84 obs=2 slack=0.00m fb=0
+  [t=337.0] phase=A pos=(-2446.2,-2504.0) psi=+125.4deg wp=3 xte=-45.2m obs_d=251m ok=1 comp=2636.5ms solve=2632.4ms RT=2.64 obs=2 slack=0.00m fb=0
+  [t=338.0] phase=A pos=(-2445.8,-2503.3) psi=+125.6deg wp=3 xte=-44.9m obs_d=251m ok=1 comp=2570.6ms solve=2568.3ms RT=2.57 obs=2 slack=0.00m fb=0
+  [t=339.0] phase=A pos=(-2445.4,-2502.6) psi=+125.9deg wp=3 xte=-44.6m obs_d=250m ok=1 comp=2679.0ms solve=2676.3ms RT=2.68 obs=2 slack=0.00m fb=0
+  [t=340.0] phase=A pos=(-2445.0,-2501.8) psi=+126.2deg wp=3 xte=-44.3m obs_d=250m ok=1 comp=2604.6ms solve=2602.3ms RT=2.60 obs=2 slack=0.00m fb=0
+  [t=341.0] phase=A pos=(-2444.6,-2501.0) psi=+126.5deg wp=3 xte=-44.1m obs_d=249m ok=1 comp=2379.2ms solve=2376.4ms RT=2.38 obs=2 slack=0.00m fb=0
+  [t=342.0] phase=A pos=(-2444.1,-2500.3) psi=+126.8deg wp=3 xte=-43.8m obs_d=249m ok=1 comp=2660.6ms solve=2658.5ms RT=2.66 obs=2 slack=0.00m fb=0
+  [t=343.0] phase=A pos=(-2443.7,-2499.5) psi=+127.1deg wp=3 xte=-43.5m obs_d=248m ok=1 comp=2383.5ms solve=2380.2ms RT=2.38 obs=2 slack=0.00m fb=0
+  [t=344.0] phase=A pos=(-2443.3,-2498.8) psi=+127.4deg wp=3 xte=-43.2m obs_d=248m ok=1 comp=2344.7ms solve=2341.8ms RT=2.34 obs=2 slack=0.00m fb=0
+  [t=345.0] phase=A pos=(-2443.0,-2498.0) psi=+127.7deg wp=3 xte=-43.0m obs_d=247m ok=1 comp=2372.5ms solve=2370.1ms RT=2.37 obs=2 slack=0.00m fb=0
+  [t=346.0] phase=A pos=(-2442.6,-2497.2) psi=+128.0deg wp=3 xte=-42.7m obs_d=247m ok=1 comp=2382.2ms solve=2380.0ms RT=2.38 obs=2 slack=0.00m fb=0
+  [t=347.0] phase=A pos=(-2442.2,-2496.5) psi=+128.3deg wp=3 xte=-42.4m obs_d=247m ok=1 comp=2322.4ms solve=2320.1ms RT=2.32 obs=2 slack=0.00m fb=0
+  [t=348.0] phase=A pos=(-2441.9,-2495.8) psi=+128.6deg wp=3 xte=-42.2m obs_d=246m ok=1 comp=2763.7ms solve=2761.4ms RT=2.76 obs=2 slack=0.00m fb=0
+  [t=349.0] phase=A pos=(-2441.5,-2495.0) psi=+128.8deg wp=3 xte=-42.0m obs_d=246m ok=1 comp=2539.6ms solve=2537.3ms RT=2.54 obs=2 slack=0.00m fb=0
+  [t=350.0] phase=A pos=(-2441.2,-2494.3) psi=+129.1deg wp=3 xte=-41.8m obs_d=245m ok=1 comp=2321.1ms solve=2318.3ms RT=2.32 obs=2 slack=0.00m fb=0
+  [t=351.0] phase=A pos=(-2440.9,-2493.5) psi=+129.3deg wp=3 xte=-41.6m obs_d=245m ok=1 comp=2383.0ms solve=2380.2ms RT=2.38 obs=2 slack=0.00m fb=0
+  [t=352.0] phase=A pos=(-2440.5,-2492.8) psi=+129.6deg wp=3 xte=-41.4m obs_d=244m ok=1 comp=2940.5ms solve=2938.2ms RT=2.94 obs=2 slack=0.00m fb=0
+  [t=353.0] phase=A pos=(-2440.2,-2492.0) psi=+129.8deg wp=3 xte=-41.2m obs_d=244m ok=1 comp=1833.6ms solve=1832.1ms RT=1.83 obs=2 slack=0.00m fb=0
+  [t=354.0] phase=A pos=(-2439.9,-2491.3) psi=+130.1deg wp=3 xte=-40.9m obs_d=244m ok=1 comp=1482.6ms solve=1481.4ms RT=1.48 obs=2 slack=0.00m fb=0
+  [t=355.0] phase=A pos=(-2439.5,-2490.5) psi=+130.3deg wp=3 xte=-40.8m obs_d=243m ok=1 comp=1559.1ms solve=1557.3ms RT=1.56 obs=2 slack=0.00m fb=0
+  [t=356.0] phase=A pos=(-2439.2,-2489.7) psi=+130.6deg wp=3 xte=-40.6m obs_d=243m ok=1 comp=1430.4ms solve=1426.7ms RT=1.43 obs=2 slack=0.00m fb=0
+  [t=357.0] phase=A pos=(-2438.9,-2488.9) psi=+130.9deg wp=3 xte=-40.4m obs_d=243m ok=1 comp=1494.5ms solve=1492.9ms RT=1.49 obs=2 slack=0.00m fb=0
+  [t=358.0] phase=A pos=(-2438.6,-2488.1) psi=+131.2deg wp=3 xte=-40.2m obs_d=242m ok=1 comp=1124.0ms solve=1122.7ms RT=1.12 obs=2 slack=0.00m fb=0
+  [t=359.0] phase=A pos=(-2438.3,-2487.3) psi=+131.5deg wp=3 xte=-40.0m obs_d=242m ok=1 comp=1079.1ms solve=1078.0ms RT=1.08 obs=2 slack=0.00m fb=0
+  [t=360.0] phase=A pos=(-2438.0,-2486.5) psi=+131.8deg wp=3 xte=-39.9m obs_d=241m ok=1 comp=1132.3ms solve=1130.5ms RT=1.13 obs=2 slack=0.00m fb=0
+  [t=361.0] phase=A pos=(-2437.8,-2485.8) psi=+132.0deg wp=3 xte=-39.7m obs_d=241m ok=1 comp=1160.4ms solve=1159.2ms RT=1.16 obs=2 slack=0.00m fb=0
+  [t=362.0] phase=A pos=(-2437.5,-2485.0) psi=+132.3deg wp=3 xte=-39.6m obs_d=241m ok=1 comp=1065.3ms solve=1063.9ms RT=1.07 obs=2 slack=0.00m fb=0
+  [t=363.0] phase=A pos=(-2437.2,-2484.2) psi=+132.5deg wp=3 xte=-39.5m obs_d=241m ok=1 comp=1230.4ms solve=1229.5ms RT=1.23 obs=2 slack=0.00m fb=0
+  [t=364.0] phase=A pos=(-2437.0,-2483.5) psi=+132.7deg wp=3 xte=-39.3m obs_d=240m ok=1 comp=1065.2ms solve=1063.8ms RT=1.07 obs=2 slack=0.00m fb=0
+  [t=365.0] phase=A pos=(-2436.7,-2482.7) psi=+132.9deg wp=3 xte=-39.2m obs_d=240m ok=1 comp=1057.1ms solve=1055.4ms RT=1.06 obs=2 slack=0.00m fb=0
+  [t=366.0] phase=A pos=(-2436.4,-2482.0) psi=+133.1deg wp=3 xte=-39.0m obs_d=240m ok=1 comp=1221.8ms solve=1220.3ms RT=1.22 obs=2 slack=0.00m fb=0
+  [t=367.0] phase=A pos=(-2436.1,-2481.2) psi=+133.4deg wp=3 xte=-38.9m obs_d=239m ok=1 comp=1179.3ms solve=1178.2ms RT=1.18 obs=2 slack=0.00m fb=0
+  [t=368.0] phase=A pos=(-2435.8,-2480.4) psi=+133.7deg wp=3 xte=-38.7m obs_d=239m ok=1 comp=1235.4ms solve=1234.0ms RT=1.24 obs=2 slack=0.00m fb=0
+  [t=369.0] phase=A pos=(-2435.5,-2479.7) psi=+133.9deg wp=3 xte=-38.5m obs_d=239m ok=1 comp=1378.0ms solve=1376.6ms RT=1.38 obs=2 slack=0.00m fb=0
+  [t=376.0] phase=A pos=(-2433.8,-2474.4) psi=+135.4deg wp=3 xte=-37.7m obs_d=237m ok=1 comp=1038.1ms solve=1037.4ms RT=1.04 obs=2 slack=0.00m fb=0
+  [t=379.0] phase=A pos=(-2433.1,-2472.1) psi=+136.1deg wp=3 xte=-37.3m obs_d=236m ok=1 comp=929.2ms solve=928.2ms RT=0.93 obs=2 slack=0.00m fb=0
+  [t=383.0] phase=A pos=(-2432.2,-2469.1) psi=+136.9deg wp=3 xte=-36.9m obs_d=235m ok=1 comp=1162.2ms solve=1161.1ms RT=1.16 obs=2 slack=0.00m fb=0
+  [t=384.0] phase=A pos=(-2432.0,-2468.3) psi=+137.1deg wp=3 xte=-36.8m obs_d=235m ok=1 comp=1025.5ms solve=1024.2ms RT=1.03 obs=2 slack=0.00m fb=0
+  [t=386.0] phase=A pos=(-2431.6,-2466.8) psi=+137.5deg wp=3 xte=-36.7m obs_d=234m ok=1 comp=1023.9ms solve=1023.0ms RT=1.02 obs=2 slack=0.00m fb=0
+  [t=387.0] phase=A pos=(-2431.4,-2466.0) psi=+137.7deg wp=3 xte=-36.6m obs_d=234m ok=1 comp=1394.7ms solve=1393.6ms RT=1.39 obs=2 slack=0.00m fb=0
+  [t=389.0] phase=A pos=(-2431.0,-2464.5) psi=+138.1deg wp=3 xte=-36.5m obs_d=234m ok=1 comp=1365.7ms solve=1363.9ms RT=1.37 obs=2 slack=0.00m fb=0
+  [t=390.0] phase=A pos=(-2430.9,-2463.8) psi=+138.2deg wp=3 xte=-36.4m obs_d=234m ok=1 comp=1192.6ms solve=1191.3ms RT=1.19 obs=2 slack=0.00m fb=0
+  [t=391.0] phase=A pos=(-2430.7,-2463.0) psi=+138.4deg wp=3 xte=-36.4m obs_d=234m ok=1 comp=1185.1ms solve=1184.0ms RT=1.19 obs=2 slack=0.00m fb=0
+  [t=397.0] phase=A pos=(-2429.7,-2458.6) psi=+139.2deg wp=3 xte=-36.1m obs_d=233m ok=1 comp=1224.9ms solve=1223.4ms RT=1.22 obs=2 slack=0.00m fb=0
+  [t=398.0] phase=A pos=(-2429.5,-2457.8) psi=+139.4deg wp=3 xte=-36.1m obs_d=232m ok=1 comp=1496.5ms solve=1495.1ms RT=1.50 obs=2 slack=0.00m fb=0
+  [t=399.0] phase=A pos=(-2429.3,-2457.0) psi=+139.6deg wp=3 xte=-36.0m obs_d=232m ok=1 comp=1286.8ms solve=1285.5ms RT=1.29 obs=2 slack=0.00m fb=0
+  [t=400.0] phase=A pos=(-2429.1,-2456.3) psi=+139.8deg wp=3 xte=-36.0m obs_d=231m ok=1 comp=1180.6ms solve=1179.3ms RT=1.18 obs=2 slack=0.00m fb=0
+  [t=401.0] phase=A pos=(-2428.9,-2455.5) psi=+140.1deg wp=3 xte=-35.9m obs_d=231m ok=1 comp=1633.7ms solve=1632.5ms RT=1.63 obs=2 slack=0.00m fb=0
+  [t=402.0] phase=A pos=(-2428.7,-2454.6) psi=+140.3deg wp=3 xte=-35.8m obs_d=231m ok=1 comp=1598.5ms solve=1597.0ms RT=1.60 obs=2 slack=0.00m fb=0
+  [t=403.0] phase=A pos=(-2428.5,-2453.8) psi=+140.6deg wp=3 xte=-35.8m obs_d=230m ok=1 comp=1238.0ms solve=1236.5ms RT=1.24 obs=2 slack=0.00m fb=0
+  [t=404.0] phase=A pos=(-2428.3,-2453.0) psi=+140.8deg wp=3 xte=-35.7m obs_d=230m ok=1 comp=1189.0ms solve=1187.6ms RT=1.19 obs=2 slack=0.00m fb=0
+  [t=405.0] phase=A pos=(-2428.2,-2452.3) psi=+141.0deg wp=3 xte=-35.7m obs_d=229m ok=1 comp=1372.0ms solve=1370.1ms RT=1.37 obs=2 slack=0.00m fb=0
+  [t=406.0] phase=A pos=(-2428.0,-2451.5) psi=+141.2deg wp=3 xte=-35.6m obs_d=229m ok=1 comp=1564.2ms solve=1562.8ms RT=1.56 obs=2 slack=0.00m fb=0
+  [t=407.0] phase=A pos=(-2427.9,-2450.7) psi=+141.3deg wp=3 xte=-35.6m obs_d=229m ok=1 comp=1249.6ms solve=1247.6ms RT=1.25 obs=2 slack=0.00m fb=0
+  [t=408.0] phase=A pos=(-2427.7,-2449.9) psi=+141.5deg wp=3 xte=-35.6m obs_d=228m ok=1 comp=1639.2ms solve=1637.6ms RT=1.64 obs=2 slack=0.00m fb=0
+  [t=409.0] phase=A pos=(-2427.6,-2449.2) psi=+141.7deg wp=3 xte=-35.6m obs_d=228m ok=1 comp=1828.6ms solve=1827.1ms RT=1.83 obs=2 slack=0.00m fb=0
+  [t=410.0] phase=A pos=(-2427.5,-2448.4) psi=+141.8deg wp=3 xte=-35.6m obs_d=227m ok=1 comp=1243.4ms solve=1242.0ms RT=1.24 obs=2 slack=0.00m fb=0
+  [t=411.0] phase=A pos=(-2427.3,-2447.6) psi=+142.0deg wp=3 xte=-35.6m obs_d=227m ok=1 comp=1410.6ms solve=1408.8ms RT=1.41 obs=2 slack=0.00m fb=0
+  [t=412.0] phase=A pos=(-2427.2,-2446.9) psi=+142.2deg wp=3 xte=-35.6m obs_d=227m ok=1 comp=1257.7ms solve=1256.5ms RT=1.26 obs=2 slack=0.00m fb=0
+  [t=413.0] phase=A pos=(-2427.1,-2446.1) psi=+142.3deg wp=3 xte=-35.6m obs_d=226m ok=1 comp=1279.1ms solve=1278.0ms RT=1.28 obs=2 slack=0.00m fb=0
+  [t=414.0] phase=A pos=(-2427.0,-2445.4) psi=+142.5deg wp=3 xte=-35.6m obs_d=226m ok=1 comp=1194.3ms solve=1193.0ms RT=1.19 obs=2 slack=0.00m fb=0
+  [t=415.0] phase=A pos=(-2426.8,-2444.6) psi=+142.7deg wp=3 xte=-35.6m obs_d=226m ok=1 comp=1291.1ms solve=1289.9ms RT=1.29 obs=2 slack=0.00m fb=0
+  [t=416.0] phase=A pos=(-2426.7,-2443.8) psi=+142.9deg wp=3 xte=-35.6m obs_d=225m ok=1 comp=1266.0ms solve=1264.1ms RT=1.27 obs=2 slack=0.00m fb=0
+  [t=417.0] phase=A pos=(-2426.6,-2443.1) psi=+143.0deg wp=3 xte=-35.6m obs_d=225m ok=1 comp=1153.1ms solve=1151.7ms RT=1.15 obs=2 slack=0.00m fb=0
+  [t=418.0] phase=A pos=(-2426.5,-2442.3) psi=+143.2deg wp=3 xte=-35.6m obs_d=225m ok=1 comp=1160.2ms solve=1158.7ms RT=1.16 obs=2 slack=0.00m fb=0
+  [t=419.0] phase=A pos=(-2426.4,-2441.5) psi=+143.3deg wp=3 xte=-35.6m obs_d=224m ok=1 comp=1050.6ms solve=1049.4ms RT=1.05 obs=2 slack=0.00m fb=0
+  [t=421.0] phase=A pos=(-2426.2,-2440.0) psi=+143.6deg wp=3 xte=-35.6m obs_d=224m ok=1 comp=1477.6ms solve=1476.3ms RT=1.48 obs=2 slack=0.00m fb=0
+  [t=422.0] phase=A pos=(-2426.1,-2439.3) psi=+143.8deg wp=3 xte=-35.7m obs_d=224m ok=1 comp=1477.3ms solve=1475.9ms RT=1.48 obs=2 slack=0.00m fb=0
+  [t=427.0] phase=A pos=(-2425.6,-2435.6) psi=+144.4deg wp=3 xte=-35.8m obs_d=222m ok=1 comp=1051.9ms solve=1050.8ms RT=1.05 obs=2 slack=0.00m fb=0
+  [t=435.0] phase=A pos=(-2425.1,-2429.7) psi=+145.2deg wp=3 xte=-36.3m obs_d=220m ok=1 comp=1143.3ms solve=1141.7ms RT=1.14 obs=2 slack=0.00m fb=0
+  [t=436.0] phase=A pos=(-2425.1,-2429.0) psi=+145.3deg wp=3 xte=-36.3m obs_d=220m ok=1 comp=1142.2ms solve=1140.5ms RT=1.14 obs=2 slack=0.00m fb=0
+  [t=437.0] phase=A pos=(-2425.0,-2428.2) psi=+145.4deg wp=3 xte=-36.4m obs_d=220m ok=1 comp=1230.3ms solve=1229.1ms RT=1.23 obs=2 slack=0.00m fb=0
+  [t=438.0] phase=A pos=(-2424.9,-2427.5) psi=+145.5deg wp=3 xte=-36.4m obs_d=220m ok=1 comp=1694.7ms solve=1693.5ms RT=1.69 obs=2 slack=0.00m fb=0
+  [t=439.0] phase=A pos=(-2424.9,-2426.8) psi=+145.6deg wp=3 xte=-36.5m obs_d=219m ok=1 comp=1080.3ms solve=1078.9ms RT=1.08 obs=2 slack=0.00m fb=0
+  [t=440.0] phase=A pos=(-2424.8,-2426.1) psi=+145.6deg wp=3 xte=-36.6m obs_d=219m ok=1 comp=1153.3ms solve=1152.1ms RT=1.15 obs=2 slack=0.00m fb=0
+  [t=444.0] phase=A pos=(-2424.6,-2423.2) psi=+146.0deg wp=3 xte=-36.8m obs_d=218m ok=1 comp=1268.8ms solve=1267.1ms RT=1.27 obs=2 slack=0.00m fb=0
+  [t=445.0] phase=A pos=(-2424.5,-2422.4) psi=+146.1deg wp=3 xte=-36.9m obs_d=218m ok=1 comp=1272.2ms solve=1270.0ms RT=1.27 obs=2 slack=0.00m fb=0
+  [t=446.0] phase=A pos=(-2424.5,-2421.7) psi=+146.2deg wp=3 xte=-36.9m obs_d=218m ok=1 comp=1679.5ms solve=1678.1ms RT=1.68 obs=2 slack=0.00m fb=0
+  [t=447.0] phase=A pos=(-2424.4,-2421.0) psi=+146.2deg wp=3 xte=-37.0m obs_d=218m ok=1 comp=1439.7ms solve=1437.5ms RT=1.44 obs=2 slack=0.00m fb=0
+  [t=448.0] phase=A pos=(-2424.4,-2420.3) psi=+146.3deg wp=3 xte=-37.1m obs_d=218m ok=1 comp=1057.0ms solve=1055.7ms RT=1.06 obs=2 slack=0.00m fb=0
+  [t=449.0] phase=A pos=(-2424.4,-2419.6) psi=+146.4deg wp=3 xte=-37.2m obs_d=217m ok=1 comp=1189.2ms solve=1187.5ms RT=1.19 obs=2 slack=0.00m fb=0
+  [t=450.0] phase=A pos=(-2424.3,-2418.9) psi=+146.5deg wp=3 xte=-37.3m obs_d=217m ok=1 comp=1004.8ms solve=1002.8ms RT=1.00 obs=2 slack=0.00m fb=0
+  [t=453.0] phase=A pos=(-2424.2,-2416.7) psi=+146.7deg wp=3 xte=-37.5m obs_d=217m ok=1 comp=1019.2ms solve=1018.1ms RT=1.02 obs=2 slack=0.00m fb=0
+  [t=457.0] phase=A pos=(-2424.0,-2413.7) psi=+147.3deg wp=3 xte=-37.8m obs_d=216m ok=1 comp=1072.5ms solve=1071.6ms RT=1.07 obs=2 slack=0.00m fb=0
+  [t=459.0] phase=A pos=(-2424.0,-2412.2) psi=+147.6deg wp=3 xte=-38.0m obs_d=216m ok=1 comp=908.5ms solve=907.3ms RT=0.91 obs=2 slack=0.00m fb=0
+  [t=468.0] phase=A pos=(-2423.8,-2405.8) psi=+148.1deg wp=3 xte=-38.9m obs_d=215m ok=1 comp=1048.9ms solve=1047.6ms RT=1.05 obs=2 slack=0.00m fb=0
+  [t=469.0] phase=A pos=(-2423.8,-2405.1) psi=+148.1deg wp=3 xte=-39.0m obs_d=215m ok=1 comp=1956.9ms solve=1955.7ms RT=1.96 obs=2 slack=0.00m fb=0
+  [t=470.0] phase=A pos=(-2423.8,-2404.4) psi=+148.2deg wp=3 xte=-39.1m obs_d=215m ok=1 comp=1212.4ms solve=1211.2ms RT=1.21 obs=2 slack=0.00m fb=0
+  [t=475.0] phase=A pos=(-2423.6,-2400.8) psi=+148.6deg wp=3 xte=-39.5m obs_d=214m ok=1 comp=1153.1ms solve=1152.0ms RT=1.15 obs=2 slack=0.00m fb=0
+  [t=476.0] phase=A pos=(-2423.6,-2400.0) psi=+148.7deg wp=3 xte=-39.6m obs_d=214m ok=1 comp=1213.1ms solve=1211.6ms RT=1.21 obs=2 slack=0.00m fb=0
+  [t=477.0] phase=A pos=(-2423.6,-2399.3) psi=+148.9deg wp=3 xte=-39.7m obs_d=214m ok=1 comp=1122.4ms solve=1121.2ms RT=1.12 obs=2 slack=0.00m fb=0
+  [t=478.0] phase=A pos=(-2423.5,-2398.5) psi=+149.0deg wp=3 xte=-39.8m obs_d=214m ok=1 comp=1202.5ms solve=1201.3ms RT=1.20 obs=2 slack=0.00m fb=0
+  [t=479.0] phase=A pos=(-2423.5,-2397.8) psi=+149.1deg wp=3 xte=-39.9m obs_d=214m ok=1 comp=942.7ms solve=941.4ms RT=0.94 obs=2 slack=0.00m fb=0
+  [t=483.0] phase=A pos=(-2423.5,-2394.9) psi=+149.5deg wp=3 xte=-40.3m obs_d=213m ok=1 comp=1174.7ms solve=1173.9ms RT=1.17 obs=2 slack=0.00m fb=0
+  [t=484.0] phase=A pos=(-2423.5,-2394.2) psi=+149.5deg wp=3 xte=-40.5m obs_d=213m ok=1 comp=1151.8ms solve=1150.2ms RT=1.15 obs=2 slack=0.00m fb=0
+  [t=487.0] phase=A pos=(-2423.6,-2392.1) psi=+149.6deg wp=3 xte=-40.9m obs_d=213m ok=1 comp=1027.7ms solve=1026.8ms RT=1.03 obs=2 slack=0.00m fb=0
+  [t=488.0] phase=A pos=(-2423.6,-2391.5) psi=+149.6deg wp=3 xte=-41.0m obs_d=213m ok=1 comp=1054.3ms solve=1052.9ms RT=1.05 obs=2 slack=0.00m fb=0
+  [t=492.0] phase=A pos=(-2423.6,-2388.7) psi=+149.9deg wp=3 xte=-41.5m obs_d=213m ok=1 comp=1015.0ms solve=1013.8ms RT=1.02 obs=2 slack=0.00m fb=0
+  [t=495.0] phase=A pos=(-2423.7,-2386.6) psi=+150.0deg wp=3 xte=-41.9m obs_d=213m ok=1 comp=1159.8ms solve=1158.4ms RT=1.16 obs=2 slack=0.00m fb=0
+  [t=496.0] phase=A pos=(-2423.7,-2385.9) psi=+150.0deg wp=3 xte=-42.0m obs_d=213m ok=1 comp=1236.3ms solve=1235.3ms RT=1.24 obs=2 slack=0.00m fb=0
+  [t=499.0] phase=A pos=(-2423.9,-2383.9) psi=+150.0deg wp=3 xte=-42.5m obs_d=213m ok=1 comp=1017.6ms solve=1016.8ms RT=1.02 obs=2 slack=0.00m fb=0
+  [t=500.0] phase=A pos=(-2423.9,-2383.3) psi=+150.0deg wp=3 xte=-42.6m obs_d=213m ok=1 comp=1082.9ms solve=1081.6ms RT=1.08 obs=2 slack=0.00m fb=0
+  [t=504.0] phase=A pos=(-2424.0,-2380.6) psi=+150.0deg wp=3 xte=-43.2m obs_d=213m ok=1 comp=1209.6ms solve=1208.3ms RT=1.21 obs=2 slack=0.00m fb=0
+  [t=505.0] phase=A pos=(-2424.0,-2379.9) psi=+150.0deg wp=3 xte=-43.3m obs_d=213m ok=1 comp=1066.2ms solve=1065.1ms RT=1.07 obs=2 slack=0.00m fb=0
+  [t=506.0] phase=A pos=(-2424.1,-2379.3) psi=+149.9deg wp=3 xte=-43.4m obs_d=213m ok=1 comp=1272.7ms solve=1270.2ms RT=1.27 obs=2 slack=0.00m fb=0
+  [t=507.0] phase=A pos=(-2424.2,-2378.6) psi=+149.9deg wp=3 xte=-43.6m obs_d=214m ok=1 comp=1180.3ms solve=1178.5ms RT=1.18 obs=2 slack=0.00m fb=0
+  [t=508.0] phase=A pos=(-2424.2,-2378.0) psi=+149.8deg wp=3 xte=-43.8m obs_d=214m ok=1 comp=1074.7ms solve=1073.0ms RT=1.07 obs=2 slack=0.00m fb=0
+  [t=511.0] phase=A pos=(-2424.3,-2376.1) psi=+149.7deg wp=3 xte=-44.2m obs_d=214m ok=1 comp=1155.3ms solve=1154.1ms RT=1.16 obs=2 slack=0.00m fb=0
+  [t=514.0] phase=A pos=(-2424.4,-2374.0) psi=+149.8deg wp=3 xte=-44.7m obs_d=214m ok=1 comp=1056.1ms solve=1054.8ms RT=1.06 obs=2 slack=0.00m fb=0
+  [t=519.0] phase=A pos=(-2424.5,-2370.5) psi=+150.2deg wp=3 xte=-45.3m obs_d=214m ok=1 comp=811.1ms solve=810.1ms RT=0.81 obs=2 slack=0.00m fb=0
+  [t=522.0] phase=A pos=(-2424.6,-2368.5) psi=+150.3deg wp=3 xte=-45.8m obs_d=214m ok=1 comp=1109.1ms solve=1107.8ms RT=1.11 obs=2 slack=0.00m fb=0
+  [t=536.0] phase=A pos=(-2425.1,-2359.1) psi=+150.7deg wp=3 xte=-47.7m obs_d=212m ok=1 comp=1109.7ms solve=1108.3ms RT=1.11 obs=2 slack=0.00m fb=0
+  [t=537.0] phase=A pos=(-2425.1,-2358.4) psi=+150.8deg wp=3 xte=-47.9m obs_d=212m ok=1 comp=1036.4ms solve=1035.2ms RT=1.04 obs=2 slack=0.00m fb=0
+  [t=539.0] phase=A pos=(-2425.2,-2357.0) psi=+150.8deg wp=3 xte=-48.2m obs_d=212m ok=1 comp=728.0ms solve=727.2ms RT=0.73 obs=2 slack=0.00m fb=0
+  [t=544.0] phase=A pos=(-2425.4,-2353.7) psi=+151.0deg wp=3 xte=-49.0m obs_d=211m ok=1 comp=1253.7ms solve=1252.9ms RT=1.25 obs=2 slack=0.00m fb=0
+  [t=545.0] phase=A pos=(-2425.5,-2353.0) psi=+151.0deg wp=3 xte=-49.1m obs_d=211m ok=1 comp=1815.1ms solve=1813.6ms RT=1.82 obs=2 slack=0.00m fb=0
+  [t=549.0] phase=A pos=(-2425.8,-2350.7) psi=+150.7deg wp=3 xte=-49.8m obs_d=211m ok=1 comp=1133.3ms solve=1132.4ms RT=1.13 obs=2 slack=0.00m fb=0
+  [t=552.0] phase=A pos=(-2426.0,-2348.8) psi=+150.5deg wp=3 xte=-50.3m obs_d=210m ok=1 comp=1121.5ms solve=1120.6ms RT=1.12 obs=2 slack=0.00m fb=0
+  [t=559.0] phase=A pos=(-2426.5,-2344.5) psi=+150.0deg wp=3 xte=-51.6m obs_d=210m ok=1 comp=798.1ms solve=797.3ms RT=0.80 obs=2 slack=0.00m fb=0
+  [t=566.0] phase=A pos=(-2426.8,-2339.9) psi=+150.0deg wp=3 xte=-52.6m obs_d=209m ok=1 comp=1132.0ms solve=1131.2ms RT=1.13 obs=2 slack=0.00m fb=0
+  [t=568.0] phase=A pos=(-2426.8,-2338.6) psi=+150.1deg wp=3 xte=-52.9m obs_d=208m ok=1 comp=1233.0ms solve=1231.8ms RT=1.23 obs=2 slack=0.00m fb=0
+  [t=569.0] phase=A pos=(-2426.8,-2337.9) psi=+150.1deg wp=3 xte=-53.0m obs_d=208m ok=1 comp=1449.4ms solve=1448.4ms RT=1.45 obs=2 slack=0.00m fb=0
+  [t=578.0] phase=A pos=(-2427.3,-2332.1) psi=+149.9deg wp=3 xte=-54.3m obs_d=207m ok=1 comp=1118.4ms solve=1117.6ms RT=1.12 obs=2 slack=0.00m fb=0
+  [t=579.0] phase=A pos=(-2427.3,-2331.5) psi=+149.8deg wp=3 xte=-54.5m obs_d=207m ok=1 comp=922.2ms solve=921.1ms RT=0.92 obs=2 slack=0.00m fb=0
+  [t=580.0] phase=A pos=(-2427.4,-2331.0) psi=+149.7deg wp=3 xte=-54.7m obs_d=207m ok=1 comp=1020.3ms solve=1019.1ms RT=1.02 obs=2 slack=0.00m fb=0
+  [t=581.0] phase=A pos=(-2427.5,-2330.4) psi=+149.5deg wp=3 xte=-54.8m obs_d=207m ok=1 comp=1156.3ms solve=1155.3ms RT=1.16 obs=2 slack=0.00m fb=0
+  [t=590.0] phase=A pos=(-2428.1,-2325.1) psi=+148.6deg wp=3 xte=-56.4m obs_d=207m ok=1 comp=1041.9ms solve=1041.0ms RT=1.04 obs=2 slack=0.00m fb=0
+  [t=591.0] phase=A pos=(-2428.2,-2324.5) psi=+148.5deg wp=3 xte=-56.5m obs_d=207m ok=1 comp=1201.1ms solve=1199.9ms RT=1.20 obs=2 slack=0.00m fb=0
+  [t=595.0] phase=A pos=(-2428.3,-2321.9) psi=+148.5deg wp=3 xte=-57.1m obs_d=207m ok=1 comp=1221.6ms solve=1220.8ms RT=1.22 obs=2 slack=0.00m fb=0
+  [t=599.0] phase=A pos=(-2428.4,-2319.3) psi=+148.5deg wp=3 xte=-57.6m obs_d=206m ok=1 comp=810.4ms solve=809.4ms RT=0.81 obs=2 slack=0.00m fb=0
+  [t=600.0] phase=A pos=(-2428.5,-2318.7) psi=+148.4deg wp=3 xte=-57.7m obs_d=206m ok=1 comp=1222.8ms solve=1221.7ms RT=1.22 obs=2 slack=0.00m fb=0
+  [t=601.0] phase=A pos=(-2428.5,-2318.1) psi=+148.3deg wp=3 xte=-57.9m obs_d=206m ok=1 comp=1073.0ms solve=1071.8ms RT=1.07 obs=2 slack=0.00m fb=0
+  [t=602.0] phase=A pos=(-2428.6,-2317.5) psi=+148.3deg wp=3 xte=-58.1m obs_d=206m ok=1 comp=1280.0ms solve=1278.8ms RT=1.28 obs=2 slack=0.00m fb=0
+  [t=619.0] phase=A pos=(-2429.6,-2307.5) psi=+146.5deg wp=3 xte=-60.7m obs_d=206m ok=1 comp=699.4ms solve=698.7ms RT=0.70 obs=2 slack=0.00m fb=0
+  [t=635.0] phase=A pos=(-2430.1,-2297.9) psi=+145.2deg wp=3 xte=-62.8m obs_d=206m ok=1 comp=1054.0ms solve=1053.2ms RT=1.05 obs=2 slack=0.00m fb=0
+  [t=639.0] phase=A pos=(-2430.2,-2295.6) psi=+144.8deg wp=3 xte=-63.3m obs_d=206m ok=1 comp=764.4ms solve=763.4ms RT=0.76 obs=2 slack=0.00m fb=0
+  [t=642.0] phase=A pos=(-2430.2,-2293.8) psi=+144.6deg wp=3 xte=-63.6m obs_d=206m ok=1 comp=1136.8ms solve=1135.9ms RT=1.14 obs=2 slack=0.00m fb=0
+  [t=644.0] phase=A pos=(-2430.3,-2292.6) psi=+144.4deg wp=3 xte=-63.9m obs_d=206m ok=1 comp=1064.1ms solve=1063.3ms RT=1.06 obs=2 slack=0.00m fb=0
+  [t=647.0] phase=A pos=(-2430.4,-2290.9) psi=+144.0deg wp=3 xte=-64.2m obs_d=206m ok=1 comp=1272.8ms solve=1271.7ms RT=1.27 obs=2 slack=0.00m fb=0
+  [t=648.0] phase=A pos=(-2430.4,-2290.3) psi=+143.9deg wp=3 xte=-64.4m obs_d=206m ok=1 comp=1096.5ms solve=1095.1ms RT=1.10 obs=2 slack=0.00m fb=0
+  [t=649.0] phase=A pos=(-2430.4,-2289.7) psi=+143.8deg wp=3 xte=-64.5m obs_d=206m ok=1 comp=1058.2ms solve=1056.8ms RT=1.06 obs=2 slack=0.00m fb=0
+  [t=651.0] phase=A pos=(-2430.4,-2288.5) psi=+143.7deg wp=3 xte=-64.7m obs_d=206m ok=1 comp=1024.1ms solve=1023.2ms RT=1.02 obs=2 slack=0.00m fb=0
+  [t=652.0] phase=A pos=(-2430.4,-2287.9) psi=+143.6deg wp=3 xte=-64.8m obs_d=206m ok=1 comp=1167.1ms solve=1165.9ms RT=1.17 obs=2 slack=0.00m fb=0
+  [t=653.0] phase=A pos=(-2430.4,-2287.3) psi=+143.6deg wp=3 xte=-64.9m obs_d=206m ok=1 comp=1289.7ms solve=1287.6ms RT=1.29 obs=2 slack=0.00m fb=0
+  [t=654.0] phase=A pos=(-2430.4,-2286.6) psi=+143.6deg wp=3 xte=-65.0m obs_d=206m ok=1 comp=1116.9ms solve=1115.4ms RT=1.12 obs=2 slack=0.00m fb=0
+  [t=655.0] phase=A pos=(-2430.4,-2286.0) psi=+143.6deg wp=3 xte=-65.1m obs_d=206m ok=1 comp=1513.9ms solve=1512.5ms RT=1.51 obs=2 slack=0.00m fb=0
+  [t=656.0] phase=A pos=(-2430.4,-2285.3) psi=+143.6deg wp=3 xte=-65.2m obs_d=206m ok=1 comp=1149.6ms solve=1148.2ms RT=1.15 obs=2 slack=0.00m fb=0
+  [t=657.0] phase=A pos=(-2430.3,-2284.7) psi=+143.6deg wp=3 xte=-65.2m obs_d=206m ok=1 comp=1029.0ms solve=1027.8ms RT=1.03 obs=2 slack=0.00m fb=0
+  [t=658.0] phase=A pos=(-2430.3,-2284.1) psi=+143.6deg wp=3 xte=-65.3m obs_d=206m ok=1 comp=1021.6ms solve=1020.1ms RT=1.02 obs=2 slack=0.00m fb=0
+  [t=659.0] phase=A pos=(-2430.3,-2283.4) psi=+143.6deg wp=3 xte=-65.4m obs_d=206m ok=1 comp=1279.3ms solve=1277.9ms RT=1.28 obs=2 slack=0.00m fb=0
+  [t=660.0] phase=A pos=(-2430.2,-2282.8) psi=+143.6deg wp=3 xte=-65.5m obs_d=206m ok=1 comp=1075.9ms solve=1074.2ms RT=1.08 obs=2 slack=0.00m fb=0
+  [t=662.0] phase=A pos=(-2430.2,-2281.5) psi=+143.6deg wp=3 xte=-65.6m obs_d=206m ok=1 comp=1186.4ms solve=1185.5ms RT=1.19 obs=2 slack=0.00m fb=0
+  [t=663.0] phase=A pos=(-2430.2,-2280.9) psi=+143.6deg wp=3 xte=-65.7m obs_d=206m ok=1 comp=1065.0ms solve=1063.7ms RT=1.06 obs=2 slack=0.00m fb=0
+  [t=664.0] phase=A pos=(-2430.1,-2280.2) psi=+143.6deg wp=3 xte=-65.8m obs_d=206m ok=1 comp=1154.2ms solve=1152.9ms RT=1.15 obs=2 slack=0.00m fb=0
+  [t=665.0] phase=A pos=(-2430.1,-2279.6) psi=+143.6deg wp=3 xte=-65.9m obs_d=206m ok=1 comp=1063.7ms solve=1062.6ms RT=1.06 obs=2 slack=0.00m fb=0
+  [t=666.0] phase=A pos=(-2430.1,-2278.9) psi=+143.6deg wp=3 xte=-65.9m obs_d=206m ok=1 comp=1168.9ms solve=1167.9ms RT=1.17 obs=2 slack=0.00m fb=0
+  [t=667.0] phase=A pos=(-2430.1,-2278.3) psi=+143.5deg wp=3 xte=-66.0m obs_d=206m ok=1 comp=1179.8ms solve=1178.5ms RT=1.18 obs=2 slack=0.00m fb=0
+  [t=668.0] phase=A pos=(-2430.0,-2277.7) psi=+143.5deg wp=3 xte=-66.1m obs_d=206m ok=1 comp=1255.2ms solve=1253.9ms RT=1.26 obs=2 slack=0.00m fb=0
+  [t=669.0] phase=A pos=(-2430.0,-2277.0) psi=+143.5deg wp=3 xte=-66.2m obs_d=206m ok=1 comp=1118.0ms solve=1115.9ms RT=1.12 obs=2 slack=0.00m fb=0
+  [t=670.0] phase=A pos=(-2430.0,-2276.4) psi=+143.5deg wp=3 xte=-66.3m obs_d=206m ok=1 comp=1099.7ms solve=1098.1ms RT=1.10 obs=2 slack=0.00m fb=0
+  [t=671.0] phase=A pos=(-2429.9,-2275.7) psi=+143.5deg wp=3 xte=-66.3m obs_d=206m ok=1 comp=1260.3ms solve=1259.1ms RT=1.26 obs=2 slack=0.00m fb=0
+  [t=673.0] phase=A pos=(-2429.9,-2274.4) psi=+143.5deg wp=3 xte=-66.5m obs_d=206m ok=1 comp=1154.9ms solve=1153.9ms RT=1.15 obs=2 slack=0.00m fb=0
+  [t=674.0] phase=A pos=(-2429.9,-2273.8) psi=+143.5deg wp=3 xte=-66.6m obs_d=206m ok=1 comp=1555.3ms solve=1554.1ms RT=1.56 obs=2 slack=0.00m fb=0
+  [t=676.0] phase=A pos=(-2429.9,-2272.5) psi=+143.4deg wp=3 xte=-66.8m obs_d=207m ok=1 comp=1151.8ms solve=1150.5ms RT=1.15 obs=2 slack=0.00m fb=0
+  [t=677.0] phase=A pos=(-2429.9,-2271.9) psi=+143.4deg wp=3 xte=-66.9m obs_d=207m ok=1 comp=1106.5ms solve=1105.1ms RT=1.11 obs=2 slack=0.00m fb=0
+  [t=678.0] phase=A pos=(-2429.9,-2271.3) psi=+143.3deg wp=3 xte=-67.0m obs_d=207m ok=1 comp=1035.1ms solve=1033.5ms RT=1.04 obs=2 slack=0.00m fb=0
+  [t=679.0] phase=A pos=(-2429.9,-2270.7) psi=+143.3deg wp=3 xte=-67.1m obs_d=207m ok=1 comp=1419.8ms solve=1418.1ms RT=1.42 obs=2 slack=0.00m fb=0
+  [t=680.0] phase=A pos=(-2429.9,-2270.0) psi=+143.2deg wp=3 xte=-67.2m obs_d=207m ok=1 comp=1236.7ms solve=1235.5ms RT=1.24 obs=2 slack=0.00m fb=0
+  [t=681.0] phase=A pos=(-2429.9,-2269.4) psi=+143.2deg wp=3 xte=-67.3m obs_d=207m ok=1 comp=1136.1ms solve=1135.0ms RT=1.14 obs=2 slack=0.00m fb=0
+  [t=682.0] phase=A pos=(-2429.9,-2268.8) psi=+143.1deg wp=3 xte=-67.4m obs_d=207m ok=1 comp=1067.0ms solve=1065.7ms RT=1.07 obs=2 slack=0.00m fb=0
+  [t=683.0] phase=A pos=(-2429.8,-2268.2) psi=+143.1deg wp=3 xte=-67.5m obs_d=207m ok=1 comp=1056.4ms solve=1055.0ms RT=1.06 obs=2 slack=0.00m fb=0
+  [t=684.0] phase=A pos=(-2429.8,-2267.5) psi=+143.1deg wp=3 xte=-67.5m obs_d=207m ok=1 comp=1186.7ms solve=1184.9ms RT=1.19 obs=2 slack=0.00m fb=0
+  [t=685.0] phase=A pos=(-2429.8,-2266.9) psi=+143.1deg wp=3 xte=-67.6m obs_d=207m ok=1 comp=1032.5ms solve=1031.1ms RT=1.03 obs=2 slack=0.00m fb=0
+  [t=686.0] phase=A pos=(-2429.7,-2266.3) psi=+143.1deg wp=3 xte=-67.7m obs_d=207m ok=1 comp=1208.2ms solve=1207.2ms RT=1.21 obs=2 slack=0.00m fb=0
+  [t=687.0] phase=A pos=(-2429.7,-2265.6) psi=+143.1deg wp=3 xte=-67.8m obs_d=207m ok=1 comp=1444.4ms solve=1443.1ms RT=1.44 obs=2 slack=0.00m fb=0
+  [t=688.0] phase=A pos=(-2429.7,-2264.9) psi=+143.1deg wp=3 xte=-67.8m obs_d=207m ok=1 comp=1258.7ms solve=1257.4ms RT=1.26 obs=2 slack=0.00m fb=0
+  [t=689.0] phase=A pos=(-2429.6,-2264.3) psi=+143.1deg wp=3 xte=-67.9m obs_d=207m ok=1 comp=1566.9ms solve=1565.9ms RT=1.57 obs=2 slack=0.00m fb=0
+  [t=690.0] phase=A pos=(-2429.6,-2263.6) psi=+143.1deg wp=3 xte=-68.0m obs_d=207m ok=1 comp=1267.7ms solve=1265.3ms RT=1.27 obs=2 slack=0.00m fb=0
+  [t=691.0] phase=A pos=(-2429.6,-2263.0) psi=+143.1deg wp=3 xte=-68.1m obs_d=207m ok=1 comp=1372.2ms solve=1371.0ms RT=1.37 obs=2 slack=0.00m fb=0
+  [t=692.0] phase=A pos=(-2429.6,-2262.3) psi=+143.1deg wp=3 xte=-68.1m obs_d=207m ok=1 comp=1101.1ms solve=1100.0ms RT=1.10 obs=2 slack=0.00m fb=0
+  [t=693.0] phase=A pos=(-2429.5,-2261.7) psi=+143.1deg wp=3 xte=-68.2m obs_d=207m ok=1 comp=1336.2ms solve=1334.6ms RT=1.34 obs=2 slack=0.00m fb=0
+  [t=695.0] phase=A pos=(-2429.5,-2260.3) psi=+143.1deg wp=3 xte=-68.4m obs_d=208m ok=1 comp=1238.5ms solve=1237.6ms RT=1.24 obs=2 slack=0.00m fb=0
+  [t=696.0] phase=A pos=(-2429.4,-2259.7) psi=+143.1deg wp=3 xte=-68.5m obs_d=208m ok=1 comp=1200.7ms solve=1199.7ms RT=1.20 obs=2 slack=0.00m fb=0
+  [t=697.0] phase=A pos=(-2429.4,-2259.0) psi=+143.1deg wp=3 xte=-68.5m obs_d=208m ok=1 comp=1566.8ms solve=1565.7ms RT=1.57 obs=2 slack=0.00m fb=0
+  [t=698.0] phase=A pos=(-2429.4,-2258.4) psi=+143.1deg wp=3 xte=-68.6m obs_d=208m ok=1 comp=1387.3ms solve=1385.5ms RT=1.39 obs=2 slack=0.00m fb=0
+  [t=699.0] phase=A pos=(-2429.3,-2257.7) psi=+143.1deg wp=3 xte=-68.7m obs_d=208m ok=1 comp=1115.3ms solve=1113.4ms RT=1.12 obs=2 slack=0.00m fb=0
+  [t=700.0] phase=A pos=(-2429.3,-2257.1) psi=+143.1deg wp=3 xte=-68.8m obs_d=208m ok=1 comp=1127.0ms solve=1125.8ms RT=1.13 obs=2 slack=0.00m fb=0
+  [t=701.0] phase=A pos=(-2429.3,-2256.4) psi=+143.1deg wp=3 xte=-68.8m obs_d=208m ok=1 comp=1584.3ms solve=1583.0ms RT=1.58 obs=2 slack=0.00m fb=0
+  [t=702.0] phase=A pos=(-2429.2,-2255.8) psi=+143.1deg wp=3 xte=-68.9m obs_d=208m ok=1 comp=1292.4ms solve=1290.9ms RT=1.29 obs=2 slack=0.00m fb=0
+  [t=703.0] phase=A pos=(-2429.2,-2255.2) psi=+143.1deg wp=3 xte=-69.0m obs_d=208m ok=1 comp=1472.6ms solve=1470.9ms RT=1.47 obs=2 slack=0.00m fb=0
+  [t=704.0] phase=A pos=(-2429.2,-2254.5) psi=+143.0deg wp=3 xte=-69.1m obs_d=208m ok=1 comp=1356.7ms solve=1355.4ms RT=1.36 obs=2 slack=0.00m fb=0
+  [t=705.0] phase=A pos=(-2429.2,-2253.9) psi=+143.0deg wp=3 xte=-69.2m obs_d=208m ok=1 comp=1067.6ms solve=1066.1ms RT=1.07 obs=2 slack=0.00m fb=0
+  [t=706.0] phase=A pos=(-2429.2,-2253.3) psi=+143.0deg wp=3 xte=-69.3m obs_d=208m ok=1 comp=1224.8ms solve=1223.2ms RT=1.22 obs=2 slack=0.00m fb=0
+  [t=707.0] phase=A pos=(-2429.2,-2252.7) psi=+143.0deg wp=3 xte=-69.3m obs_d=208m ok=1 comp=1180.6ms solve=1179.2ms RT=1.18 obs=2 slack=0.00m fb=0
+  [t=708.0] phase=A pos=(-2429.1,-2252.1) psi=+142.9deg wp=3 xte=-69.4m obs_d=209m ok=1 comp=1338.3ms solve=1336.9ms RT=1.34 obs=2 slack=0.00m fb=0
+  [t=709.0] phase=A pos=(-2429.1,-2251.5) psi=+142.9deg wp=3 xte=-69.5m obs_d=209m ok=1 comp=1340.1ms solve=1338.8ms RT=1.34 obs=2 slack=0.00m fb=0
+  [t=710.0] phase=A pos=(-2429.1,-2250.9) psi=+142.9deg wp=3 xte=-69.6m obs_d=209m ok=1 comp=1080.3ms solve=1078.5ms RT=1.08 obs=2 slack=0.00m fb=0
+  [t=711.0] phase=A pos=(-2429.1,-2250.3) psi=+142.8deg wp=3 xte=-69.7m obs_d=209m ok=1 comp=1129.8ms solve=1127.8ms RT=1.13 obs=2 slack=0.00m fb=0
+  [t=713.0] phase=A pos=(-2429.1,-2249.0) psi=+142.8deg wp=3 xte=-69.8m obs_d=209m ok=1 comp=1169.3ms solve=1167.7ms RT=1.17 obs=2 slack=0.00m fb=0
+  [t=714.0] phase=A pos=(-2429.0,-2248.4) psi=+142.7deg wp=3 xte=-69.9m obs_d=209m ok=1 comp=1321.5ms solve=1320.2ms RT=1.32 obs=2 slack=0.00m fb=0
+  [t=715.0] phase=A pos=(-2429.0,-2247.8) psi=+142.7deg wp=3 xte=-70.0m obs_d=209m ok=1 comp=1001.5ms solve=1000.4ms RT=1.00 obs=2 slack=0.00m fb=0
+  [t=716.0] phase=A pos=(-2429.0,-2247.2) psi=+142.6deg wp=3 xte=-70.1m obs_d=209m ok=1 comp=1255.6ms solve=1254.1ms RT=1.26 obs=2 slack=0.00m fb=0
+  [t=717.0] phase=A pos=(-2429.0,-2246.6) psi=+142.6deg wp=3 xte=-70.2m obs_d=210m ok=1 comp=2191.1ms solve=2189.0ms RT=2.19 obs=2 slack=0.00m fb=0
+  [t=718.0] phase=A pos=(-2429.0,-2245.9) psi=+142.5deg wp=3 xte=-70.3m obs_d=210m ok=1 comp=2191.8ms solve=2188.7ms RT=2.19 obs=2 slack=0.00m fb=0
+  [t=719.0] phase=A pos=(-2429.0,-2245.3) psi=+142.5deg wp=3 xte=-70.4m obs_d=210m ok=1 comp=3098.6ms solve=3095.8ms RT=3.10 obs=2 slack=0.00m fb=0
+  [t=720.0] phase=A pos=(-2428.9,-2244.7) psi=+142.5deg wp=3 xte=-70.4m obs_d=210m ok=1 comp=2705.6ms solve=2704.2ms RT=2.71 obs=2 slack=0.00m fb=0
+  [t=721.0] phase=A pos=(-2428.9,-2244.0) psi=+142.5deg wp=3 xte=-70.5m obs_d=210m ok=1 comp=1416.9ms solve=1415.7ms RT=1.42 obs=2 slack=0.00m fb=0
+  [t=722.0] phase=A pos=(-2428.9,-2243.4) psi=+142.5deg wp=3 xte=-70.6m obs_d=210m ok=1 comp=1981.6ms solve=1980.0ms RT=1.98 obs=2 slack=0.00m fb=0
+  [wp-advance] 3 -> 4 (proj=0.82, d_wp=90.0 m, xte=70.7 m)
+  [t=723.0] phase=A pos=(-2428.8,-2242.7) psi=+142.5deg wp=4 xte=-78.9m obs_d=129m ok=1 comp=2021.4ms solve=2019.1ms RT=2.02 obs=2 slack=0.00m fb=0
+  [t=724.0] phase=A pos=(-2428.8,-2242.1) psi=+142.5deg wp=4 xte=-78.8m obs_d=129m ok=1 comp=1148.4ms solve=1147.0ms RT=1.15 obs=2 slack=0.00m fb=0
+  [t=725.0] phase=A pos=(-2428.7,-2241.4) psi=+142.5deg wp=4 xte=-78.8m obs_d=133m ok=1 comp=1115.4ms solve=1114.0ms RT=1.12 obs=2 slack=0.00m fb=0
+  [t=726.0] phase=A pos=(-2428.6,-2240.7) psi=+142.6deg wp=4 xte=-78.7m obs_d=132m ok=1 comp=1156.4ms solve=1155.1ms RT=1.16 obs=2 slack=0.00m fb=0
+  [t=727.0] phase=A pos=(-2428.6,-2240.0) psi=+142.7deg wp=4 xte=-78.6m obs_d=132m ok=1 comp=1148.2ms solve=1146.8ms RT=1.15 obs=2 slack=0.00m fb=0
+  [t=728.0] phase=A pos=(-2428.5,-2239.3) psi=+142.8deg wp=4 xte=-78.6m obs_d=131m ok=1 comp=1043.7ms solve=1042.6ms RT=1.04 obs=2 slack=0.00m fb=0
+  [t=729.0] phase=A pos=(-2428.4,-2238.6) psi=+142.9deg wp=4 xte=-78.5m obs_d=131m ok=1 comp=1087.8ms solve=1086.3ms RT=1.09 obs=2 slack=0.00m fb=0
+  [t=730.0] phase=A pos=(-2428.3,-2237.9) psi=+143.0deg wp=4 xte=-78.4m obs_d=130m ok=1 comp=1197.1ms solve=1195.6ms RT=1.20 obs=2 slack=0.00m fb=0
+  [t=731.0] phase=A pos=(-2428.2,-2237.1) psi=+143.1deg wp=4 xte=-78.3m obs_d=132m ok=1 comp=1084.6ms solve=1083.7ms RT=1.08 obs=2 slack=0.00m fb=0
+  [t=732.0] phase=A pos=(-2428.1,-2236.4) psi=+143.3deg wp=4 xte=-78.2m obs_d=132m ok=1 comp=1172.6ms solve=1170.7ms RT=1.17 obs=2 slack=0.00m fb=0
+  [t=733.0] phase=A pos=(-2428.0,-2235.6) psi=+143.4deg wp=4 xte=-78.1m obs_d=131m ok=1 comp=1287.0ms solve=1285.3ms RT=1.29 obs=2 slack=0.00m fb=0
+  [t=734.0] phase=A pos=(-2427.9,-2234.8) psi=+143.6deg wp=4 xte=-78.0m obs_d=140m ok=1 comp=1523.8ms solve=1522.6ms RT=1.52 obs=2 slack=0.00m fb=0
+  [t=735.0] phase=A pos=(-2427.8,-2234.0) psi=+143.9deg wp=4 xte=-77.9m obs_d=140m ok=1 comp=1816.1ms solve=1814.7ms RT=1.82 obs=2 slack=0.00m fb=0
+  [t=736.0] phase=A pos=(-2427.6,-2233.2) psi=+144.1deg wp=4 xte=-77.8m obs_d=139m ok=1 comp=1578.6ms solve=1576.6ms RT=1.58 obs=2 slack=0.00m fb=0
+  [t=737.0] phase=A pos=(-2427.5,-2232.4) psi=+144.3deg wp=4 xte=-77.6m obs_d=212m ok=1 comp=1289.7ms solve=1287.6ms RT=1.29 obs=2 slack=0.00m fb=0
+  [t=738.0] phase=A pos=(-2427.4,-2231.6) psi=+144.6deg wp=4 xte=-77.5m obs_d=212m ok=1 comp=1174.0ms solve=1172.1ms RT=1.17 obs=2 slack=0.00m fb=0
+  [t=739.0] phase=A pos=(-2427.3,-2230.8) psi=+144.8deg wp=4 xte=-77.4m obs_d=212m ok=1 comp=1173.0ms solve=1171.5ms RT=1.17 obs=2 slack=0.00m fb=0
+  [t=740.0] phase=A pos=(-2427.2,-2230.0) psi=+145.1deg wp=4 xte=-77.3m obs_d=212m ok=1 comp=1140.0ms solve=1137.8ms RT=1.14 obs=2 slack=0.00m fb=0
+  [t=741.0] phase=A pos=(-2427.0,-2229.2) psi=+145.3deg wp=4 xte=-77.2m obs_d=212m ok=1 comp=1105.1ms solve=1103.8ms RT=1.11 obs=2 slack=0.00m fb=0
+  [t=742.0] phase=A pos=(-2426.9,-2228.4) psi=+145.5deg wp=4 xte=-77.0m obs_d=212m ok=1 comp=1173.8ms solve=1172.7ms RT=1.17 obs=2 slack=0.00m fb=0
+  [t=743.0] phase=A pos=(-2426.8,-2227.7) psi=+145.7deg wp=4 xte=-76.9m obs_d=212m ok=1 comp=1287.6ms solve=1286.4ms RT=1.29 obs=2 slack=0.00m fb=0
+  [t=744.0] phase=A pos=(-2426.7,-2226.9) psi=+145.9deg wp=4 xte=-76.8m obs_d=212m ok=1 comp=1108.1ms solve=1106.0ms RT=1.11 obs=2 slack=0.00m fb=0
+  [t=745.0] phase=A pos=(-2426.7,-2226.1) psi=+146.0deg wp=4 xte=-76.7m obs_d=213m ok=1 comp=1564.6ms solve=1563.4ms RT=1.56 obs=2 slack=0.00m fb=0
+  [t=746.0] phase=A pos=(-2426.6,-2225.3) psi=+146.2deg wp=4 xte=-76.7m obs_d=213m ok=1 comp=1685.3ms solve=1683.9ms RT=1.69 obs=2 slack=0.00m fb=0
+  [t=747.0] phase=A pos=(-2426.5,-2224.6) psi=+146.4deg wp=4 xte=-76.6m obs_d=213m ok=1 comp=1217.6ms solve=1215.8ms RT=1.22 obs=2 slack=0.00m fb=0
+  [t=748.0] phase=A pos=(-2426.4,-2223.8) psi=+146.6deg wp=4 xte=-76.5m obs_d=213m ok=1 comp=1150.4ms solve=1148.8ms RT=1.15 obs=2 slack=0.00m fb=0
+  [t=749.0] phase=A pos=(-2426.3,-2223.0) psi=+146.8deg wp=4 xte=-76.4m obs_d=213m ok=1 comp=1168.6ms solve=1167.1ms RT=1.17 obs=2 slack=0.00m fb=0
+  [t=750.0] phase=A pos=(-2426.3,-2222.2) psi=+147.0deg wp=4 xte=-76.3m obs_d=213m ok=1 comp=1282.5ms solve=1281.0ms RT=1.28 obs=2 slack=0.00m fb=0
+  [t=751.0] phase=A pos=(-2426.2,-2221.4) psi=+147.2deg wp=4 xte=-76.3m obs_d=214m ok=1 comp=1039.4ms solve=1038.2ms RT=1.04 obs=2 slack=0.00m fb=0
+  [t=753.0] phase=A pos=(-2426.0,-2219.8) psi=+147.6deg wp=4 xte=-76.1m obs_d=214m ok=1 comp=1148.4ms solve=1147.2ms RT=1.15 obs=2 slack=0.00m fb=0
+  [t=754.0] phase=A pos=(-2426.0,-2219.0) psi=+147.8deg wp=4 xte=-76.0m obs_d=214m ok=1 comp=1067.3ms solve=1066.3ms RT=1.07 obs=2 slack=0.00m fb=0
+  [t=759.0] phase=A pos=(-2425.8,-2215.2) psi=+148.4deg wp=4 xte=-75.8m obs_d=215m ok=1 comp=945.8ms solve=944.6ms RT=0.95 obs=2 slack=0.00m fb=0
+  [t=761.0] phase=A pos=(-2425.7,-2213.8) psi=+148.6deg wp=4 xte=-75.7m obs_d=216m ok=1 comp=1062.1ms solve=1061.3ms RT=1.06 obs=2 slack=0.00m fb=0
+  [t=762.0] phase=A pos=(-2425.7,-2213.0) psi=+148.7deg wp=4 xte=-75.7m obs_d=216m ok=1 comp=1085.8ms solve=1084.6ms RT=1.09 obs=2 slack=0.00m fb=0
+  [t=767.0] phase=A pos=(-2425.5,-2209.3) psi=+149.2deg wp=4 xte=-75.5m obs_d=217m ok=1 comp=1084.9ms solve=1083.4ms RT=1.08 obs=2 slack=0.00m fb=0
+  [t=768.0] phase=A pos=(-2425.5,-2208.5) psi=+149.3deg wp=4 xte=-75.5m obs_d=217m ok=1 comp=1350.7ms solve=1348.9ms RT=1.35 obs=2 slack=0.00m fb=0
+  [t=769.0] phase=A pos=(-2425.5,-2207.8) psi=+149.4deg wp=4 xte=-75.5m obs_d=218m ok=1 comp=1368.9ms solve=1367.5ms RT=1.37 obs=2 slack=0.00m fb=0
+  [t=770.0] phase=A pos=(-2425.5,-2207.1) psi=+149.5deg wp=4 xte=-75.5m obs_d=218m ok=1 comp=1165.9ms solve=1164.2ms RT=1.17 obs=2 slack=0.00m fb=0
+  [t=771.0] phase=A pos=(-2425.5,-2206.3) psi=+149.6deg wp=4 xte=-75.5m obs_d=218m ok=1 comp=1024.0ms solve=1023.0ms RT=1.02 obs=2 slack=0.00m fb=0
+  [t=776.0] phase=A pos=(-2425.5,-2202.8) psi=+149.9deg wp=4 xte=-75.5m obs_d=220m ok=1 comp=1255.9ms solve=1254.5ms RT=1.26 obs=2 slack=0.00m fb=0
+  [t=777.0] phase=A pos=(-2425.5,-2202.0) psi=+150.0deg wp=4 xte=-75.5m obs_d=220m ok=1 comp=1141.6ms solve=1139.6ms RT=1.14 obs=2 slack=0.00m fb=0
+  [t=778.0] phase=A pos=(-2425.5,-2201.3) psi=+150.1deg wp=4 xte=-75.5m obs_d=220m ok=1 comp=1403.3ms solve=1401.1ms RT=1.40 obs=2 slack=0.00m fb=0
+  [t=779.0] phase=A pos=(-2425.5,-2200.6) psi=+150.2deg wp=4 xte=-75.5m obs_d=221m ok=1 comp=1262.1ms solve=1261.0ms RT=1.26 obs=2 slack=0.00m fb=0
+  [t=780.0] phase=A pos=(-2425.5,-2199.9) psi=+150.3deg wp=4 xte=-75.5m obs_d=221m ok=1 comp=1318.1ms solve=1316.7ms RT=1.32 obs=2 slack=0.00m fb=0
+  [t=781.0] phase=A pos=(-2425.5,-2199.1) psi=+150.4deg wp=4 xte=-75.5m obs_d=221m ok=1 comp=1329.8ms solve=1328.7ms RT=1.33 obs=2 slack=0.00m fb=0
+  [t=782.0] phase=A pos=(-2425.5,-2198.4) psi=+150.5deg wp=4 xte=-75.5m obs_d=221m ok=1 comp=1382.7ms solve=1381.5ms RT=1.38 obs=2 slack=0.00m fb=0
+  [t=783.0] phase=A pos=(-2425.5,-2197.7) psi=+150.5deg wp=4 xte=-75.5m obs_d=222m ok=1 comp=1204.8ms solve=1203.3ms RT=1.20 obs=2 slack=0.00m fb=0
+  [t=784.0] phase=A pos=(-2425.6,-2197.1) psi=+150.6deg wp=4 xte=-75.5m obs_d=222m ok=1 comp=1030.6ms solve=1029.6ms RT=1.03 obs=2 slack=0.00m fb=0
+  [t=785.0] phase=A pos=(-2425.6,-2196.4) psi=+150.7deg wp=4 xte=-75.6m obs_d=222m ok=1 comp=1008.6ms solve=1007.0ms RT=1.01 obs=2 slack=0.00m fb=0
+  [t=787.0] phase=A pos=(-2425.7,-2195.0) psi=+150.8deg wp=4 xte=-75.6m obs_d=223m ok=1 comp=1183.0ms solve=1167.2ms RT=1.18 obs=2 slack=0.00m fb=0
+  [t=788.0] phase=A pos=(-2425.7,-2194.3) psi=+150.8deg wp=4 xte=-75.7m obs_d=223m ok=1 comp=1102.4ms solve=1101.0ms RT=1.10 obs=2 slack=0.00m fb=0
+  [t=789.0] phase=A pos=(-2425.7,-2193.6) psi=+150.8deg wp=4 xte=-75.7m obs_d=224m ok=1 comp=1108.9ms solve=1107.8ms RT=1.11 obs=2 slack=0.00m fb=0
+  [t=795.0] phase=A pos=(-2426.0,-2189.6) psi=+151.0deg wp=4 xte=-75.9m obs_d=226m ok=1 comp=1089.6ms solve=1088.5ms RT=1.09 obs=2 slack=0.00m fb=0
+  [t=797.0] phase=A pos=(-2426.0,-2188.2) psi=+151.0deg wp=4 xte=-76.0m obs_d=226m ok=1 comp=1080.7ms solve=1079.6ms RT=1.08 obs=2 slack=0.00m fb=0
+  [t=798.0] phase=A pos=(-2426.0,-2187.5) psi=+151.1deg wp=4 xte=-76.0m obs_d=227m ok=1 comp=1139.0ms solve=1137.6ms RT=1.14 obs=2 slack=0.00m fb=0
+  [t=799.0] phase=A pos=(-2426.1,-2186.9) psi=+151.1deg wp=4 xte=-76.0m obs_d=227m ok=1 comp=1155.7ms solve=1154.2ms RT=1.16 obs=2 slack=0.00m fb=0
+  [t=801.0] phase=A pos=(-2426.1,-2185.5) psi=+151.2deg wp=4 xte=-76.1m obs_d=228m ok=1 comp=1143.8ms solve=1142.2ms RT=1.14 obs=2 slack=0.00m fb=0
+  [t=802.0] phase=A pos=(-2426.2,-2184.8) psi=+151.3deg wp=4 xte=-76.1m obs_d=228m ok=1 comp=1172.8ms solve=1171.8ms RT=1.17 obs=2 slack=0.00m fb=0
+  [t=805.0] phase=A pos=(-2426.3,-2182.7) psi=+151.4deg wp=4 xte=-76.2m obs_d=229m ok=1 comp=1063.5ms solve=1062.5ms RT=1.06 obs=2 slack=0.00m fb=0
+  [t=814.0] phase=A pos=(-2426.9,-2177.0) psi=+151.1deg wp=4 xte=-76.8m obs_d=232m ok=1 comp=1385.5ms solve=1384.5ms RT=1.39 obs=2 slack=0.00m fb=0
+  [t=819.0] phase=A pos=(-2427.2,-2173.8) psi=+151.0deg wp=4 xte=-77.1m obs_d=234m ok=1 comp=1067.3ms solve=1065.9ms RT=1.07 obs=2 slack=0.00m fb=0
+  [t=820.0] phase=A pos=(-2427.2,-2173.2) psi=+151.1deg wp=4 xte=-77.2m obs_d=235m ok=1 comp=1303.1ms solve=1301.3ms RT=1.30 obs=2 slack=0.00m fb=0
+  [t=821.0] phase=A pos=(-2427.3,-2172.5) psi=+151.1deg wp=4 xte=-77.2m obs_d=235m ok=1 comp=1046.7ms solve=1045.3ms RT=1.05 obs=2 slack=0.00m fb=0
+  [t=822.0] phase=A pos=(-2427.3,-2171.9) psi=+151.1deg wp=4 xte=-77.3m obs_d=235m ok=1 comp=1163.7ms solve=1161.9ms RT=1.16 obs=2 slack=0.00m fb=0
+  [t=823.0] phase=A pos=(-2427.4,-2171.2) psi=+151.1deg wp=4 xte=-77.3m obs_d=236m ok=1 comp=1093.6ms solve=1092.5ms RT=1.09 obs=2 slack=0.00m fb=0
+  [t=825.0] phase=A pos=(-2427.5,-2169.9) psi=+151.1deg wp=4 xte=-77.5m obs_d=236m ok=1 comp=1001.5ms solve=1000.6ms RT=1.00 obs=2 slack=0.00m fb=0
+  [t=830.0] phase=A pos=(-2427.8,-2166.7) psi=+151.3deg wp=4 xte=-77.7m obs_d=238m ok=1 comp=1000.9ms solve=1000.1ms RT=1.00 obs=2 slack=0.00m fb=0
+  [t=833.0] phase=A pos=(-2428.1,-2164.7) psi=+151.3deg wp=4 xte=-78.0m obs_d=240m ok=1 comp=1693.4ms solve=1692.3ms RT=1.69 obs=2 slack=0.00m fb=0
+  [t=834.0] phase=A pos=(-2428.2,-2164.1) psi=+151.3deg wp=4 xte=-78.1m obs_d=240m ok=1 comp=1448.7ms solve=1446.8ms RT=1.45 obs=2 slack=0.00m fb=0
+  [t=835.0] phase=A pos=(-2428.3,-2163.5) psi=+151.3deg wp=4 xte=-78.2m obs_d=240m ok=1 comp=1553.5ms solve=1552.4ms RT=1.55 obs=2 slack=0.00m fb=0
+  [t=836.0] phase=A pos=(-2428.3,-2162.9) psi=+151.2deg wp=4 xte=-78.3m obs_d=241m ok=1 comp=1457.0ms solve=1455.4ms RT=1.46 obs=2 slack=0.00m fb=0
+  [t=837.0] phase=A pos=(-2428.4,-2162.3) psi=+151.2deg wp=4 xte=-78.3m obs_d=241m ok=1 comp=1557.9ms solve=1556.8ms RT=1.56 obs=2 slack=0.00m fb=0
+  [t=838.0] phase=A pos=(-2428.5,-2161.7) psi=+151.1deg wp=4 xte=-78.4m obs_d=242m ok=1 comp=1310.9ms solve=1309.5ms RT=1.31 obs=2 slack=0.00m fb=0
+  [t=839.0] phase=A pos=(-2428.6,-2161.1) psi=+151.0deg wp=4 xte=-78.5m obs_d=242m ok=1 comp=966.0ms solve=964.2ms RT=0.97 obs=2 slack=0.00m fb=0
+  [t=842.0] phase=A pos=(-2428.9,-2159.2) psi=+150.8deg wp=4 xte=-78.8m obs_d=243m ok=1 comp=1160.7ms solve=1159.8ms RT=1.16 obs=2 slack=0.00m fb=0
+  [t=843.0] phase=A pos=(-2429.0,-2158.6) psi=+150.8deg wp=4 xte=-78.9m obs_d=244m ok=1 comp=1781.1ms solve=1780.0ms RT=1.78 obs=2 slack=0.00m fb=0
+  [t=844.0] phase=A pos=(-2429.1,-2158.0) psi=+150.7deg wp=4 xte=-79.0m obs_d=244m ok=1 comp=1023.9ms solve=1023.1ms RT=1.02 obs=2 slack=0.00m fb=0
+  [t=846.0] phase=A pos=(-2429.3,-2156.8) psi=+150.5deg wp=4 xte=-79.2m obs_d=245m ok=1 comp=1278.5ms solve=1277.7ms RT=1.28 obs=2 slack=0.00m fb=0
+  [t=847.0] phase=A pos=(-2429.3,-2156.2) psi=+150.4deg wp=4 xte=-79.3m obs_d=245m ok=1 comp=1344.7ms solve=1343.9ms RT=1.34 obs=2 slack=0.00m fb=0
+  [t=848.0] phase=A pos=(-2429.4,-2155.6) psi=+150.3deg wp=4 xte=-79.3m obs_d=246m ok=1 comp=1130.0ms solve=1128.5ms RT=1.13 obs=2 slack=0.00m fb=0
+  [t=849.0] phase=A pos=(-2429.5,-2155.0) psi=+150.2deg wp=4 xte=-79.4m obs_d=246m ok=1 comp=1181.6ms solve=1179.7ms RT=1.18 obs=2 slack=0.00m fb=0
+  [t=850.0] phase=A pos=(-2429.6,-2154.4) psi=+150.2deg wp=4 xte=-79.5m obs_d=246m ok=1 comp=1335.8ms solve=1334.4ms RT=1.34 obs=2 slack=0.00m fb=0
+  [t=851.0] phase=A pos=(-2429.6,-2153.7) psi=+150.1deg wp=4 xte=-79.6m obs_d=247m ok=1 comp=1321.1ms solve=1319.2ms RT=1.32 obs=2 slack=0.00m fb=0
+  [t=855.0] phase=A pos=(-2430.0,-2151.4) psi=+149.7deg wp=4 xte=-79.9m obs_d=248m ok=1 comp=1168.4ms solve=1167.5ms RT=1.17 obs=2 slack=0.00m fb=0
+  [t=857.0] phase=A pos=(-2430.2,-2150.2) psi=+149.5deg wp=4 xte=-80.1m obs_d=249m ok=1 comp=1046.8ms solve=1045.6ms RT=1.05 obs=2 slack=0.00m fb=0
+  [t=858.0] phase=A pos=(-2430.2,-2149.6) psi=+149.3deg wp=4 xte=-80.2m obs_d=250m ok=1 comp=1121.0ms solve=1119.6ms RT=1.12 obs=2 slack=0.00m fb=0
+  [t=859.0] phase=A pos=(-2430.3,-2149.1) psi=+149.2deg wp=4 xte=-80.2m obs_d=250m ok=1 comp=873.0ms solve=871.3ms RT=0.87 obs=2 slack=0.00m fb=0
+  [t=864.0] phase=A pos=(-2430.6,-2146.1) psi=+148.8deg wp=4 xte=-80.5m obs_d=251m ok=1 comp=1021.1ms solve=1020.1ms RT=1.02 obs=2 slack=0.00m fb=0
+  [t=865.0] phase=A pos=(-2430.6,-2145.4) psi=+148.8deg wp=4 xte=-80.6m obs_d=251m ok=1 comp=1335.9ms solve=1334.2ms RT=1.34 obs=2 slack=0.00m fb=0
+  [t=866.0] phase=A pos=(-2430.7,-2144.8) psi=+148.7deg wp=4 xte=-80.6m obs_d=250m ok=1 comp=1604.0ms solve=1602.9ms RT=1.60 obs=2 slack=0.00m fb=0
+  [t=867.0] phase=A pos=(-2430.7,-2144.2) psi=+148.7deg wp=4 xte=-80.7m obs_d=250m ok=1 comp=1365.5ms solve=1364.5ms RT=1.37 obs=2 slack=0.00m fb=0
+  [t=874.0] phase=A pos=(-2430.8,-2139.5) psi=+148.9deg wp=4 xte=-80.8m obs_d=247m ok=1 comp=1262.4ms solve=1261.4ms RT=1.26 obs=2 slack=0.00m fb=0
+  [t=876.0] phase=A pos=(-2430.9,-2138.2) psi=+148.9deg wp=4 xte=-80.9m obs_d=246m ok=1 comp=1161.1ms solve=1160.2ms RT=1.16 obs=2 slack=0.00m fb=0
+  [t=878.0] phase=A pos=(-2431.0,-2136.9) psi=+148.9deg wp=4 xte=-80.9m obs_d=245m ok=1 comp=1282.7ms solve=1280.7ms RT=1.28 obs=2 slack=0.00m fb=0
+  [t=879.0] phase=A pos=(-2431.0,-2136.3) psi=+148.8deg wp=4 xte=-81.0m obs_d=245m ok=1 comp=1482.3ms solve=1481.2ms RT=1.48 obs=2 slack=0.00m fb=0
+  [t=885.0] phase=A pos=(-2431.3,-2132.6) psi=+148.3deg wp=4 xte=-81.3m obs_d=243m ok=1 comp=1064.5ms solve=1063.4ms RT=1.06 obs=2 slack=0.00m fb=0
+  [t=886.0] phase=A pos=(-2431.3,-2132.0) psi=+148.3deg wp=4 xte=-81.3m obs_d=243m ok=1 comp=1125.9ms solve=1125.1ms RT=1.13 obs=2 slack=0.00m fb=0
+  [t=887.0] phase=A pos=(-2431.4,-2131.4) psi=+148.3deg wp=4 xte=-81.3m obs_d=242m ok=1 comp=1036.5ms solve=1035.2ms RT=1.04 obs=2 slack=0.00m fb=0
+  [t=888.0] phase=A pos=(-2431.4,-2130.7) psi=+148.3deg wp=4 xte=-81.4m obs_d=242m ok=1 comp=1186.3ms solve=1184.7ms RT=1.19 obs=2 slack=0.00m fb=0
+  [t=889.0] phase=A pos=(-2431.4,-2130.1) psi=+148.2deg wp=4 xte=-81.4m obs_d=241m ok=1 comp=1207.2ms solve=1205.9ms RT=1.21 obs=2 slack=0.00m fb=0
+  [t=890.0] phase=A pos=(-2431.5,-2129.4) psi=+148.2deg wp=4 xte=-81.4m obs_d=241m ok=1 comp=1167.7ms solve=1166.5ms RT=1.17 obs=2 slack=0.00m fb=0
+  [t=891.0] phase=A pos=(-2431.5,-2128.8) psi=+148.2deg wp=4 xte=-81.5m obs_d=241m ok=1 comp=1582.2ms solve=1581.0ms RT=1.58 obs=2 slack=0.00m fb=0
+  [t=892.0] phase=A pos=(-2431.5,-2128.1) psi=+148.2deg wp=4 xte=-81.5m obs_d=240m ok=1 comp=1205.3ms solve=1203.5ms RT=1.21 obs=2 slack=0.00m fb=0
+  [t=893.0] phase=A pos=(-2431.5,-2127.5) psi=+148.2deg wp=4 xte=-81.5m obs_d=240m ok=1 comp=1623.2ms solve=1621.6ms RT=1.62 obs=2 slack=0.00m fb=0
+  [t=895.0] phase=A pos=(-2431.6,-2126.1) psi=+148.2deg wp=4 xte=-81.6m obs_d=239m ok=1 comp=1038.3ms solve=1037.2ms RT=1.04 obs=2 slack=0.00m fb=0
+  [t=896.0] phase=A pos=(-2431.6,-2125.5) psi=+148.2deg wp=4 xte=-81.6m obs_d=239m ok=1 comp=1241.5ms solve=1239.8ms RT=1.24 obs=2 slack=0.00m fb=0
+  [t=899.0] phase=A pos=(-2431.7,-2123.5) psi=+148.1deg wp=4 xte=-81.7m obs_d=238m ok=1 comp=919.2ms solve=918.2ms RT=0.92 obs=2 slack=0.00m fb=0
+  [t=902.0] phase=A pos=(-2431.7,-2121.6) psi=+148.1deg wp=4 xte=-81.7m obs_d=236m ok=1 comp=1132.7ms solve=1131.4ms RT=1.13 obs=2 slack=0.00m fb=0
+  [t=903.0] phase=A pos=(-2431.8,-2120.9) psi=+148.1deg wp=4 xte=-81.7m obs_d=236m ok=1 comp=1225.1ms solve=1223.9ms RT=1.23 obs=2 slack=0.00m fb=0
+  [t=904.0] phase=A pos=(-2431.8,-2120.2) psi=+148.2deg wp=4 xte=-81.8m obs_d=236m ok=1 comp=1363.5ms solve=1362.2ms RT=1.36 obs=2 slack=0.00m fb=0
+  [t=905.0] phase=A pos=(-2431.8,-2119.6) psi=+148.2deg wp=4 xte=-81.8m obs_d=235m ok=1 comp=1259.3ms solve=1257.9ms RT=1.26 obs=2 slack=0.00m fb=0
+  [t=906.0] phase=A pos=(-2431.8,-2118.9) psi=+148.3deg wp=4 xte=-81.8m obs_d=235m ok=1 comp=1376.0ms solve=1374.8ms RT=1.38 obs=2 slack=0.00m fb=0
+  [t=907.0] phase=A pos=(-2431.8,-2118.2) psi=+148.3deg wp=4 xte=-81.8m obs_d=234m ok=1 comp=1075.7ms solve=1074.4ms RT=1.08 obs=2 slack=0.00m fb=0
+  [t=908.0] phase=A pos=(-2431.9,-2117.5) psi=+148.3deg wp=4 xte=-81.8m obs_d=234m ok=1 comp=1110.7ms solve=1109.3ms RT=1.11 obs=2 slack=0.00m fb=0
+  [t=909.0] phase=A pos=(-2431.9,-2116.9) psi=+148.3deg wp=4 xte=-81.9m obs_d=234m ok=1 comp=1174.5ms solve=1173.0ms RT=1.17 obs=2 slack=0.00m fb=0
+  [t=910.0] phase=A pos=(-2431.9,-2116.2) psi=+148.3deg wp=4 xte=-81.9m obs_d=233m ok=1 comp=1407.5ms solve=1406.4ms RT=1.41 obs=2 slack=0.00m fb=0
+  [t=911.0] phase=A pos=(-2431.9,-2115.6) psi=+148.3deg wp=4 xte=-81.9m obs_d=233m ok=1 comp=1636.8ms solve=1635.7ms RT=1.64 obs=2 slack=0.00m fb=0
+  [t=912.0] phase=A pos=(-2431.9,-2114.9) psi=+148.3deg wp=4 xte=-81.9m obs_d=233m ok=1 comp=1188.0ms solve=1186.7ms RT=1.19 obs=2 slack=0.00m fb=0
+  [t=913.0] phase=A pos=(-2432.0,-2114.3) psi=+148.3deg wp=4 xte=-81.9m obs_d=232m ok=1 comp=1637.3ms solve=1636.2ms RT=1.64 obs=2 slack=0.00m fb=0
+  [t=914.0] phase=A pos=(-2432.0,-2113.6) psi=+148.4deg wp=4 xte=-82.0m obs_d=232m ok=1 comp=1559.9ms solve=1558.5ms RT=1.56 obs=2 slack=0.00m fb=0
+  [t=915.0] phase=A pos=(-2432.0,-2112.9) psi=+148.4deg wp=4 xte=-82.0m obs_d=231m ok=1 comp=1257.7ms solve=1256.3ms RT=1.26 obs=2 slack=0.00m fb=0
+  [t=916.0] phase=A pos=(-2432.0,-2112.3) psi=+148.4deg wp=4 xte=-82.0m obs_d=231m ok=1 comp=1236.0ms solve=1234.8ms RT=1.24 obs=2 slack=0.00m fb=0
+  [t=917.0] phase=A pos=(-2432.0,-2111.6) psi=+148.4deg wp=4 xte=-82.0m obs_d=231m ok=1 comp=1331.2ms solve=1329.4ms RT=1.33 obs=2 slack=0.00m fb=0
+  [t=918.0] phase=A pos=(-2432.0,-2111.0) psi=+148.3deg wp=4 xte=-82.0m obs_d=230m ok=1 comp=1557.6ms solve=1556.1ms RT=1.56 obs=2 slack=0.00m fb=0
+  [t=919.0] phase=A pos=(-2432.1,-2110.3) psi=+148.3deg wp=4 xte=-82.0m obs_d=230m ok=1 comp=1632.3ms solve=1630.5ms RT=1.63 obs=2 slack=0.00m fb=0
+  [t=920.0] phase=A pos=(-2432.1,-2109.7) psi=+148.3deg wp=4 xte=-82.1m obs_d=230m ok=1 comp=1816.8ms solve=1814.2ms RT=1.82 obs=2 slack=0.00m fb=0
+  [t=921.0] phase=A pos=(-2432.1,-2109.0) psi=+148.3deg wp=4 xte=-82.1m obs_d=229m ok=1 comp=1656.8ms solve=1655.2ms RT=1.66 obs=2 slack=0.00m fb=0
+  [t=922.0] phase=A pos=(-2432.1,-2108.4) psi=+148.2deg wp=4 xte=-82.1m obs_d=229m ok=1 comp=1743.0ms solve=1741.3ms RT=1.74 obs=2 slack=0.00m fb=0
+  [t=923.0] phase=A pos=(-2432.1,-2107.8) psi=+148.2deg wp=4 xte=-82.1m obs_d=228m ok=1 comp=2125.6ms solve=2123.0ms RT=2.13 obs=2 slack=0.00m fb=0
+  [t=924.0] phase=A pos=(-2432.2,-2107.1) psi=+148.1deg wp=4 xte=-82.1m obs_d=228m ok=1 comp=2153.4ms solve=2151.6ms RT=2.15 obs=2 slack=0.00m fb=0
+  [t=925.0] phase=A pos=(-2432.2,-2106.5) psi=+148.1deg wp=4 xte=-82.2m obs_d=228m ok=1 comp=1859.1ms solve=1857.5ms RT=1.86 obs=2 slack=0.00m fb=0
+  [t=926.0] phase=A pos=(-2432.2,-2105.9) psi=+148.1deg wp=4 xte=-82.2m obs_d=227m ok=1 comp=1643.9ms solve=1642.3ms RT=1.64 obs=2 slack=0.00m fb=0
+  [t=927.0] phase=A pos=(-2432.3,-2105.2) psi=+148.0deg wp=4 xte=-82.2m obs_d=227m ok=1 comp=1124.5ms solve=1123.5ms RT=1.12 obs=2 slack=0.00m fb=0
+  [t=928.0] phase=A pos=(-2432.3,-2104.6) psi=+148.0deg wp=4 xte=-82.3m obs_d=227m ok=1 comp=1510.4ms solve=1508.7ms RT=1.51 obs=2 slack=0.00m fb=0
+  [t=930.0] phase=A pos=(-2432.4,-2103.4) psi=+147.8deg wp=4 xte=-82.3m obs_d=226m ok=1 comp=1383.9ms solve=1383.1ms RT=1.38 obs=2 slack=0.00m fb=0
+  [t=931.0] phase=A pos=(-2432.5,-2102.8) psi=+147.7deg wp=4 xte=-82.4m obs_d=226m ok=1 comp=1835.0ms solve=1833.6ms RT=1.84 obs=2 slack=0.00m fb=0
+  [t=932.0] phase=A pos=(-2432.5,-2102.2) psi=+147.5deg wp=4 xte=-82.5m obs_d=226m ok=1 comp=1472.2ms solve=1470.5ms RT=1.47 obs=2 slack=0.00m fb=0
+  [t=933.0] phase=A pos=(-2432.6,-2101.6) psi=+147.4deg wp=4 xte=-82.5m obs_d=225m ok=1 comp=1098.7ms solve=1097.6ms RT=1.10 obs=2 slack=0.00m fb=0
+  [t=934.0] phase=A pos=(-2432.6,-2101.0) psi=+147.3deg wp=4 xte=-82.6m obs_d=225m ok=1 comp=1203.2ms solve=1202.1ms RT=1.20 obs=2 slack=0.00m fb=0
+  [t=935.0] phase=A pos=(-2432.6,-2100.4) psi=+147.3deg wp=4 xte=-82.6m obs_d=225m ok=1 comp=1091.9ms solve=1090.6ms RT=1.09 obs=2 slack=0.00m fb=0
+  [t=936.0] phase=A pos=(-2432.7,-2099.8) psi=+147.2deg wp=4 xte=-82.6m obs_d=224m ok=1 comp=1354.7ms solve=1353.4ms RT=1.35 obs=2 slack=0.00m fb=0
+  [t=937.0] phase=A pos=(-2432.7,-2099.2) psi=+147.1deg wp=4 xte=-82.7m obs_d=224m ok=1 comp=1210.0ms solve=1207.9ms RT=1.21 obs=2 slack=0.00m fb=0
+  [t=938.0] phase=A pos=(-2432.7,-2098.5) psi=+147.1deg wp=4 xte=-82.7m obs_d=224m ok=1 comp=1813.4ms solve=1812.2ms RT=1.81 obs=2 slack=0.00m fb=0
+  [t=939.0] phase=A pos=(-2432.7,-2097.9) psi=+147.1deg wp=4 xte=-82.7m obs_d=223m ok=1 comp=1161.8ms solve=1159.7ms RT=1.16 obs=2 slack=0.00m fb=0
+  [t=940.0] phase=A pos=(-2432.7,-2097.2) psi=+147.1deg wp=4 xte=-82.7m obs_d=223m ok=1 comp=1140.1ms solve=1138.8ms RT=1.14 obs=2 slack=0.00m fb=0
+  [t=941.0] phase=A pos=(-2432.7,-2096.6) psi=+147.1deg wp=4 xte=-82.7m obs_d=223m ok=1 comp=1124.2ms solve=1122.6ms RT=1.12 obs=2 slack=0.00m fb=0
+  [t=942.0] phase=A pos=(-2432.7,-2095.9) psi=+147.1deg wp=4 xte=-82.7m obs_d=222m ok=1 comp=1083.8ms solve=1082.7ms RT=1.08 obs=2 slack=0.00m fb=0
+  [t=943.0] phase=A pos=(-2432.7,-2095.2) psi=+147.1deg wp=4 xte=-82.7m obs_d=221m ok=1 comp=1000.5ms solve=999.3ms RT=1.00 obs=2 slack=0.00m fb=0
+  [t=944.0] phase=A pos=(-2432.7,-2094.6) psi=+147.1deg wp=4 xte=-82.7m obs_d=221m ok=1 comp=1154.8ms solve=1152.3ms RT=1.15 obs=2 slack=0.00m fb=0
+  [t=945.0] phase=A pos=(-2432.7,-2093.9) psi=+147.2deg wp=4 xte=-82.7m obs_d=220m ok=1 comp=1157.2ms solve=1155.6ms RT=1.16 obs=2 slack=0.00m fb=0
+  [t=946.0] phase=A pos=(-2432.7,-2093.2) psi=+147.2deg wp=4 xte=-82.7m obs_d=220m ok=1 comp=1160.1ms solve=1158.5ms RT=1.16 obs=2 slack=0.00m fb=0
+  [t=947.0] phase=A pos=(-2432.6,-2092.5) psi=+147.3deg wp=4 xte=-82.7m obs_d=219m ok=1 comp=1107.5ms solve=1106.3ms RT=1.11 obs=2 slack=0.00m fb=0
+  [t=948.0] phase=A pos=(-2432.6,-2091.7) psi=+147.4deg wp=4 xte=-82.6m obs_d=219m ok=1 comp=1201.0ms solve=1199.6ms RT=1.20 obs=2 slack=0.00m fb=0
+  [t=949.0] phase=A pos=(-2432.6,-2091.0) psi=+147.5deg wp=4 xte=-82.6m obs_d=218m ok=1 comp=1229.8ms solve=1228.3ms RT=1.23 obs=2 slack=0.00m fb=0
+  [t=950.0] phase=A pos=(-2432.6,-2090.3) psi=+147.6deg wp=4 xte=-82.6m obs_d=217m ok=1 comp=1692.5ms solve=1691.0ms RT=1.69 obs=2 slack=0.00m fb=0
+  [t=951.0] phase=A pos=(-2432.5,-2089.6) psi=+147.6deg wp=4 xte=-82.6m obs_d=217m ok=1 comp=1293.0ms solve=1291.2ms RT=1.29 obs=2 slack=0.00m fb=0
+  [t=952.0] phase=A pos=(-2432.6,-2088.9) psi=+147.7deg wp=4 xte=-82.5m obs_d=216m ok=1 comp=1804.0ms solve=1802.3ms RT=1.80 obs=2 slack=0.00m fb=0
+  [t=953.0] phase=A pos=(-2432.6,-2088.2) psi=+147.7deg wp=4 xte=-82.6m obs_d=216m ok=1 comp=1450.0ms solve=1448.5ms RT=1.45 obs=2 slack=0.00m fb=0
+  [t=954.0] phase=A pos=(-2432.6,-2087.5) psi=+147.6deg wp=4 xte=-82.6m obs_d=215m ok=1 comp=1542.8ms solve=1541.5ms RT=1.54 obs=2 slack=0.00m fb=0
+  [t=955.0] phase=A pos=(-2432.7,-2086.9) psi=+147.6deg wp=4 xte=-82.6m obs_d=215m ok=1 comp=1958.2ms solve=1957.1ms RT=1.96 obs=2 slack=0.00m fb=0
+  [t=956.0] phase=A pos=(-2432.7,-2086.2) psi=+147.6deg wp=4 xte=-82.7m obs_d=214m ok=1 comp=1642.0ms solve=1640.8ms RT=1.64 obs=2 slack=0.00m fb=0
+  [t=957.0] phase=A pos=(-2432.8,-2085.5) psi=+147.6deg wp=4 xte=-82.7m obs_d=214m ok=1 comp=1790.8ms solve=1789.6ms RT=1.79 obs=2 slack=0.00m fb=0
+  [t=958.0] phase=A pos=(-2432.9,-2084.8) psi=+147.6deg wp=4 xte=-82.8m obs_d=213m ok=1 comp=1873.0ms solve=1871.0ms RT=1.87 obs=2 slack=0.00m fb=0
+  [wp-advance] 4 -> 5 (proj=0.77, d_wp=89.9 m, xte=82.9 m)
+  [t=959.0] phase=A pos=(-2433.0,-2084.1) psi=+147.6deg wp=5 xte=-87.2m obs_d=213m ok=1 comp=1990.1ms solve=1955.0ms RT=1.99 obs=2 slack=0.00m fb=0
+  [t=960.0] phase=A pos=(-2433.1,-2083.4) psi=+147.7deg wp=5 xte=-86.8m obs_d=95m ok=1 comp=2257.6ms solve=2248.7ms RT=2.26 obs=2 slack=0.00m fb=0
+  [t=961.0] phase=A pos=(-2433.1,-2082.6) psi=+147.8deg wp=5 xte=-86.5m obs_d=96m ok=1 comp=1754.3ms solve=1746.9ms RT=1.75 obs=2 slack=0.00m fb=0
+  [t=962.0] phase=A pos=(-2433.2,-2081.9) psi=+147.9deg wp=5 xte=-86.1m obs_d=96m ok=1 comp=1532.7ms solve=1530.0ms RT=1.53 obs=2 slack=0.00m fb=0
+  [t=963.0] phase=A pos=(-2433.2,-2081.1) psi=+148.1deg wp=5 xte=-85.7m obs_d=96m ok=1 comp=1656.7ms solve=1645.7ms RT=1.66 obs=2 slack=0.00m fb=0
+  [t=964.0] phase=A pos=(-2433.2,-2080.3) psi=+148.3deg wp=5 xte=-85.2m obs_d=97m ok=1 comp=1363.6ms solve=1341.7ms RT=1.36 obs=2 slack=0.00m fb=0
+  [t=965.0] phase=A pos=(-2433.2,-2079.5) psi=+148.5deg wp=5 xte=-84.8m obs_d=97m ok=1 comp=1285.8ms solve=1281.1ms RT=1.29 obs=2 slack=0.00m fb=0
+  [t=966.0] phase=A pos=(-2433.1,-2078.7) psi=+148.7deg wp=5 xte=-84.3m obs_d=97m ok=1 comp=1179.5ms solve=1177.4ms RT=1.18 obs=2 slack=0.00m fb=0
+  [t=968.0] phase=A pos=(-2433.0,-2077.1) psi=+149.3deg wp=5 xte=-83.2m obs_d=98m ok=1 comp=1039.2ms solve=1038.0ms RT=1.04 obs=2 slack=0.00m fb=0
+  [t=970.0] phase=A pos=(-2432.8,-2075.4) psi=+149.9deg wp=5 xte=-82.1m obs_d=99m ok=1 comp=1163.3ms solve=1162.3ms RT=1.16 obs=2 slack=0.00m fb=0
+  [t=971.0] phase=A pos=(-2432.8,-2074.5) psi=+150.3deg wp=5 xte=-81.5m obs_d=100m ok=1 comp=1106.6ms solve=1105.6ms RT=1.11 obs=2 slack=0.00m fb=0
+  [t=974.0] phase=A pos=(-2432.7,-2072.0) psi=+151.2deg wp=5 xte=-79.9m obs_d=101m ok=1 comp=1115.3ms solve=1114.3ms RT=1.12 obs=2 slack=0.00m fb=0
+  [t=976.0] phase=A pos=(-2432.6,-2070.3) psi=+151.8deg wp=5 xte=-78.8m obs_d=102m ok=1 comp=1430.4ms solve=1429.4ms RT=1.43 obs=2 slack=0.00m fb=0
+  [t=979.0] phase=A pos=(-2432.5,-2067.8) psi=+152.8deg wp=5 xte=-77.2m obs_d=104m ok=1 comp=1030.6ms solve=1029.4ms RT=1.03 obs=2 slack=0.00m fb=0
+  [t=980.0] phase=A pos=(-2432.5,-2066.9) psi=+153.1deg wp=5 xte=-76.7m obs_d=104m ok=1 comp=1222.8ms solve=1221.3ms RT=1.22 obs=2 slack=0.00m fb=0
+  [t=981.0] phase=A pos=(-2432.4,-2066.1) psi=+153.4deg wp=5 xte=-76.1m obs_d=105m ok=1 comp=1341.1ms solve=1339.9ms RT=1.34 obs=2 slack=0.00m fb=0
+  [t=982.0] phase=A pos=(-2432.4,-2065.3) psi=+153.8deg wp=5 xte=-75.6m obs_d=105m ok=1 comp=1200.0ms solve=1199.0ms RT=1.20 obs=2 slack=0.00m fb=0
+  [t=983.0] phase=A pos=(-2432.4,-2064.4) psi=+154.1deg wp=5 xte=-75.1m obs_d=106m ok=1 comp=1483.2ms solve=1481.6ms RT=1.48 obs=2 slack=0.00m fb=0
+  [t=984.0] phase=A pos=(-2432.4,-2063.6) psi=+154.4deg wp=5 xte=-74.6m obs_d=106m ok=1 comp=1273.2ms solve=1271.1ms RT=1.27 obs=2 slack=0.00m fb=0
+  [t=985.0] phase=A pos=(-2432.4,-2062.7) psi=+154.7deg wp=5 xte=-74.1m obs_d=107m ok=1 comp=1168.9ms solve=1167.0ms RT=1.17 obs=2 slack=0.00m fb=0
+  [t=986.0] phase=A pos=(-2432.4,-2061.9) psi=+155.0deg wp=5 xte=-73.6m obs_d=107m ok=1 comp=1224.6ms solve=1223.3ms RT=1.22 obs=2 slack=0.00m fb=0
+  [t=987.0] phase=A pos=(-2432.4,-2061.0) psi=+155.3deg wp=5 xte=-73.1m obs_d=108m ok=1 comp=1418.5ms solve=1417.3ms RT=1.42 obs=2 slack=0.00m fb=0
+  [t=988.0] phase=A pos=(-2432.5,-2060.2) psi=+155.6deg wp=5 xte=-72.6m obs_d=108m ok=1 comp=1359.0ms solve=1357.6ms RT=1.36 obs=2 slack=0.00m fb=0
+  [t=989.0] phase=A pos=(-2432.5,-2059.3) psi=+155.9deg wp=5 xte=-72.1m obs_d=109m ok=1 comp=1184.2ms solve=1182.2ms RT=1.18 obs=2 slack=0.00m fb=0
+  [terminal-mode] final-leg map-sample relaxation active (d_final=220.0 m)
+  [t=990.0] phase=A pos=(-2432.5,-2058.5) psi=+156.2deg wp=5 xte=-71.6m obs_d=109m ok=1 comp=1546.0ms solve=1514.7ms RT=1.55 obs=1 slack=0.00m fb=0
+  [t=991.0] phase=A pos=(-2432.5,-2057.6) psi=+156.5deg wp=5 xte=-71.1m obs_d=110m ok=1 comp=1361.8ms solve=1347.9ms RT=1.36 obs=1 slack=0.00m fb=0
+  [t=992.0] phase=A pos=(-2432.6,-2056.8) psi=+156.9deg wp=5 xte=-70.6m obs_d=110m ok=1 comp=1089.9ms solve=1086.6ms RT=1.09 obs=1 slack=0.00m fb=0
+  [t=993.0] phase=A pos=(-2432.6,-2055.9) psi=+157.2deg wp=5 xte=-70.1m obs_d=Infm ok=1 comp=1037.7ms solve=1023.3ms RT=1.04 obs=0 slack=0.00m fb=0
+  [t=994.0] phase=A pos=(-2432.7,-2055.1) psi=+157.5deg wp=5 xte=-69.6m obs_d=Infm ok=1 comp=1129.4ms solve=1109.1ms RT=1.13 obs=0 slack=0.00m fb=0
+  [t=995.0] phase=A pos=(-2432.7,-2054.3) psi=+157.7deg wp=5 xte=-69.2m obs_d=Infm ok=1 comp=1228.7ms solve=1219.2ms RT=1.23 obs=0 slack=0.00m fb=0
+  [t=996.0] phase=A pos=(-2432.8,-2053.5) psi=+158.0deg wp=5 xte=-68.8m obs_d=Infm ok=1 comp=1103.7ms solve=1102.3ms RT=1.10 obs=0 slack=0.00m fb=0
+  [t=999.0] phase=A pos=(-2433.0,-2051.0) psi=+158.6deg wp=5 xte=-67.5m obs_d=Infm ok=1 comp=794.9ms solve=794.1ms RT=0.79 obs=0 slack=0.00m fb=0
+  [t=1000.0] phase=A pos=(-2433.1,-2050.2) psi=+158.9deg wp=5 xte=-67.1m obs_d=Infm ok=1 comp=2030.7ms solve=2029.3ms RT=2.03 obs=0 slack=0.00m fb=0
+
+══════════════════════════════════════════════════════════════
+  SUMMARY
+══════════════════════════════════════════════════════════════
+  NMPC solves: 1001/1001 (100.0%)
+  PID fallback: 0 times
+  Mean |XTE|: 53.7 m, Max |XTE|: 87.2 m
+  Final position: (-2433.1, -2050.2)
+  Phase-B occupancy: 0.0% of steps
+  Collisions detected: 0
+  Soft obstacle slack [m]: max=0.000, cumulative=0.000
+  Brake-rate margin [m/s]: min=0.1282, violations=0
+
+  REAL-TIME FEASIBILITY (dt = 1.000 s)
+  Step compute [ms]: mean=1916.07, p95=4063.90, max=6388.26
+  NMPC solve  [ms]: mean=1913.44, p95=4046.47, max=6384.83
+  RT overruns (step_time > dt): 718/1001 (71.73%)
+  Worst RT ratio: 6.388
+
+  TOP-5 SLOWEST STEPS
+    k    t[s]   step[ms]  solve[ms]  guide[ms]  obs[ms]  ref[ms]  int[ms]  ok
+   238   237.0   6388.26    6384.83       0.24     0.61     0.29     0.05   1
+   149   148.0   5580.04    5576.61       0.14     1.91     0.33     0.08   1
+   171   170.0   5299.34    5296.54       0.26     0.72     0.40     0.07   1
+    18    17.0   5106.17    5104.10       0.24     0.57     0.24     0.08   1
+   176   175.0   5058.20    5055.64       0.26     0.79     0.45     0.07   1
+
+  TERMINAL TIMING PLOTS (ASCII)
+    Total step time (ref=1.000)
+      0-25%    |                                     2
+      25-50%   |                                     4
+      50-75%   | #                                  17
+      75-100%  | #################                 260
+      100-125% | ##############                    221
+      >125%    | ################################  497
+    NMPC solve time (ref=1.000)
+      0-25%    |                                     2
+      25-50%   |                                     4
+      50-75%   | #                                  18
+      75-100%  | #################                 260
+      100-125% | ##############                    220
+      >125%    | ################################  497
+    RT ratio (step/dt) (ref=1.000)
+      0-25%    |                                     2
+      25-50%   |                                     4
+      50-75%   | #                                  17
+      75-100%  | #################                 260
+      100-125% | ##############                    221
+      >125%    | ################################  497
+
+  Launching animation...
+  Recording video to: C:\Users\SERILEG\OneDrive - ABB\Autonomous-docking\MY_NPMC\my work\plots in development process\recordings\nmpc_run_20260424_090719.mp4
+  [animateSimResult] Loading ship icon: "C:\Users\SERILEG\OneDrive - ABB\Autonomous-docking\useful pictures\vessel_top.png"...
+  [animateSimResult] Icon loaded (312x312 px).
+  [animateSimResult] Recording video: "C:\Users\SERILEG\OneDrive - ABB\Autonomous-docking\MY_NPMC\my work\plots in development process\recordings\nmpc_run_20260424_090719.mp4"
+  [animateSimResult] Video saved: "C:\Users\SERILEG\OneDrive - ABB\Autonomous-docking\MY_NPMC\my work\plots in development process\recordings\nmpc_run_20260424_090719.mp4"
+  Video saved: C:\Users\SERILEG\OneDrive - ABB\Autonomous-docking\MY_NPMC\my work\plots in development process\recordings\nmpc_run_20260424_090719.mp4
+  Terminal log saved: C:\Users\SERILEG\OneDrive - ABB\Autonomous-docking\MY_NPMC\my work\plots in development process\logs\nmpc_run_20260424_090719_log.txt
+
+Done. Check figures.
+==============================================================
+  Simulation and output generation complete
+==============================================================
