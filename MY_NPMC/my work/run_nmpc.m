@@ -26,7 +26,7 @@ fprintf('═══════════════════════�
 %  USER CONFIGURATION — EDIT THIS SECTION
 
 % ---- WAYPOINTS (rows = [x, y] in meters, NED frame) ----
-waypoints = [-3000 -2600; -2600 -2700; -2400, -2500; -2350 -2200; -2350, -2050; -2500, -1850];
+waypoints = [-3000 -2600; -2600 -2700; -2400, -2500; -2320, -2520; -2250 -2550; -2050, -2600];
 
 % ---- CRUISE SPEED TARGET (m/s) ----
 % Guidance now uses one global cruise speed and lets the speed governor +
@@ -41,8 +41,8 @@ static_obstacles = [];
 % - Positions are rows [x y] in meters.
 % - Headings are in degrees (0=+x/North, 90=+y/East).
 % - Speeds are in m/s (scalar or one per obstacle).
-dynamic_obs_positions_xy = [-2400, -2500];  % Example: [-3000 -1700; -2920 -1740]
-dynamic_obs_headings_deg = [270];           % Example: [90; 110]
+dynamic_obs_positions_xy = [-2150, -2700];  % Example: [-3000 -1700; -2920 -1740]
+dynamic_obs_headings_deg = [80];           % Example: [90; 110]
 dynamic_obs_speeds_mps   = [3];             % [] uses dynamic_obs_speed_mps for all
 
 % ---- SIMULATION PARAMETERS ----
@@ -108,9 +108,9 @@ safe_terminal_hold_s = 5;
 
 % ---- MAP OBSTACLE SAMPLING ----
 enable_map_obstacles = true;   % Set false to disable red-zone awareness
-max_map_obstacles    = 3;     % Max map sample points as obstacles (runtime-safe)
+max_map_obstacles    = 5;     % Max map sample points as obstacles (runtime-safe)
 map_sample_radius_m  = 13;     % Virtual obstacle radius for map points
-map_edge_spacing_m = 80; % Spacing for sampling map polygon edges (larger = fewer virtual obstacles)
+map_edge_spacing_m = 60; % Spacing for sampling map polygon edges (larger = fewer virtual obstacles)
 map_include_interior_samples = false; % Whether to fill large polygon interiors with random samples (increases obstacle count, can improve avoidance in wide zones)
 map_interior_spacing_m = 120; % Spacing for interior map samples; Larger = fewer obstacles, less realism, lower computation.
 
@@ -118,11 +118,11 @@ map_interior_spacing_m = 120; % Spacing for interior map samples; Larger = fewer
 map_lookahead_time_s = 75;     % Forward preview time [s]
 map_lookahead_min_m  = 420;    % Clamp lower bound for lookahead [m]
 map_lookahead_max_m  = 900;    % Clamp upper bound for lookahead [m]
-map_half_width_min_m = 220;    % Clamp lower bound for corridor width [m]
+map_half_width_min_m = 150;    % Clamp lower bound for corridor width [m]
 map_half_width_max_m = 420;    % Clamp upper bound for corridor width [m]
 
 % ---- DYNAMIC OBSTACLES (forward motion, no turning) ----
-enable_dynamic_obstacles = false;      % Master switch for moving obstacles
+enable_dynamic_obstacles = true;      % Master switch for moving obstacles
 dynamic_obs_speed_mps    = 10;       % Constant speed [m/s]
 dynamic_obs_radius_m     = 25;        % Circular obstacle radius [m]
 dynamic_obs_nmpc_guard_m = 15;        % Extra inflation for NMPC dynamic-obstacle constraints [m]
@@ -201,9 +201,9 @@ phase_switch_cfg.R_s_m = phase_switch_cfg.T_hor_s * ...
 phase_switch_cfg.prefinal_entry_radius_m = max(1.2 * R_accept, 90);
 
 % Phase-specific map sampling load and collision strictness.
-max_map_obstacles_transit = min(max_map_obstacles, 2);
+max_map_obstacles_transit = min(max_map_obstacles, 4);
 max_map_obstacles_berth = max(max_map_obstacles, 6);
-r_safety_transit = 0.70 * r_safety;
+r_safety_transit = 0.85 * r_safety;
 r_safety_berth = r_safety;
 hull_clearance_scale_transit = 0.75;
 hull_clearance_scale_berth = 1.00;
@@ -232,9 +232,9 @@ tight_corridor_r_ref_max = 0.18;        % Allow stronger heading correction when
 
 % NEW: Actuator and forward motion penalties (ADDRESSING BACKWARD MOTION ISSUE)
 actuator_force_weight = 0.015;       % Penalty on RPM magnitude (kept lower to preserve recoverability)
-forward_incentive_weight = 3.0;      % Reduced forward-motion bias to improve turning authority during recapture
+forward_incentive_weight = 2.0;      % Reduced forward-motion bias to improve turning authority during recapture
 waypoint_heading_weight = 0.0;       % Extra heading penalty at waypoints (0=disabled)
-u_min_forward = 0.5;                % Minimum forward speed [m/s] (reduced to avoid over-constraining turns)
+u_min_forward = 0.3;                % Minimum forward speed [m/s] (reduced to avoid over-constraining turns)
 
 % ---- BRAKING CONSTRAINT (fuel cost optimization) ----
 % Limits the rate of deceleration (surge acceleration) to minimize braking fuel costs.
@@ -278,7 +278,7 @@ xte_recovery_cfg.recapture_r_ref_max = 0.20;     % stronger heading-rate authori
 xte_recovery_cfg.speed_cap_full_mps = cruise_speed_mps; % do not slow the vessel during recapture
 xte_recovery_cfg.force_wp_mode_enabled = true;   % keep enabled to avoid long off-segment drift after bypass
 xte_recovery_cfg.force_wp_xte_m = 75;            % activate emergency recapture earlier on large cross-track error
-xte_recovery_cfg.force_wp_clearance_m = 75;      % require only moderate local clearance before recapture
+xte_recovery_cfg.force_wp_clearance_m = 40;      % require only moderate local clearance before recapture
 xte_recovery_cfg.force_wp_speed_cap_mps = 3.5;   % moderate speed during recapture to prioritize heading convergence
 xte_recovery_cfg.force_wp_avoid_scale = 1.05;    % preserve/strengthen obstacle-avoidance inflation in recapture
 xte_recovery_cfg.force_wp_r_ref_max = 0.22;      % strong yaw-rate authority for segment rejoin
@@ -780,9 +780,7 @@ for i = 1:length(t)
         if d_final_now < 500
             U_d = min(U_d, 3.0);   % Never exceed 3 m/s within 500m
         end
-        if d_final_now < 350
-            U_d = min(U_d, 2.0);   % Never exceed 2 m/s within 350m  
-        end
+        
         if d_final_now < 200
             U_d = min(U_d, 1.2);   % Never exceed 1.2 m/s within 200m
         end
@@ -1926,6 +1924,7 @@ function x_ref = buildSimpleRef8(x0, chi_d, U_d, N, dt, n1_ref, n2_ref, n3_ref, 
     r_gain = getOr(turn_cfg, 'r_gain', 0.35);
     r_ref_max = getOr(turn_cfg, 'r_ref_max', 0.10);
     ramp_r_scale = getOr(turn_cfg, 'ramp_r_scale', 0.15);
+    apply_turn_ramp = getOr(turn_cfg, 'apply_turn_ramp', true);
 
     x_ref = zeros(9, N+1);
     x_ref(:, 1) = x0;
