@@ -25,10 +25,10 @@ fprintf('═══════════════════════�
 
 %  USER CONFIGURATION — EDIT THIS SECTION
 
-% ---- WAYPOINTS (rows = [x, y, heading_deg?] in meters/degrees, NED frame) ----
+% ---- WAYPOINTS (rows = [x, y, heading_deg] in meters/degrees, NED frame) ----
 % If the 3rd column of the final waypoint is finite, it is treated as the
 % desired terminal heading in degrees.
-waypoints = [-3000, -2600, NaN; -2600, -2700, NaN; -2400, -2500, NaN; -2320, -2520, NaN; -2250, -2550, NaN; -2050, -2600, 0];
+waypoints = [-3000, -2600, NaN; -2350, -2600, NaN; -2200, -2650, NaN; -2050, -2600, 0];
 
 % ---- CRUISE SPEED TARGET (m/s) ----
 % Guidance now uses one global cruise speed and lets the speed governor +
@@ -109,13 +109,19 @@ safe_terminal_radius_m = 50;
 safe_terminal_speed_mps = 1.2;
 safe_terminal_hold_s = 5;
 
-% ---- MAP OBSTACLE SAMPLING ----
+% ---- MAP OBSTACLE DETECTION ----
 enable_map_obstacles = true;   % Set false to disable red-zone awareness
-max_map_obstacles    = 8;     % Max map sample points as obstacles (runtime-safe)
-map_sample_radius_m  = 20;     % Virtual obstacle radius for map points
-map_edge_spacing_m = 60; % Spacing for sampling map polygon edges (larger = fewer virtual obstacles)
-map_include_interior_samples = false; % Whether to fill large polygon interiors with random samples (increases obstacle count, can improve avoidance in wide zones)
-map_interior_spacing_m = 120; % Spacing for interior map samples; Larger = fewer obstacles, less realism, lower computation.
+map_obstacle_model = 'halfplane'; % halfplane | circle
+max_map_obstacles    = 8;      % Max virtual circles when map_obstacle_model='circle'
+map_sample_radius_m  = 20;     % Virtual obstacle radius for map points (circle mode)
+map_edge_spacing_m = 60;       % Edge sampling spacing for circle mode
+map_include_interior_samples = false; % Interior sampling for circle mode
+map_interior_spacing_m = 120;  % Interior sampling spacing for circle mode
+
+% Half-plane mode: keep slot count modest to limit NLP growth.
+max_map_halfplanes_transit = 6;
+max_map_halfplanes_berth = 10;
+map_halfplane_min_edge_m = 15;
 
 % Balanced guidance/avoidance coupling (global, not map-specific)
 map_lookahead_time_s = 75;     % Forward preview time [s]
@@ -214,10 +220,7 @@ phase_switch_cfg.R_s_m = phase_switch_cfg.T_hor_s * ...
     sqrt(phase_switch_cfg.u_max_mps^2 + phase_switch_cfg.v_max_mps^2);
 phase_switch_cfg.prefinal_entry_radius_m = max(1.2 * R_accept, 90);
 
-% Phase-specific map sampling load and collision strictness.
-max_map_obstacles_transit = max(4, min(max_map_obstacles, 8));
-max_map_obstacles_berth = max(max_map_obstacles, 10);
-r_safety_transit = 0.90 * r_safety;
+% Phase-specific map load and collision strictness.
 max_map_obstacles_transit = min(max_map_obstacles, 4);
 max_map_obstacles_berth = max(max_map_obstacles, 6);
 r_safety_transit = 0.85 * r_safety;
@@ -480,21 +483,27 @@ if ~isempty(map)
     end
 end
 
-% Pre-sample map polygon edges for fast local queries
+% Precompute map geometry for fast local queries
 map_sample_pts = [];
+map_edge_set = [];
 final_is_map_constrained = false;
 if enable_map_obstacles && ~isempty(map)
-    map_sample_pts = buildMapSamplePoints(map, map_edge_spacing_m, ...
-        map_include_interior_samples, map_interior_spacing_m);
-    fprintf('  Map sample points: %d\n', size(map_sample_pts, 1));
+    map_edge_set = buildMapHalfPlaneEdgeSet(map, map_halfplane_min_edge_m);
+    fprintf('  Map edges (half-plane candidates): %d\n', length(map_edge_set));
 
-    d_final_map = min(sqrt(sum((map_sample_pts - waypoints(end,1:2)).^2, 2)));
+    if strcmpi(strtrim(map_obstacle_model), 'circle')
+        map_sample_pts = buildMapSamplePoints(map, map_edge_spacing_m, ...
+            map_include_interior_samples, map_interior_spacing_m);
+        fprintf('  Map sample points: %d\n', size(map_sample_pts, 1));
+    end
+
+    d_final_map = nearestDistanceToMapEdges(waypoints(end,1:2)', map_edge_set);
     nominal_keepout = r_safety + map_sample_radius_m + avoid_ref_cfg.base_margin_m;
-    fprintf('  Final waypoint -> nearest map sample: %.1f m (nominal keepout %.1f m)\n', ...
+    fprintf('  Final waypoint -> nearest map edge: %.1f m (nominal keepout %.1f m)\n', ...
         d_final_map, nominal_keepout);
     if d_final_map < nominal_keepout
         final_is_map_constrained = true;
-        warning(['Final waypoint is close to virtual map keep-out. ', ...
+        warning(['Final waypoint is close to mapped keep-out edge. ', ...
             'Terminal relaxation may be required to avoid circling.']);
     end
 end
@@ -534,12 +543,23 @@ if enable_dynamic_obstacles
         n_dynamic_obs_virtual = n_dynamic_obs * n_samp;
     end
 end
-if enable_map_obstacles && ~isempty(map_sample_pts)
+use_map_circles = enable_map_obstacles && strcmpi(strtrim(map_obstacle_model), 'circle') && ~isempty(map_sample_pts);
+use_map_halfplanes = enable_map_obstacles && strcmpi(strtrim(map_obstacle_model), 'halfplane') && ~isempty(map_edge_set);
+
+if use_map_circles
     max_obs_slots_transit = n_static_obs + max_map_obstacles_transit + n_dynamic_obs + n_dynamic_obs_virtual;
     max_obs_slots_berth = n_static_obs + max_map_obstacles_berth + n_dynamic_obs + n_dynamic_obs_virtual;
 else
     max_obs_slots_transit = n_static_obs + n_dynamic_obs + n_dynamic_obs_virtual;
     max_obs_slots_berth = n_static_obs + n_dynamic_obs + n_dynamic_obs_virtual;
+end
+
+if use_map_halfplanes
+    max_hp_slots_transit = max(0, round(max_map_halfplanes_transit));
+    max_hp_slots_berth = max(0, round(max_map_halfplanes_berth));
+else
+    max_hp_slots_transit = 0;
+    max_hp_slots_berth = 0;
 end
 
 nmpc_cfg_transit = struct();
@@ -549,6 +569,7 @@ nmpc_cfg_transit.Q  = Q_weights_balanced;
 nmpc_cfg_transit.R  = R_weights_balanced;
 nmpc_cfg_transit.R_rate = R_rate_weights_balanced;
 nmpc_cfg_transit.max_obs = max(1, max_obs_slots_transit);
+nmpc_cfg_transit.max_halfplanes = max_hp_slots_transit;
 nmpc_cfg_transit.r_safety = r_safety_transit;
 nmpc_cfg_transit.collision_model = 'oriented-rectangle';
 nmpc_cfg_transit.hull_length_m = hull_cfg.length_m;
@@ -568,6 +589,7 @@ nmpc_cfg_berth.Q = Q_weights_berth;
 nmpc_cfg_berth.R = R_weights_berth;
 nmpc_cfg_berth.R_rate = R_rate_weights_berth;
 nmpc_cfg_berth.max_obs = max(1, max_obs_slots_berth);
+nmpc_cfg_berth.max_halfplanes = max_hp_slots_berth;
 nmpc_cfg_berth.r_safety = r_safety_berth;
 nmpc_cfg_berth.collision_model = 'oriented-rectangle';
 nmpc_cfg_berth.hull_clearance_m = hull_cfg.nmpc_clearance_m * hull_clearance_scale_berth;
@@ -576,6 +598,7 @@ nmpc_cfg_berth.soft_obs_default_max_m = 0.0;
 
 nmpc_cfg_phase_berth = nmpc_cfg_berth;               % inherit berth weights
 nmpc_cfg_phase_berth.max_obs = max(1, max_obs_slots_berth);
+nmpc_cfg_phase_berth.max_halfplanes = max_hp_slots_berth;
 nmpc_cfg_phase_berth.stage_state_cost_scale = 0.0;    % stage cost = actuator only
 nmpc_cfg_phase_berth.stage_input_tracking_scale = 1.0;
 nmpc_cfg_phase_berth.terminal_pos_weight = 120;
@@ -781,12 +804,13 @@ for i = 1:length(t)
         end
     end
 
-    % ---- 2) Gather obstacles (static + map samples) ---------------------
+    % ---- 2) Gather obstacles (static + map context) ---------------------
     t_seg = tic;
     obs_local = static_obstacles;
     obs_map = struct('position', {}, 'radius', {});
+    map_halfplanes = struct('normal', {}, 'offset', {});
     
-    if enable_map_obstacles && ~isempty(map_sample_pts)
+    if enable_map_obstacles && (~isempty(map_sample_pts) || ~isempty(map_edge_set))
         U_now = max(1.0, sqrt(x(1)^2 + x(2)^2));
         lookahead_now = min(map_lookahead_max_m, max(map_lookahead_min_m, U_now * map_lookahead_time_s));
         half_width_now = min(map_half_width_max_m, max(map_half_width_min_m, 0.45 * lookahead_now));
@@ -805,32 +829,51 @@ for i = 1:length(t)
             half_width_now = max(80, relax_ratio * half_width_now);
         end
 
-        if phase_mode_is_berth || phase_mode_is_final_berth
-            max_map_obs_step = max_map_obstacles_berth;
-        else
-            max_map_obs_step = max_map_obstacles_transit;
-        end
-
-        obs_map = selectMapObstaclesFromSamples( ...
-            map_sample_pts, x(4:5), chi_d, max_map_obs_step, ...
-            lookahead_now, half_width_now, map_sample_radius_m);
-
-        % Keep map sample obstacles during terminal approach to preserve
-        % corridor awareness in constrained final segments.
-
-        % Avoid building an artificial obstacle wall around the terminal point.
-        if terminal_mode_active && ~isempty(obs_map)
-            keep_obs = true(1, length(obs_map));
-            p_goal = waypoints(end,1:2)';
-            for jj = 1:length(obs_map)
-                if norm(obs_map(jj).position(1:2) - p_goal) < terminal_map_exclusion_m
-                    keep_obs(jj) = false;
-                end
+        if use_map_halfplanes
+            if phase_mode_is_berth || phase_mode_is_final_berth
+                max_map_hp_step = max_hp_slots_berth;
+            else
+                max_map_hp_step = max_hp_slots_transit;
             end
-            obs_map = obs_map(keep_obs);
-        end
 
-        obs_local = [obs_local, obs_map];
+            if terminal_mode_active
+                relax_ratio = max(0.45, d_final_now / max(terminal_relax_dist_m, 1));
+                map_halfplanes = selectMapHalfPlanesFromEdges( ...
+                    map_edge_set, x(4:5), chi_d, max_map_hp_step, lookahead_now, ...
+                    half_width_now, waypoints(end,1:2)', terminal_map_exclusion_m, relax_ratio);
+            else
+                map_halfplanes = selectMapHalfPlanesFromEdges( ...
+                    map_edge_set, x(4:5), chi_d, max_map_hp_step, lookahead_now, ...
+                    half_width_now, [], 0, 1.0);
+            end
+        elseif use_map_circles
+            if phase_mode_is_berth || phase_mode_is_final_berth
+                max_map_obs_step = max_map_obstacles_berth;
+            else
+                max_map_obs_step = max_map_obstacles_transit;
+            end
+
+            obs_map = selectMapObstaclesFromSamples( ...
+                map_sample_pts, x(4:5), chi_d, max_map_obs_step, ...
+                lookahead_now, half_width_now, map_sample_radius_m);
+
+            % Keep map sample obstacles during terminal approach to preserve
+            % corridor awareness in constrained final segments.
+
+            % Avoid building an artificial obstacle wall around the terminal point.
+            if terminal_mode_active && ~isempty(obs_map)
+                keep_obs = true(1, length(obs_map));
+                p_goal = waypoints(end,1:2)';
+                for jj = 1:length(obs_map)
+                    if norm(obs_map(jj).position(1:2) - p_goal) < terminal_map_exclusion_m
+                        keep_obs(jj) = false;
+                    end
+                end
+                obs_map = obs_map(keep_obs);
+            end
+
+            obs_local = [obs_local, obs_map];
+        end
     end
     
     obs_dyn = struct('position', {}, 'radius', {});
@@ -1421,6 +1464,7 @@ for i = 1:length(t)
 
     az_split_limit_log(i) = solve_opts.max_azimuth_split;
     stern_split_limit_log(i) = solve_opts.max_stern_cmd_split;
+    solve_opts.map_halfplanes = map_halfplanes;
 
     [u_opt, ~, info] = nmpc_active.solve(x, x_ref, obs_local, u_prev, desired_u_min_forward, solve_opts);
     solve_call_log(i) = toc(t_seg);
@@ -2641,6 +2685,178 @@ function obs_local = selectMapObstaclesFromSamples(sample_pts, pos_xy, chi_d, ma
         obs_local(k).position = cand(k, :)';
         obs_local(k).radius = radius_m;
     end
+end
+
+function edge_set = buildMapHalfPlaneEdgeSet(map, min_edge_len_m)
+% Build compact map edge set for local half-plane extraction.
+    edge_set = struct('p1', {}, 'p2', {}, 'mid', {}, 't', {}, 'n_left', {}, 'len', {});
+    if nargin < 2 || isempty(min_edge_len_m)
+        min_edge_len_m = 10;
+    end
+    if isempty(map) || ~isfield(map, 'polygons') || isempty(map.polygons)
+        return;
+    end
+
+    out_idx = 0;
+    for kk = 1:length(map.polygons)
+        px = map.polygons(kk).X(:);
+        py = map.polygons(kk).Y(:);
+        finite = isfinite(px) & isfinite(py);
+        px = px(finite);
+        py = py(finite);
+        if numel(px) < 3
+            continue;
+        end
+
+        if px(1) ~= px(end) || py(1) ~= py(end)
+            px(end+1) = px(1); %#ok<AGROW>
+            py(end+1) = py(1); %#ok<AGROW>
+        end
+
+        for ii = 1:(numel(px)-1)
+            p1 = [px(ii); py(ii)];
+            p2 = [px(ii+1); py(ii+1)];
+            seg = p2 - p1;
+            seg_len = norm(seg);
+            if seg_len < min_edge_len_m
+                continue;
+            end
+
+            t_hat = seg / seg_len;
+            n_left = [-t_hat(2); t_hat(1)];
+
+            out_idx = out_idx + 1;
+            edge_set(out_idx).p1 = p1;
+            edge_set(out_idx).p2 = p2;
+            edge_set(out_idx).mid = 0.5 * (p1 + p2);
+            edge_set(out_idx).t = t_hat;
+            edge_set(out_idx).n_left = n_left;
+            edge_set(out_idx).len = seg_len;
+        end
+    end
+end
+
+function d_min = nearestDistanceToMapEdges(p_xy, edge_set)
+% Nearest Euclidean distance from point to map edge set.
+    d_min = inf;
+    if isempty(edge_set)
+        return;
+    end
+
+    p = p_xy(:);
+    for ii = 1:length(edge_set)
+        d_i = pointToSegmentDistance(p, edge_set(ii).p1, edge_set(ii).p2);
+        d_min = min(d_min, d_i);
+    end
+end
+
+function hp_local = selectMapHalfPlanesFromEdges(edge_set, pos_xy, chi_d, max_keep, lookahead_m, half_width_m, goal_xy, goal_exclusion_m, relax_ratio)
+% Select nearby map edges and convert them to local half-planes.
+% Each half-plane is oriented to keep the vessel on its current side.
+    hp_local = struct('normal', {}, 'offset', {});
+
+    if isempty(edge_set) || max_keep <= 0
+        return;
+    end
+    if nargin < 5 || isempty(lookahead_m), lookahead_m = 400; end
+    if nargin < 6 || isempty(half_width_m), half_width_m = 150; end
+    if nargin < 7, goal_xy = []; end
+    if nargin < 8 || isempty(goal_exclusion_m), goal_exclusion_m = 0; end
+    if nargin < 9 || isempty(relax_ratio), relax_ratio = 1.0; end
+
+    relax_ratio = max(0.35, min(1.0, relax_ratio));
+    pos = pos_xy(:);
+    fwd = [cos(chi_d); sin(chi_d)];
+    side = [-sin(chi_d); cos(chi_d)];
+
+    n_e = length(edge_set);
+    keep = false(1, n_e);
+    score = inf(1, n_e);
+
+    for ii = 1:n_e
+        mid_i = edge_set(ii).mid;
+        rel_i = mid_i - pos;
+        along_i = dot(rel_i, fwd);
+        lat_i = dot(rel_i, side);
+
+        if along_i < -50 || along_i > lookahead_m
+            continue;
+        end
+        if abs(lat_i) > half_width_m
+            continue;
+        end
+
+        if ~isempty(goal_xy)
+            if pointToSegmentDistance(goal_xy(:), edge_set(ii).p1, edge_set(ii).p2) < goal_exclusion_m
+                continue;
+            end
+        end
+
+        keep(ii) = true;
+        d_seg = pointToSegmentDistance(pos, edge_set(ii).p1, edge_set(ii).p2);
+        score(ii) = d_seg + 0.30 * abs(lat_i) + 0.06 * max(along_i, 0);
+    end
+
+    idx = find(keep);
+    if isempty(idx)
+        return;
+    end
+
+    [~, ord_local] = sort(score(idx), 'ascend');
+    idx = idx(ord_local);
+
+    min_line_sep = max(12, 30 * relax_ratio);
+    out_idx = 0;
+    used_n = zeros(2, 0);
+    used_b = zeros(0, 1);
+
+    for kk = 1:length(idx)
+        e = edge_set(idx(kk));
+        n_l = e.n_left;
+
+        % Pick normal that points toward current vessel side.
+        if dot(n_l, pos - e.p1) >= 0
+            n_use = n_l;
+        else
+            n_use = -n_l;
+        end
+        b_use = dot(n_use, e.p1);
+
+        too_close = false;
+        for jj = 1:size(used_n, 2)
+            if dot(used_n(:,jj), n_use) > 0.97 && abs(used_b(jj) - b_use) < min_line_sep
+                too_close = true;
+                break;
+            end
+        end
+        if too_close
+            continue;
+        end
+
+        out_idx = out_idx + 1;
+        hp_local(out_idx).normal = n_use;
+        hp_local(out_idx).offset = b_use;
+        used_n(:, end+1) = n_use; %#ok<AGROW>
+        used_b(end+1, 1) = b_use; %#ok<AGROW>
+
+        if out_idx >= max_keep
+            break;
+        end
+    end
+end
+
+function d = pointToSegmentDistance(p, a, b)
+% Euclidean distance from point p to segment [a,b].
+    ab = b - a;
+    ab2 = dot(ab, ab);
+    if ab2 < 1e-12
+        d = norm(p - a);
+        return;
+    end
+    t = dot(p - a, ab) / ab2;
+    t = max(0, min(1, t));
+    proj = a + t * ab;
+    d = norm(p - proj);
 end
 
 function dynamic_obstacles = buildDynamicObstaclesFromConfig(pos_xy, heading_deg, speeds_mps, radius_default, speed_default)

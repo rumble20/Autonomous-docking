@@ -40,6 +40,7 @@ classdef NMPC_Container_final < handle
 
         % Obstacle settings
         max_obs = 5
+        max_halfplanes = 0
         r_safety = 35
 
         % Collision geometry (point | oriented-rectangle)
@@ -108,6 +109,7 @@ classdef NMPC_Container_final < handle
             obj.R = padDiag(getOr(cfg, 'R', diag([0.3, 0.3, 0.01, 0.01, 0.01])), 5);
             obj.R_rate = padDiag(getOr(cfg, 'R_rate', diag([0.15, 0.15, 0.005, 0.005, 0.005])), 5);
             obj.max_obs = getOr(cfg, 'max_obs', 5);
+            obj.max_halfplanes = max(0, round(getOr(cfg, 'max_halfplanes', 0)));
             obj.r_safety = getOr(cfg, 'r_safety', 30);
             obj.collision_model = lower(strtrim(getOr(cfg, 'collision_model', 'point')));
             obj.actuator_force_weight = getOr(cfg, 'actuator_force_weight', 0.05);
@@ -138,6 +140,7 @@ classdef NMPC_Container_final < handle
 
             fprintf('NMPC_Container_final: N=%d, dt=%.2f, obs_slots=%d\n', ...
                 obj.N, obj.dt, obj.max_obs);
+            fprintf('  map half-plane slots: %d\n', obj.max_halfplanes);
             fprintf('  9-state model: [u v r x y psi n1 n2 n3]\n');
             fprintf('  5 controls: [alpha1 alpha2 n1_c n2_c n3_c]\n');
             fprintf('  surge lower bound: u >= %.2f m/s\n', obj.u_min_forward);
@@ -166,6 +169,7 @@ classdef NMPC_Container_final < handle
             n_state = obj.nx;
             n_ctrl = obj.nu;
             n_obs = obj.max_obs;
+            n_hp = obj.max_halfplanes;
             n_term_slack = 6;
 
             %  DECISION VARIABLES
@@ -181,6 +185,9 @@ classdef NMPC_Container_final < handle
             P_n_obs_real = SX.sym('P_n_obs_real', 1, 1);
             P_obs_pos  = SX.sym('P_obs_pos', 2, n_obs);
             P_obs_rad  = SX.sym('P_obs_rad', n_obs, 1);
+            P_n_hp_real = SX.sym('P_n_hp_real', 1, 1);
+            P_hp_n = SX.sym('P_hp_n', 2, n_hp);
+            P_hp_b = SX.sym('P_hp_b', n_hp, 1);
             P_u_prev   = SX.sym('P_u_prev', n_ctrl, 1);  % NEW: Previous applied control
             P_max_brake_rate = SX.sym('P_max_brake_rate', 1, 1);  % NEW: Max deceleration rate
             P_term_pose_eps = SX.sym('P_term_pose_eps', 3, 1); % [eps_x eps_y eps_psi]
@@ -189,7 +196,8 @@ classdef NMPC_Container_final < handle
             P_sync_limits = SX.sym('P_sync_limits', 2, 1); % [max_azimuth_split_rad max_stern_cmd_split_rpm]
 
             P_all = vertcat(P_x0, P_xref(:), P_uref(:), P_n_obs_real, ...
-                            P_obs_pos(:), P_obs_rad, P_u_prev, P_max_brake_rate, ...
+                            P_obs_pos(:), P_obs_rad, P_n_hp_real, P_hp_n(:), P_hp_b, ...
+                            P_u_prev, P_max_brake_rate, ...
                             P_term_pose_eps, P_term_vel_max, P_berth_corr, P_sync_limits);
             obj.np_total = size(P_all, 1);
 
@@ -317,6 +325,23 @@ classdef NMPC_Container_final < handle
                         dy = X(5,k) - P_obs_pos(2,j);
                         dist = sqrt(dx^2 + dy^2 + 1e-3);
                         g = vertcat(g, dist - P_obs_rad(j) - obj.r_safety + S_obs(j,k));
+                    end
+                end
+            end
+
+            % --- Map half-plane avoidance (n_hp * (N_h+1) inequalities) ---
+            for k = 1:(N_h+1)
+                for h = 1:n_hp
+                    signed_dist = P_hp_n(1,h) * X(4,k) + P_hp_n(2,h) * X(5,k) - P_hp_b(h);
+
+                    if strcmpi(obj.collision_model, 'oriented-rectangle')
+                        cpsi = cos(X(6,k));
+                        spsi = sin(X(6,k));
+                        hull_proj = abs(P_hp_n(1,h) * cpsi + P_hp_n(2,h) * spsi) * obj.hull_half_length_m + ...
+                            abs(-P_hp_n(1,h) * spsi + P_hp_n(2,h) * cpsi) * obj.hull_half_beam_m;
+                        g = vertcat(g, signed_dist - hull_proj - obj.hull_clearance_m);
+                    else
+                        g = vertcat(g, signed_dist - obj.r_safety);
                     end
                 end
             end
@@ -462,12 +487,13 @@ classdef NMPC_Container_final < handle
             %  CONSTRAINT BOUNDS
             n_eq        = n_state + n_state*N_h;
             n_obs_ineq  = n_obs * (N_h+1);
+            n_hp_ineq   = n_hp * (N_h+1);
             n_rate_ineq = 4 + 4*(N_h-1);  % 4 for first step + 4*(N-1) for rest
             n_brake_ineq = 1 + N_h;       % NEW: 1 for first step + N for subsequent steps
             n_term_ineq = 9;
             n_corr_ineq = 4 * (N_h + 1);
             n_sync_ineq = 4 * N_h;
-            n_constraints = n_eq + n_obs_ineq + n_rate_ineq + n_brake_ineq + n_term_ineq + n_corr_ineq + n_sync_ineq;
+            n_constraints = n_eq + n_obs_ineq + n_hp_ineq + n_rate_ineq + n_brake_ineq + n_term_ineq + n_corr_ineq + n_sync_ineq;
 
             lbg = zeros(n_constraints, 1);
             ubg = zeros(n_constraints, 1);
@@ -484,9 +510,15 @@ classdef NMPC_Container_final < handle
             lbg(obs_start:obs_end) = 0;
             ubg(obs_start:obs_end) = inf;
 
+            % Half-plane avoidance: g >= 0
+            hp_start = obs_end + 1;
+            hp_end   = obs_end + n_hp_ineq;
+            lbg(hp_start:hp_end) = 0;
+            ubg(hp_start:hp_end) = inf;
+
             % Azimuth rate: g <= 0
-            rate_start = obs_end + 1;
-            rate_end   = obs_end + n_rate_ineq;
+            rate_start = hp_end + 1;
+            rate_end   = hp_end + n_rate_ineq;
             lbg(rate_start:rate_end) = -inf;
             ubg(rate_start:rate_end) = 0;
 
@@ -545,6 +577,7 @@ classdef NMPC_Container_final < handle
             fprintf('  nlpsol built: %d vars, %d constraints\n', n_vars, n_constraints);
             fprintf('    - Equalities: %d (initial + dynamics)\n', n_eq);
             fprintf('    - Obstacle:   %d (slots × horizon)\n', n_obs_ineq);
+            fprintf('    - Half-plane: %d (slots × horizon)\n', n_hp_ineq);
             fprintf('    - Rate:       %d (first-step + consecutive)\n', n_rate_ineq);
             fprintf('    - Brake:      %d (first-step + consecutive)\n', n_brake_ineq);
             fprintf('    - Terminal:   %d (pose + velocity envelope)\n', n_term_ineq);
@@ -580,6 +613,7 @@ classdef NMPC_Container_final < handle
             %                    .berth_corridor_half_width_m (nonnegative scalar)
             %                    .berth_corridor_along_min_m (scalar)
             %                    .berth_corridor_along_max_m (scalar)
+            %                    .map_halfplanes (struct array with fields: normal [2x1], offset scalar)
             %                    .max_azimuth_split (nonnegative scalar, rad)
             %                    .max_stern_cmd_split (nonnegative scalar, rpm)
             %
@@ -598,6 +632,7 @@ classdef NMPC_Container_final < handle
             n_state = obj.nx;
             n_ctrl = obj.nu;
             n_obs = obj.max_obs;
+            n_hp = obj.max_halfplanes;
             n_term_slack = 6;
 
             if nargin < 6 || isempty(u_min_forward_override)
@@ -698,12 +733,33 @@ classdef NMPC_Container_final < handle
             obs_pos = 1e8 * ones(2, n_obs);
             obs_rad = zeros(n_obs, 1);
             n_real = 0;
+            hp_n = zeros(2, n_hp);
+            hp_b = -1e8 * ones(n_hp, 1);
+            n_hp_real = 0;
 
             if nargin >= 4 && ~isempty(obstacles)
                 n_real = min(length(obstacles), n_obs);
                 for j = 1:n_real
                     obs_pos(:,j) = obstacles(j).position(1:2);
                     obs_rad(j) = obstacles(j).radius;
+                end
+            end
+
+            if isfield(solve_opts, 'map_halfplanes') && ~isempty(solve_opts.map_halfplanes) && n_hp > 0
+                hp_in = solve_opts.map_halfplanes;
+                n_hp_real = min(length(hp_in), n_hp);
+                for h = 1:n_hp_real
+                    n_h = hp_in(h).normal(:);
+                    if numel(n_h) < 2
+                        continue;
+                    end
+                    n_h = n_h(1:2);
+                    n_norm = norm(n_h);
+                    if n_norm < 1e-9
+                        continue;
+                    end
+                    hp_n(:,h) = n_h / n_norm;
+                    hp_b(h) = hp_in(h).offset;
                 end
             end
 
@@ -714,7 +770,8 @@ classdef NMPC_Container_final < handle
             u_ref(5,:) = min(max(x0(9), obj.n_bow_min), n3_max_local);
 
             % Build parameter vector (now includes u_prev and max_brake_rate)
-            p_val = [x0(:); x_ref(:); u_ref(:); n_real; obs_pos(:); obs_rad(:); u_prev(:); obj.max_brake_rate; ...
+            p_val = [x0(:); x_ref(:); u_ref(:); n_real; obs_pos(:); obs_rad(:); n_hp_real; hp_n(:); hp_b(:); ...
+                u_prev(:); obj.max_brake_rate; ...
                 term_pose_eps_vec; term_vel_max_vec; berth_corridor_vec; sync_limits_vec];
 
             % Initial guess (warm start)
@@ -829,6 +886,7 @@ classdef NMPC_Container_final < handle
                 info.success = true;
                 info.cost = full(sol.f);
                 info.n_obs_real = n_real;
+                info.n_halfplanes_real = n_hp_real;
                 info.used_dual_warm_start = use_dual_warm_start;
                 info.soft_obs_enabled = soft_enable;
                 info.soft_obs_max_m = soft_obs_max_m;
@@ -848,6 +906,7 @@ classdef NMPC_Container_final < handle
                 info.success = false;
                 info.error = ME.message;
                 info.n_obs_real = n_real;
+                info.n_halfplanes_real = n_hp_real;
                 info.used_dual_warm_start = false;
                 info.soft_obs_enabled = soft_enable;
                 info.soft_obs_max_m = soft_obs_max_m;
