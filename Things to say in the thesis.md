@@ -585,3 +585,9 @@ These two updates collectively strengthen the contribution from a control-design
 - Update 2 introduces explicit terminal-state regulation (position + heading + optional velocity) with controlled softening and measurable slack diagnostics.
 
 Together, they move the method from "safe waypoint tracking" toward a more rigorous "precision docking under constrained feasibility" formulation.
+
+
+## Why done in this hierarchical structure and why not MPPF?
+
+"For harbor navigation with dynamic obstacles, berthing corridors, and phase-dependent objectives, a time-parameterized reference provides explicit control over speed profiles, terminal velocity bounds, and corridor constraints. MPPF decouples time from geometry, which complicates dynamic obstacle prediction and berthing phase transitions. Our architecture uses a nominal waypoint reference for trajectory priority, hard NLP constraints for avoidance, and parameterized terminal bounds for berthing—enabling mathematically verifiable priority enforcement while maintaining solver robustness."
+

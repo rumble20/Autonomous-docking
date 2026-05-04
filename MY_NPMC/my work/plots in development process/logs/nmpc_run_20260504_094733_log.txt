@@ -1,0 +1,6 @@
+{Undefined function 'internal.matlab.datatoolsservices.WSBUtil.getWorkspaceDisplay' for input arguments of type 'cell'.
+} 
+{Incorrect number or types of inputs or outputs for function internal.matlab.datatoolsservices.WSBUtil.getWorkspaceDisplay.
+} 
+{Operation terminated by user during internal.matlab.desktop_workspacebrowser.DesktopWSBDataModel.setNumVariables (line 76)
+} 

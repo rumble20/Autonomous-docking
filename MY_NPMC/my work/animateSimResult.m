@@ -18,7 +18,8 @@ function animateSimResult(traj, waypoints, t_vec, harbor, cfg)
 %     .testName     String label in figure title     (default '')
 %     .shipImgFile  Absolute path to vessel icon     (default: viking.png)
 %     .shipSize     Ship width as fraction of range  (default 0.08)
-%     .shipImageScale Display scale vs hitbox size   (default 1.20)
+%     .shipImageScale Display scale vs hitbox size   (default 1.45)
+%     .showHullHitbox Show hull hitbox outline       (default false)
 %     .maxFrames    Max frames rendered (auto-skip)  (default 150)
 %     .pauseTime    Pause between frames [s]         (default 0.05)
 %     .recordVideo  Save MP4 file                    (default false)
@@ -26,6 +27,33 @@ function animateSimResult(traj, waypoints, t_vec, harbor, cfg)
 %     .recordFps    Recording frame rate             (default 15)
 %     .videoFile    Output MP4 path                  (default 'nmpc_run.mp4')
 %     .gifFile      Output GIF path                  (default 'nmpc_run.gif')
+%     .plannedRoutes  Planned route history for each step (optional):
+%                   cell array length N with each entry containing either:
+%                     - state matrix (>=6 x K) where rows 4/5 are x/y
+%                     - 2xK array [x; y] or Kx2 array [x y]
+%                   or a 3D array with size 2xKxN or 8xKxN (state history).
+%     .plannedRouteMaxHistory  Max predicted routes to show (default 6)
+%     .plannedRouteAlphaMin    Oldest route opacity (default 0.10)
+%     .plannedRouteAlphaMax    Newest route opacity (default 0.70)
+%     .plannedRouteLineWidth   Route line width (default 1.4)
+%     .plannedRouteColor       Base RGB color (default [0.95 0.75 0.20])
+%     .plannedRouteStride      Update/plot every Nth step (default 1)
+%     .thrusterHistory   Control history (5xN): [alpha1 alpha2 n1_c n2_c n3_c]
+%     .thrusterCfg       Thruster visualization config (optional):
+%                   .pos_body_m   3x2 positions in body frame [x_fwd y_starboard]
+%                   .types        cell array (e.g. {'azipod','azipod','bow'})
+%                   .n_max        max RPM per thruster
+%                   .alpha_idx    control index for azimuth (0 if fixed)
+%                   .rpm_idx      control index for rpm command
+%                   .alpha_fixed  fixed azimuth when alpha_idx=0 (rad)
+%                   .colors       Nx3 RGB rows for thruster arrows
+%                   .arrow_max_len_m  max arrow length in meters
+%                   .arrow_min_len_m  min arrow length in meters
+%     .showThrusters     Enable thruster arrows (default true)
+%     .thrusterDeadbandRpm   Hide arrows below this RPM (default 5)
+%     .thrusterLineWidth     Arrow line width (default 2.0)
+%     .thrusterPowerExponent Length scale exponent vs RPM (default 1.6)
+%     .thrusterSmoothing     0..0.95 smoothing for arrow vectors (default 0.60)
 %     .extraPaths   Extra trajectories to overlay:
 %                   cell array of {x_array, y_array, linestyle, legendName}
 %                   e.g. {ts_x, ts_y, 'm--', 'Target ship'}
@@ -64,12 +92,27 @@ dynamicObsHistory = cfgGet(cfg, 'dynamicObsHistory', []);
 dynamicObsRadius = cfgGet(cfg, 'dynamicObsRadius', 20);
 hullCfg = cfgGet(cfg, 'hullCfg', []);
 flipShipImageVertical = cfgGet(cfg, 'flipShipImageVertical', false);
-shipImageScale = cfgGet(cfg, 'shipImageScale', 1.20);
+shipImageScale = cfgGet(cfg, 'shipImageScale', 1.45);
+showHullHitbox = cfgGet(cfg, 'showHullHitbox', false);
 recordVideo = cfgGet(cfg, 'recordVideo', false);
 recordGif = cfgGet(cfg, 'recordGif', false);
 recordFps = cfgGet(cfg, 'recordFps', 15);
 videoFile = cfgGet(cfg, 'videoFile', 'nmpc_run.mp4');
 gifFile = cfgGet(cfg, 'gifFile', 'nmpc_run.gif');
+plannedRoutes = cfgGet(cfg, 'plannedRoutes', []);
+plannedRouteMaxHistory = cfgGet(cfg, 'plannedRouteMaxHistory', 6);
+plannedRouteAlphaMin = cfgGet(cfg, 'plannedRouteAlphaMin', 0.10);
+plannedRouteAlphaMax = cfgGet(cfg, 'plannedRouteAlphaMax', 0.70);
+plannedRouteLineWidth = cfgGet(cfg, 'plannedRouteLineWidth', 1.4);
+plannedRouteColor = cfgGet(cfg, 'plannedRouteColor', [0.95 0.75 0.20]);
+plannedRouteStride = cfgGet(cfg, 'plannedRouteStride', 1);
+thrusterHistory = cfgGet(cfg, 'thrusterHistory', []);
+thrusterCfg = cfgGet(cfg, 'thrusterCfg', struct());
+showThrusters = cfgGet(cfg, 'showThrusters', true);
+thrusterDeadbandRpm = cfgGet(cfg, 'thrusterDeadbandRpm', 5);
+thrusterLineWidth = cfgGet(cfg, 'thrusterLineWidth', 2.0);
+thrusterPowerExponent = cfgGet(cfg, 'thrusterPowerExponent', 1.6);
+thrusterSmoothing = cfgGet(cfg, 'thrusterSmoothing', 0.60);
 
 %  1. Load image once  (only when file path changes)
 useImage = true;  % set false if loading fails
@@ -359,9 +402,9 @@ hTrail = plot(ax, yPath(1), xPath(1), '-', ...
               'Color', [0.20 0.85 0.45], 'LineWidth', 2, ...
               'DisplayName', 'Own ship');
 
-% --- Hull footprint rectangle (if hull_cfg provided) ---------------------
+% --- Hull footprint rectangle (if enabled) -------------------------------
 hHullRect = [];
-if ~isempty(hullCfg) && isstruct(hullCfg) && isfield(hullCfg, 'half_length_m')
+if showHullHitbox && ~isempty(hullCfg) && isstruct(hullCfg) && isfield(hullCfg, 'half_length_m')
     % Initialize rectangle at starting position
     cx0 = yPath(1);  cy0 = xPath(1);  psi0 = psi(1);
     rectCorners0 = computeHullCorners(cx0, cy0, hullCfg.half_length_m, hullCfg.half_beam_m, psi0);
@@ -370,6 +413,47 @@ if ~isempty(hullCfg) && isstruct(hullCfg) && isfield(hullCfg, 'half_length_m')
                       'FaceAlpha', 0.04, 'EdgeColor', [1.0 0.62 0.18], ...
                       'LineWidth', 2.0, 'LineStyle', '--', 'HandleVisibility', 'off');
     uistack(hHullRect, 'top');
+    uistack(hBow, 'top');
+end
+
+% --- Thruster arrows (optional) ------------------------------------------
+thrusterPosBody = cfgGet(thrusterCfg, 'pos_body_m', []);
+thrusterTypes = cfgGet(thrusterCfg, 'types', {'azipod', 'azipod', 'bow'});
+thrusterMaxRpm = cfgGet(thrusterCfg, 'n_max', [160 160 140]);
+thrusterAlphaIdx = cfgGet(thrusterCfg, 'alpha_idx', [1 2 0]);
+thrusterRpmIdx = cfgGet(thrusterCfg, 'rpm_idx', [3 4 5]);
+thrusterAlphaFixed = cfgGet(thrusterCfg, 'alpha_fixed', [NaN NaN pi/2]);
+thrusterColors = cfgGet(thrusterCfg, 'colors', []);
+thrusterSmoothing = max(0.0, min(0.95, thrusterSmoothing));
+haveThrusters = showThrusters && ~isempty(thrusterHistory) && ~isempty(thrusterPosBody);
+hThrusters = gobjects(0);
+thrusterVecPrev = [];
+thrusterMaxLen = 0;
+thrusterMinLen = 0;
+
+if haveThrusters
+    nThr = size(thrusterPosBody, 1);
+    if size(thrusterHistory, 1) ~= 5 && size(thrusterHistory, 2) == 5
+        thrusterHistory = thrusterHistory';
+    end
+    baseLen = 2 * shipHalfLen;
+    if ~isempty(hullCfg) && isfield(hullCfg, 'length_m')
+        baseLen = hullCfg.length_m;
+    end
+    thrusterMaxLen = cfgGet(thrusterCfg, 'arrow_max_len_m', max(6, 0.20 * baseLen));
+    thrusterMinLen = cfgGet(thrusterCfg, 'arrow_min_len_m', max(2, 0.12 * baseLen));
+    if isempty(thrusterColors)
+        thrusterColors = [0.95 0.45 0.20; 0.95 0.45 0.20; 0.35 0.85 1.0];
+    end
+    hThrusters = gobjects(nThr, 1);
+    thrusterVecPrev = zeros(nThr, 2);
+    for th = 1:nThr
+        colorRow = thrusterColors(min(th, size(thrusterColors, 1)), :);
+        hThrusters(th) = quiver(ax, cx0, cy0, 0, 0, 0, ...
+            'Color', colorRow, 'LineWidth', thrusterLineWidth, 'MaxHeadSize', 2.2, ...
+            'HandleVisibility', 'off');
+    end
+    uistack(hThrusters, 'top');
     uistack(hBow, 'top');
 end
 
@@ -457,6 +541,16 @@ hSpeedMarker = plot(ax_speed, t_vec(1), u_vel(1), 'o', ...
 trailX = yPath(1);
 trailY = xPath(1);
 
+% Planned route overlay handles (updated each frame when provided).
+hPlanRoutes = gobjects(0);
+havePlannedRoutes = ~isempty(plannedRoutes);
+plannedRouteStride = max(1, round(plannedRouteStride));
+plannedRouteMaxHistory = max(1, round(plannedRouteMaxHistory));
+plannedRouteAlphaMin = max(0.02, min(1.0, plannedRouteAlphaMin));
+plannedRouteAlphaMax = max(plannedRouteAlphaMin, min(1.0, plannedRouteAlphaMax));
+planHistLen = getPlanHistoryLength(plannedRoutes);
+planHistUsesFrames = planHistLen > 0 && planHistLen == numel(idx) && planHistLen ~= N;
+
 for k = 1:length(idx)
     i = idx(k);
 
@@ -502,6 +596,111 @@ for k = 1:length(idx)
                     'YData', yk + dynamicObsRadius*sin(th_dyn), 'Visible', 'on');
             else
                 set(hDynObs(d), 'Visible', 'off');
+            end
+        end
+    end
+
+    % Thruster arrows (if provided)
+    if haveThrusters && ~isempty(hThrusters)
+        ctrlIdx = min(i, size(thrusterHistory, 2));
+        if ctrlIdx >= 1
+            u_cmd = thrusterHistory(:, ctrlIdx);
+            for th = 1:length(hThrusters)
+                alpha_idx = 0;
+                rpm_idx = 0;
+                if th <= numel(thrusterAlphaIdx)
+                    alpha_idx = thrusterAlphaIdx(th);
+                end
+                if th <= numel(thrusterRpmIdx)
+                    rpm_idx = thrusterRpmIdx(th);
+                end
+
+                rpm_cmd = 0;
+                if rpm_idx > 0 && rpm_idx <= size(u_cmd, 1)
+                    rpm_cmd = u_cmd(rpm_idx);
+                end
+                if abs(rpm_cmd) < thrusterDeadbandRpm
+                    set(hThrusters(th), 'Visible', 'off');
+                    thrusterVecPrev(th, :) = thrusterSmoothing * thrusterVecPrev(th, :);
+                    continue;
+                end
+
+                alpha_cmd = NaN;
+                if alpha_idx > 0 && alpha_idx <= size(u_cmd, 1)
+                    alpha_cmd = u_cmd(alpha_idx);
+                elseif th <= numel(thrusterAlphaFixed)
+                    alpha_cmd = thrusterAlphaFixed(th);
+                end
+                if ~isfinite(alpha_cmd)
+                    alpha_cmd = 0;
+                end
+
+                max_rpm = thrusterMaxRpm(min(th, numel(thrusterMaxRpm)));
+                rpm_norm = min(1.0, abs(rpm_cmd) / max(max_rpm, 1e-6));
+                len = thrusterMinLen + (thrusterMaxLen - thrusterMinLen) * (rpm_norm ^ thrusterPowerExponent);
+                dir_sign = sign(rpm_cmd);
+                if dir_sign == 0
+                    dir_sign = 1;
+                end
+
+                dir_body_x = cos(alpha_cmd) * dir_sign;
+                dir_body_y = sin(alpha_cmd) * dir_sign;
+                if th <= numel(thrusterTypes) && strcmpi(thrusterTypes{th}, 'bow')
+                    dir_body_x = 0;
+                    dir_body_y = dir_sign;
+                end
+
+                [px, py] = bodyToWorldPoint(cx, cy, thrusterPosBody(th,1), thrusterPosBody(th,2), psi(i));
+                [vx, vy] = bodyToWorldVector(dir_body_x * len, dir_body_y * len, psi(i));
+                thrusterVecPrev(th, :) = thrusterSmoothing * thrusterVecPrev(th, :) + ...
+                    (1 - thrusterSmoothing) * [vx, vy];
+
+                set(hThrusters(th), 'XData', px, 'YData', py, ...
+                    'UData', thrusterVecPrev(th,1), 'VData', thrusterVecPrev(th,2), ...
+                    'Visible', 'on');
+            end
+        end
+    end
+
+    % Planned route overlay (fade old predictions toward background color)
+    if havePlannedRoutes && (mod(k-1, plannedRouteStride) == 0)
+        if ~isempty(hPlanRoutes)
+            try
+                delete(hPlanRoutes(ishandle(hPlanRoutes)));
+            catch
+                delete(hPlanRoutes);
+            end
+        end
+        hPlanRoutes = gobjects(0);
+        stepStart = max(1, i - (plannedRouteMaxHistory-1)*plannedRouteStride);
+        stepList = stepStart:plannedRouteStride:i;
+        nHist = numel(stepList);
+        if nHist > 0
+            alphaVals = linspace(plannedRouteAlphaMin, plannedRouteAlphaMax, nHist);
+            for s = 1:nHist
+                stepIdx = stepList(s);
+                planIdx = stepIdx;
+                if planHistUsesFrames
+                    planIdx = max(1, min(planHistLen, floor((stepIdx - 1) / skip) + 1));
+                end
+                [px, py] = getPlannedRoute(plannedRoutes, planIdx);
+                if isempty(px) || isempty(py)
+                    continue;
+                end
+                % Blend planned route color into the background to mimic opacity.
+                cBlend = alphaVals(s) * plannedRouteColor + (1 - alphaVals(s)) * ax.Color;
+                hPlanRoutes(end+1,1) = plot(ax, px, py, '-', ...
+                    'Color', cBlend, 'LineWidth', plannedRouteLineWidth, ...
+                    'HandleVisibility', 'off');
+            end
+            if exist('hShip', 'var') && isvalid(hShip)
+                uistack(hShip, 'top');
+            end
+            if exist('hBow', 'var') && isvalid(hBow)
+                uistack(hBow, 'top');
+            end
+            if ~isempty(hHullRect) && isvalid(hHullRect)
+                uistack(hHullRect, 'top');
             end
         end
     end
@@ -645,4 +844,104 @@ function [xq, yq] = computeShipImageQuad(cx, cy, half_len, half_beam, psi)
 
     xq = [world_x(1), world_x(2); world_x(4), world_x(3)];
     yq = [world_y(1), world_y(2); world_y(4), world_y(3)];
+end
+
+function [px, py] = bodyToWorldPoint(cx, cy, x_body, y_body, psi)
+% Transform a body-frame point into the map frame (East, North).
+    [dx, dy] = bodyToWorldVector(x_body, y_body, psi);
+    px = cx + dx;
+    py = cy + dy;
+end
+
+function [vx, vy] = bodyToWorldVector(x_body, y_body, psi)
+% Transform a body-frame vector into the map frame (East, North).
+    s = sin(psi);
+    c = cos(psi);
+    vx = s * x_body + c * y_body;  % East
+    vy = c * x_body - s * y_body;  % North
+end
+
+function [px, py] = getPlannedRoute(planHist, stepIdx)
+% Extract predicted route at a given step index. Returns map-frame coords
+% (px = East, py = North) ready for plotting.
+    px = [];
+    py = [];
+    if isempty(planHist) || stepIdx < 1
+        return;
+    end
+
+    data = [];
+    if iscell(planHist)
+        if stepIdx <= numel(planHist)
+            data = planHist{stepIdx};
+        end
+    elseif isstruct(planHist)
+        if stepIdx <= numel(planHist)
+            data = planHist(stepIdx);
+        end
+    elseif isnumeric(planHist) && ndims(planHist) == 3
+        if stepIdx <= size(planHist, 3)
+            data = planHist(:,:,stepIdx);
+        end
+    end
+
+    if isempty(data)
+        return;
+    end
+
+    if isstruct(data)
+        if isfield(data, 'x') && isfield(data, 'y')
+            x = data.x;
+            y = data.y;
+        elseif isfield(data, 'X_pred')
+            Xp = data.X_pred;
+            if size(Xp, 1) >= 5
+                x = Xp(4, :);
+                y = Xp(5, :);
+            else
+                return;
+            end
+        else
+            return;
+        end
+    elseif isnumeric(data)
+        if size(data, 1) >= 6 && size(data, 2) >= 3
+            % State matrix (rows: ... x y ...)
+            x = data(4, :);
+            y = data(5, :);
+        elseif size(data, 1) == 2
+            % [x; y]
+            x = data(1, :);
+            y = data(2, :);
+        elseif size(data, 2) == 2
+            % [x y]
+            x = data(:, 1)';
+            y = data(:, 2)';
+        else
+            return;
+        end
+    else
+        return;
+    end
+
+    if isempty(x) || isempty(y)
+        return;
+    end
+
+    % Map frame: plot X as East (y), Y as North (x).
+    px = y(:)';
+    py = x(:)';
+end
+
+function n = getPlanHistoryLength(planHist)
+% Return number of stored plan steps for history indexing.
+    n = 0;
+    if isempty(planHist)
+        return;
+    end
+    if iscell(planHist) || isstruct(planHist)
+        n = numel(planHist);
+    elseif isnumeric(planHist) && ndims(planHist) == 3
+        n = size(planHist, 3);
+    end
 end
