@@ -1,8 +1,17 @@
 classdef NMPC_Container_final < handle
     % NMPC_Container_final  NMPC for container ship with twin stern azipods + bow thruster
     %
-%   States:  x = [u v r x y psi n1 n2 n3]'        (9)
-%   Controls: u = [alpha1 alpha2 n1_c n2_c n3_c]' (5)
+    %   States:  x = [u v r x y psi n1 n2 n3]'        (9)
+    %   Controls: u = [alpha1 alpha2 n1_c n2_c n3_c]' (5)
+    %
+    %   Features:
+    %     - CBF-based obstacle avoidance (static + dynamic)
+    %     - CBF-based half-plane (port boundary) avoidance
+    %     - Oriented-rectangle or point collision model
+    %     - Soft obstacle slack + terminal pose slack
+    %     - Berth corridor constraints
+    %     - Twin-stern azipod synchrony constraints
+    %     - Warm-start with dual variables
 
     properties
         N
@@ -43,7 +52,7 @@ classdef NMPC_Container_final < handle
         max_halfplanes = 0
         r_safety = 35
 
-        % Collision geometry (point | oriented-rectangle)
+        % Collision geometry
         collision_model = 'oriented-rectangle'
         hull_length_m = 0
         hull_beam_m = 0
@@ -51,28 +60,32 @@ classdef NMPC_Container_final < handle
         hull_half_beam_m = 0
         hull_clearance_m = 0
         hull_smooth_eps = 1e-4
-        azimuth_split_max_default = pi          % Default max azimuth angle split between port/starboard [rad]
-        stern_cmd_split_max_default = 40        % Default max RPM split between port/starboard stern [rpm]
+        azimuth_split_max_default = pi
+        stern_cmd_split_max_default = 40
 
+        % CBF parameters
+        gamma_cbf_obs = 0.3           % CBF decay rate for obstacles [0,1]
+        gamma_cbf_hp = 0.25           % CBF decay rate for half-planes [0,1]
+        cbf_obs_terminal_hard = true  % Hard constraint on terminal step (safety net)
 
-        % NEW: Actuator and forward motion control
-        actuator_force_weight = 0.01     % Penalty on RPM magnitude (reduced for aggressive response) — was 0.05
-        forward_incentive_weight = 2.5   % Penalty on backward motion (encourages forward bow) — unchanged
-        waypoint_heading_weight = 0.0    % Extra heading penalty at waypoints (0=disabled)
-        u_min_forward = 0.5              % Default surge lower bound [m/s] (forward-only unless overridden)
-        max_brake_rate = 0.3             % Max deceleration rate [m/s²] to minimize braking fuel costs
-        soft_obs_weight = 2e5            % Large penalty when soft obstacle slack is enabled
-        soft_obs_default_max_m = 0.0     % Default obstacle slack cap [m] (0 disables softening)
-        terminal_pose_slack_weight = 8e4 % Penalty for terminal-pose soft slack
-        terminal_pose_slack_default_max = 0.0 % Default max terminal slack (0 disables by default)
-        stage_state_cost_scale = 1.0  % Scale on stage state-tracking penalties
-        stage_input_tracking_scale = 1.0 % Scale on stage input-tracking (U-uref) penalties
-        terminal_speed_weight = NaN   % Override terminal speed weight (NaN -> use 2*Q_u)
-        terminal_pos_weight = NaN     % Override terminal position weight (NaN -> use 2*Q_x and 2*Q_y)
-        terminal_heading_weight = NaN % Override terminal heading weight (NaN -> use 2*Q_psi)
-        terminal_cost_scale = 1.0     % Global scale on terminal state-tracking cost
-        terminal_actuator_cost_scale = 1.0 % Scale on terminal actuator effort penalty
-        terminal_forward_cost_scale = 1.0  % Scale on terminal reverse-motion penalty
+        % Actuator and forward motion control
+        actuator_force_weight = 0.01
+        forward_incentive_weight = 2.5
+        waypoint_heading_weight = 0.0
+        u_min_forward = 0.5
+        max_brake_rate = 0.3
+        soft_obs_weight = 5e4            % Reduced from 2e5 (CBF handles safety)
+        soft_obs_default_max_m = 0.5     % Reduced from 0.0 (slack as last resort)
+        terminal_pose_slack_weight = 8e4
+        terminal_pose_slack_default_max = 0.0
+        stage_state_cost_scale = 1.0
+        stage_input_tracking_scale = 1.0
+        terminal_speed_weight = NaN
+        terminal_pos_weight = NaN
+        terminal_heading_weight = NaN
+        terminal_cost_scale = 1.0
+        terminal_actuator_cost_scale = 1.0
+        terminal_forward_cost_scale = 1.0
 
         % Solver internals
         solver
@@ -95,10 +108,10 @@ classdef NMPC_Container_final < handle
 
         enable_diagnostics = false
 
-        p_layout          % Struct mapping param blocks -> [offset, length]
-        constraint_names  % Cell array of constraint block names
-        constraint_block_sizes % Cell array of constraint block sizes
-        g_func            % CasADi function for fast constraint evaluation
+        p_layout
+        constraint_names
+        constraint_block_sizes
+        g_func
     end
 
     methods
@@ -122,8 +135,8 @@ classdef NMPC_Container_final < handle
             obj.waypoint_heading_weight = getOr(cfg, 'waypoint_heading_weight', 0.0);
             obj.u_min_forward = getOr(cfg, 'u_min_forward', 0.5);
             obj.max_brake_rate = getOr(cfg, 'max_brake_rate', 0.3);
-            obj.soft_obs_weight = getOr(cfg, 'soft_obs_weight', 2e5);
-            obj.soft_obs_default_max_m = getOr(cfg, 'soft_obs_default_max_m', 0.0);
+            obj.soft_obs_weight = getOr(cfg, 'soft_obs_weight', 5e4);
+            obj.soft_obs_default_max_m = getOr(cfg, 'soft_obs_default_max_m', 0.5);
             obj.terminal_pose_slack_weight = getOr(cfg, 'terminal_pose_slack_weight', 8e4);
             obj.terminal_pose_slack_default_max = getOr(cfg, 'terminal_pose_slack_default_max', 0.0);
             obj.stage_state_cost_scale = getOr(cfg, 'stage_state_cost_scale', 1.0);
@@ -134,6 +147,11 @@ classdef NMPC_Container_final < handle
             obj.terminal_cost_scale = getOr(cfg, 'terminal_cost_scale', 1.0);
             obj.terminal_actuator_cost_scale = getOr(cfg, 'terminal_actuator_cost_scale', 1.0);
             obj.terminal_forward_cost_scale = getOr(cfg, 'terminal_forward_cost_scale', 1.0);
+
+            % CBF parameters
+            obj.gamma_cbf_obs = getOr(cfg, 'gamma_cbf_obs', 0.3);
+            obj.gamma_cbf_hp = getOr(cfg, 'gamma_cbf_hp', 0.25);
+            obj.cbf_obs_terminal_hard = logical(getOr(cfg, 'cbf_obs_terminal_hard', true));
 
             obj.hull_length_m = getOr(cfg, 'hull_length_m', 36);
             obj.hull_beam_m = getOr(cfg, 'hull_beam_m', 12);
@@ -148,9 +166,12 @@ classdef NMPC_Container_final < handle
             fprintf('  map half-plane slots: %d\n', obj.max_halfplanes);
             fprintf('  9-state model: [u v r x y psi n1 n2 n3]\n');
             fprintf('  5 controls: [alpha1 alpha2 n1_c n2_c n3_c]\n');
+            fprintf('  CBF obstacle gamma: %.2f | CBF half-plane gamma: %.2f\n', ...
+                obj.gamma_cbf_obs, obj.gamma_cbf_hp);
+            fprintf('  CBF terminal hard constraint: %s\n', mat2str(obj.cbf_obs_terminal_hard));
             fprintf('  surge lower bound: u >= %.2f m/s\n', obj.u_min_forward);
             fprintf('  azimuth rate limit: %.2f deg/s\n', rad2deg(obj.alpha_rate_max));
-            fprintf('  max brake rate: %.2f m/s²\n', obj.max_brake_rate);
+            fprintf('  max brake rate: %.2f m/s^2\n', obj.max_brake_rate);
             fprintf('  soft obstacle slack: weight=%.1f, default_max=%.2f m\n', ...
                 obj.soft_obs_weight, obj.soft_obs_default_max_m);
             fprintf('  terminal-pose slack: weight=%.1f, default_max=%.2f\n', ...
@@ -177,24 +198,25 @@ classdef NMPC_Container_final < handle
             n_hp = obj.max_halfplanes;
             n_term_slack = 6;
 
-            %  DECISION VARIABLES
+            %%  DECISION VARIABLES
             X = SX.sym('X', n_state, N_h+1);
             U = SX.sym('U', n_ctrl, N_h);
-            S_obs = SX.sym('S_obs', n_obs, N_h+1); % Soft obstacle slack [m]
-            S_term = SX.sym('S_term', n_term_slack, 1); % Terminal pose/velocity soft slack
+            S_obs = SX.sym('S_obs', n_obs, N_h+1); % Slack for obstacle constraints
+            S_term = SX.sym('S_term', n_term_slack, 1); % Slack for terminal pose constraint
 
-            %  PARAMETERS
+            %%  PARAMETERS
             P_x0       = SX.sym('P_x0', n_state, 1);
             P_xref     = SX.sym('P_xref', n_state, N_h+1);
             P_uref     = SX.sym('P_uref', n_ctrl, N_h);
             P_n_obs_real = SX.sym('P_n_obs_real', 1, 1);
             P_obs_pos  = SX.sym('P_obs_pos', 2, n_obs);
             P_obs_rad  = SX.sym('P_obs_rad', n_obs, 1);
+            P_obs_vel  = SX.sym('P_obs_vel', 2, n_obs);  % Dynamic obstacle velocities
             P_n_hp_real = SX.sym('P_n_hp_real', 1, 1);
             P_hp_n = SX.sym('P_hp_n', 2, n_hp);
             P_hp_b = SX.sym('P_hp_b', n_hp, 1);
-            P_u_prev   = SX.sym('P_u_prev', n_ctrl, 1);  % NEW: Previous applied control
-            P_max_brake_rate = SX.sym('P_max_brake_rate', 1, 1);  % NEW: Max deceleration rate
+            P_u_prev   = SX.sym('P_u_prev', n_ctrl, 1);
+            P_max_brake_rate = SX.sym('P_max_brake_rate', 1, 1);
             P_q_state = SX.sym('P_q_state', n_state, 1);
             P_r_input = SX.sym('P_r_input', n_ctrl, 1);
             P_r_rate = SX.sym('P_r_rate', n_ctrl, 1);
@@ -202,21 +224,25 @@ classdef NMPC_Container_final < handle
             P_terminal_weights = SX.sym('P_terminal_weights', 4, 1); % [u x y psi]
             P_terminal_scales = SX.sym('P_terminal_scales', 3, 1); % [state actuator reverse]
             P_collision_clearance = SX.sym('P_collision_clearance', 1, 1);
-            P_term_pose_eps = SX.sym('P_term_pose_eps', 3, 1); % [eps_x eps_y eps_psi]
-            P_term_vel_max = SX.sym('P_term_vel_max', 3, 1);   % [|u| |v| |r|] terminal bounds
-            P_berth_corr = SX.sym('P_berth_corr', 7, 1); % [x0 y0 psi half_w along_min along_max enable]
-            P_sync_limits = SX.sym('P_sync_limits', 2, 1); % [max_azimuth_split_rad max_stern_cmd_split_rpm]
+            P_term_pose_eps = SX.sym('P_term_pose_eps', 3, 1); % Terminal pose tolerance
+            P_term_vel_max = SX.sym('P_term_vel_max', 3, 1); % Terminal velocity tolerance
+            P_berth_corr = SX.sym('P_berth_corr', 7, 1); % [x_min x_max y_min y_max psi_min psi_max speed_max] for berth corridor
+            P_sync_limits = SX.sym('P_sync_limits', 2, 1); % [min_sync max_sync]
+            P_gamma_obs = SX.sym('P_gamma_obs', 1, 1);   % CBF gamma for obstacles
+            P_gamma_hp = SX.sym('P_gamma_hp', 1, 1);     % CBF gamma for half-planes
 
             P_all = vertcat(P_x0, P_xref(:), P_uref(:), P_n_obs_real, ...
-                            P_obs_pos(:), P_obs_rad, P_n_hp_real, P_hp_n(:), P_hp_b, ...
+                            P_obs_pos(:), P_obs_rad, P_obs_vel(:), ...
+                            P_n_hp_real, P_hp_n(:), P_hp_b, ...
                             P_u_prev, P_max_brake_rate, ...
                             P_q_state, P_r_input, P_r_rate, ...
                             P_stage_scales, P_terminal_weights, P_terminal_scales, ...
                             P_collision_clearance, ...
-                            P_term_pose_eps, P_term_vel_max, P_berth_corr, P_sync_limits);
+                            P_term_pose_eps, P_term_vel_max, P_berth_corr, P_sync_limits, ...
+                            P_gamma_obs, P_gamma_hp);
             obj.np_total = size(P_all, 1);
 
-            %  COST FUNCTION
+            %%  COST FUNCTION
             w_stage_state = P_stage_scales(1);
             w_stage_input = P_stage_scales(2);
             w_term_u = P_terminal_weights(1);
@@ -229,8 +255,6 @@ classdef NMPC_Container_final < handle
 
             J = 0;
 
-            % Accumulate each constraint family in a named block so the final
-            % vectors stay easy to inspect during debugging.
             g_blocks = {};
             lb_blocks = {};
             ub_blocks = {};
@@ -256,19 +280,17 @@ classdef NMPC_Container_final < handle
                 turn_heading_gate = min(1.0, abs(P_xref(3,k)) / 0.10);
                 J = J + obj.waypoint_heading_weight * turn_heading_gate * psi_err^2;
 
-                % NEW: Actuator force penalty (reduces thruster swaying)
-                % Penalizes the magnitude of RPM commands to discourage excessive actuation
+                % Actuator force penalty
                 J = J + obj.actuator_force_weight * (X(7,k)^2 + X(8,k)^2 + X(9,k)^2);
 
-                % NEW: Forward velocity encouragement (makes bow go forward)
-                % Penalizes negative forward speed to naturally prefer forward motion
-                u_back = min(0, X(1,k));  % Only penalize if going backward
+                % Forward velocity encouragement
+                u_back = min(0, X(1,k));
                 J = J + obj.forward_incentive_weight * u_back^2;
 
                 du = U(:,k) - P_uref(:,k);
                 J = J + w_stage_input * sum1(P_r_input .* (du.^2));
 
-                % Obstacle-softening penalty (active only if slack bounds permit >0 values).
+                % Obstacle-softening penalty
                 for j = 1:n_obs
                     J = J + obj.soft_obs_weight * S_obs(j,k)^2;
                 end
@@ -291,7 +313,6 @@ classdef NMPC_Container_final < handle
             J = J + w_terminal_state * terminal_state_cost;
             terminal_heading_gate = min(1.0, abs(P_xref(3,N_h+1)) / 0.10);
             J = J + obj.waypoint_heading_weight * terminal_heading_gate * psi_err_N^2;
-            % NEW: Terminal actuator force and forward incentive penalties
             J = J + w_terminal_actuator * 2 * obj.actuator_force_weight * ...
                 (X(7,N_h+1)^2 + X(8,N_h+1)^2 + X(9,N_h+1)^2);
             u_back_N = min(0, X(1,N_h+1));
@@ -301,15 +322,16 @@ classdef NMPC_Container_final < handle
             end
             J = J + obj.terminal_pose_slack_weight * (S_term' * S_term);
 
-            %  CONSTRAINTS
-            % --- Initial condition (n_state equalities) ---
+            %%  CONSTRAINTS
+
+            % --- Initial condition ---
             g_blocks{end+1} = X(:,1) - P_x0;
             lb_blocks{end+1} = zeros(n_state, 1);
             ub_blocks{end+1} = zeros(n_state, 1);
             block_names{end+1} = 'Initial condition';
             block_sizes(end+1) = n_state;
 
-            % --- Dynamics (n_state * N_h equalities) ---
+            % --- Dynamics ---
             g_dyn = [];
             for k = 1:N_h
                 xdot_k = obj.dynamicsCasADi(X(:,k), U(:,k));
@@ -322,66 +344,184 @@ classdef NMPC_Container_final < handle
             block_names{end+1} = 'Dynamics';
             block_sizes(end+1) = n_state*N_h;
 
-            % --- Obstacle avoidance (n_obs * (N_h+1) inequalities) ---
-            g_obs = [];
-            for k = 1:(N_h+1)
+            % --- CBF Obstacle Avoidance (static + dynamic) ---
+            % Barrier: h(x,obs) = dist(x, obs) - r_obs - clearance
+            % CBF constraint: h(k+1) - (1-gamma)*h(k) + slack >= 0
+            % Dynamic obstacles: predicted position obs_k = obs_0 + k*dt*vel
+            g_obs_cbf = [];
+            for k = 1:N_h
                 for j = 1:n_obs
+                    % Predicted obstacle positions at step k and k+1
+                    obs_x_k   = P_obs_pos(1,j) + k * obj.dt * P_obs_vel(1,j);
+                    obs_y_k   = P_obs_pos(2,j) + k * obj.dt * P_obs_vel(2,j);
+                    obs_x_kp1 = P_obs_pos(1,j) + (k+1) * obj.dt * P_obs_vel(1,j);
+                    obs_y_kp1 = P_obs_pos(2,j) + (k+1) * obj.dt * P_obs_vel(2,j);
+
                     if strcmpi(obj.collision_model, 'oriented-rectangle')
-                        % Obstacle center in ship body frame at prediction step k.
-                        rx = P_obs_pos(1,j) - X(4,k);
-                        ry = P_obs_pos(2,j) - X(5,k);
-                        cpsi = cos(X(6,k));
-                        spsi = sin(X(6,k));
+                        % h(x_k, obs_k)
+                        rx_k = obs_x_k - X(4,k);
+                        ry_k = obs_y_k - X(5,k);
+                        cpsi_k = cos(X(6,k));
+                        spsi_k = sin(X(6,k));
+                        qx_k = cpsi_k * rx_k + spsi_k * ry_k;
+                        qy_k = -spsi_k * rx_k + cpsi_k * ry_k;
+                        ax_k = abs(qx_k) - obj.hull_half_length_m;
+                        ay_k = abs(qy_k) - obj.hull_half_beam_m;
+                        dx_k = if_else(ax_k > 0, ax_k, 0);
+                        dy_k = if_else(ay_k > 0, ay_k, 0);
+                        dist_k = sqrt(dx_k^2 + dy_k^2 + obj.hull_smooth_eps);
+                        h_k = dist_k - P_obs_rad(j) - P_collision_clearance;
 
-                        qx = cpsi * rx + spsi * ry;
-                        qy = -spsi * rx + cpsi * ry;
-
-                        ax = abs(qx) - obj.hull_half_length_m;
-                        ay = abs(qy) - obj.hull_half_beam_m;
-                        dx = if_else(ax > 0, ax, 0);
-                        dy = if_else(ay > 0, ay, 0);
-                        dist = sqrt(dx^2 + dy^2 + obj.hull_smooth_eps);
-                        g_obs = vertcat(g_obs, dist - P_obs_rad(j) - P_collision_clearance + S_obs(j,k));
+                        % h(x_{k+1}, obs_{k+1})
+                        rx_kp1 = obs_x_kp1 - X(4,k+1);
+                        ry_kp1 = obs_y_kp1 - X(5,k+1);
+                        cpsi_kp1 = cos(X(6,k+1));
+                        spsi_kp1 = sin(X(6,k+1));
+                        qx_kp1 = cpsi_kp1 * rx_kp1 + spsi_kp1 * ry_kp1;
+                        qy_kp1 = -spsi_kp1 * rx_kp1 + cpsi_kp1 * ry_kp1;
+                        ax_kp1 = abs(qx_kp1) - obj.hull_half_length_m;
+                        ay_kp1 = abs(qy_kp1) - obj.hull_half_beam_m;
+                        dx_kp1 = if_else(ax_kp1 > 0, ax_kp1, 0);
+                        dy_kp1 = if_else(ay_kp1 > 0, ay_kp1, 0);
+                        dist_kp1 = sqrt(dx_kp1^2 + dy_kp1^2 + obj.hull_smooth_eps);
+                        h_kp1 = dist_kp1 - P_obs_rad(j) - P_collision_clearance;
                     else
-                        dx = X(4,k) - P_obs_pos(1,j);
-                        dy = X(5,k) - P_obs_pos(2,j);
-                        dist = sqrt(dx^2 + dy^2 + 1e-3);
-                        g_obs = vertcat(g_obs, dist - P_obs_rad(j) - P_collision_clearance + S_obs(j,k));
+                        % Point model: h(x_k)
+                        dx_k_pt = X(4,k) - obs_x_k;
+                        dy_k_pt = X(5,k) - obs_y_k;
+                        dist_k = sqrt(dx_k_pt^2 + dy_k_pt^2 + 1e-3);
+                        h_k = dist_k - P_obs_rad(j) - P_collision_clearance;
+
+                        % h(x_{k+1})
+                        dx_kp1_pt = X(4,k+1) - obs_x_kp1;
+                        dy_kp1_pt = X(5,k+1) - obs_y_kp1;
+                        dist_kp1 = sqrt(dx_kp1_pt^2 + dy_kp1_pt^2 + 1e-3);
+                        h_kp1 = dist_kp1 - P_obs_rad(j) - P_collision_clearance;
                     end
+
+                    % CBF: h(k+1) - (1-gamma)*h(k) + slack >= 0
+                    g_obs_cbf = vertcat(g_obs_cbf, ...
+                        h_kp1 - (1 - P_gamma_obs) * h_k + S_obs(j,k));
                 end
             end
-            g_blocks{end+1} = g_obs;
-            lb_blocks{end+1} = zeros(n_obs*(N_h+1), 1);
-            ub_blocks{end+1} = inf(n_obs*(N_h+1), 1);
-            block_names{end+1} = 'Obstacle avoidance';
-            block_sizes(end+1) = n_obs*(N_h+1);
 
-            % --- Map half-plane avoidance (n_hp * (N_h+1) inequalities) ---
-            g_hp = [];
-            for k = 1:(N_h+1)
+            % Terminal safety net: hard constraint at k=N_h+1
+            if obj.cbf_obs_terminal_hard
+                for j = 1:n_obs
+                    obs_x_end = P_obs_pos(1,j) + (N_h+1) * obj.dt * P_obs_vel(1,j);
+                    obs_y_end = P_obs_pos(2,j) + (N_h+1) * obj.dt * P_obs_vel(2,j);
+
+                    if strcmpi(obj.collision_model, 'oriented-rectangle')
+                        rx_end = obs_x_end - X(4,N_h+1);
+                        ry_end = obs_y_end - X(5,N_h+1);
+                        cpsi_end = cos(X(6,N_h+1));
+                        spsi_end = sin(X(6,N_h+1));
+                        qx_end = cpsi_end * rx_end + spsi_end * ry_end;
+                        qy_end = -spsi_end * rx_end + cpsi_end * ry_end;
+                        ax_end = abs(qx_end) - obj.hull_half_length_m;
+                        ay_end = abs(qy_end) - obj.hull_half_beam_m;
+                        dx_end = if_else(ax_end > 0, ax_end, 0);
+                        dy_end = if_else(ay_end > 0, ay_end, 0);
+                        dist_end = sqrt(dx_end^2 + dy_end^2 + obj.hull_smooth_eps);
+                        h_end = dist_end - P_obs_rad(j) - P_collision_clearance;
+                    else
+                        dx_end_pt = X(4,N_h+1) - obs_x_end;
+                        dy_end_pt = X(5,N_h+1) - obs_y_end;
+                        dist_end = sqrt(dx_end_pt^2 + dy_end_pt^2 + 1e-3);
+                        h_end = dist_end - P_obs_rad(j) - P_collision_clearance;
+                    end
+
+                    g_obs_cbf = vertcat(g_obs_cbf, h_end + S_obs(j,N_h+1));
+                end
+            end
+
+            n_cbf_obs = n_obs * N_h;
+            if obj.cbf_obs_terminal_hard
+                n_cbf_obs = n_cbf_obs + n_obs;
+            end
+            g_blocks{end+1} = g_obs_cbf;
+            lb_blocks{end+1} = zeros(n_cbf_obs, 1);
+            ub_blocks{end+1} = inf(n_cbf_obs, 1);
+            block_names{end+1} = 'CBF obstacle avoidance';
+            block_sizes(end+1) = n_cbf_obs;
+
+            % --- CBF Half-Plane Avoidance ---
+            % Barrier: h_hp(x) = n'*p - b - hull_projection - clearance
+            % CBF: h_hp(k+1) >= (1-gamma_hp) * h_hp(k)
+            g_hp_cbf = [];
+
+            % Direct constraint at k=1 (initial safety)
+            for h = 1:n_hp
+                if strcmpi(obj.collision_model, 'oriented-rectangle')
+                    cpsi_1 = cos(X(6,1));
+                    spsi_1 = sin(X(6,1));
+                    hull_proj_1 = abs(P_hp_n(1,h)*cpsi_1 + P_hp_n(2,h)*spsi_1) * obj.hull_half_length_m + ...
+                                  abs(-P_hp_n(1,h)*spsi_1 + P_hp_n(2,h)*cpsi_1) * obj.hull_half_beam_m;
+                    signed_dist_1 = P_hp_n(1,h)*X(4,1) + P_hp_n(2,h)*X(5,1) - P_hp_b(h);
+                    h_hp_1 = signed_dist_1 - hull_proj_1 - P_collision_clearance;
+                else
+                    signed_dist_1 = P_hp_n(1,h)*X(4,1) + P_hp_n(2,h)*X(5,1) - P_hp_b(h);
+                    h_hp_1 = signed_dist_1 - P_collision_clearance;
+                end
+                g_hp_cbf = vertcat(g_hp_cbf, h_hp_1);
+            end
+
+            % CBF constraints for k=1..N_h
+            for k = 1:N_h
                 for h = 1:n_hp
-                    signed_dist = P_hp_n(1,h) * X(4,k) + P_hp_n(2,h) * X(5,k) - P_hp_b(h);
-
                     if strcmpi(obj.collision_model, 'oriented-rectangle')
-                        cpsi = cos(X(6,k));
-                        spsi = sin(X(6,k));
-                        hull_proj = abs(P_hp_n(1,h) * cpsi + P_hp_n(2,h) * spsi) * obj.hull_half_length_m + ...
-                            abs(-P_hp_n(1,h) * spsi + P_hp_n(2,h) * cpsi) * obj.hull_half_beam_m;
-                        g_hp = vertcat(g_hp, signed_dist - hull_proj - P_collision_clearance);
+                        % h_hp at step k
+                        cpsi_k = cos(X(6,k));
+                        spsi_k = sin(X(6,k));
+                        hull_proj_k = abs(P_hp_n(1,h)*cpsi_k + P_hp_n(2,h)*spsi_k) * obj.hull_half_length_m + ...
+                                      abs(-P_hp_n(1,h)*spsi_k + P_hp_n(2,h)*cpsi_k) * obj.hull_half_beam_m;
+                        signed_dist_k = P_hp_n(1,h)*X(4,k) + P_hp_n(2,h)*X(5,k) - P_hp_b(h);
+                        h_hp_k = signed_dist_k - hull_proj_k - P_collision_clearance;
+
+                        % h_hp at step k+1
+                        cpsi_kp1 = cos(X(6,k+1));
+                        spsi_kp1 = sin(X(6,k+1));
+                        hull_proj_kp1 = abs(P_hp_n(1,h)*cpsi_kp1 + P_hp_n(2,h)*spsi_kp1) * obj.hull_half_length_m + ...
+                                        abs(-P_hp_n(1,h)*spsi_kp1 + P_hp_n(2,h)*cpsi_kp1) * obj.hull_half_beam_m;
+                        signed_dist_kp1 = P_hp_n(1,h)*X(4,k+1) + P_hp_n(2,h)*X(5,k+1) - P_hp_b(h);
+                        h_hp_kp1 = signed_dist_kp1 - hull_proj_kp1 - P_collision_clearance;
                     else
-                        g_hp = vertcat(g_hp, signed_dist - P_collision_clearance);
+                        signed_dist_k = P_hp_n(1,h)*X(4,k) + P_hp_n(2,h)*X(5,k) - P_hp_b(h);
+                        h_hp_k = signed_dist_k - P_collision_clearance;
+
+                        signed_dist_kp1 = P_hp_n(1,h)*X(4,k+1) + P_hp_n(2,h)*X(5,k+1) - P_hp_b(h);
+                        h_hp_kp1 = signed_dist_kp1 - P_collision_clearance;
                     end
+
+                    % CBF: h(k+1) - (1-gamma_hp)*h(k) >= 0
+                    g_hp_cbf = vertcat(g_hp_cbf, h_hp_kp1 - (1 - P_gamma_hp) * h_hp_k);
                 end
             end
-            g_blocks{end+1} = g_hp;
-            lb_blocks{end+1} = zeros(n_hp*(N_h+1), 1);
-            ub_blocks{end+1} = inf(n_hp*(N_h+1), 1);
-            block_names{end+1} = 'Map half-plane avoidance';
-            block_sizes(end+1) = n_hp*(N_h+1);
+
+            % Terminal hard constraint for half-planes
+            for h = 1:n_hp
+                if strcmpi(obj.collision_model, 'oriented-rectangle')
+                    cpsi_end = cos(X(6,N_h+1));
+                    spsi_end = sin(X(6,N_h+1));
+                    hull_proj_end = abs(P_hp_n(1,h)*cpsi_end + P_hp_n(2,h)*spsi_end) * obj.hull_half_length_m + ...
+                                    abs(-P_hp_n(1,h)*spsi_end + P_hp_n(2,h)*cpsi_end) * obj.hull_half_beam_m;
+                    signed_dist_end = P_hp_n(1,h)*X(4,N_h+1) + P_hp_n(2,h)*X(5,N_h+1) - P_hp_b(h);
+                    h_hp_end = signed_dist_end - hull_proj_end - P_collision_clearance;
+                else
+                    signed_dist_end = P_hp_n(1,h)*X(4,N_h+1) + P_hp_n(2,h)*X(5,N_h+1) - P_hp_b(h);
+                    h_hp_end = signed_dist_end - P_collision_clearance;
+                end
+                g_hp_cbf = vertcat(g_hp_cbf, h_hp_end);
+            end
+
+            n_cbf_hp = n_hp + n_hp*N_h + n_hp;  % initial + CBF steps + terminal
+            g_blocks{end+1} = g_hp_cbf;
+            lb_blocks{end+1} = zeros(n_cbf_hp, 1);
+            ub_blocks{end+1} = inf(n_cbf_hp, 1);
+            block_names{end+1} = 'CBF half-plane avoidance';
+            block_sizes(end+1) = n_cbf_hp;
 
             % --- Azimuth rate constraints ---
-            % FIRST STEP: Constrain U(:,1) relative to previous control
-            % This prevents the "spiral oscillation" bug!
             g_rate = [];
             d_alpha1_first = U(1,1) - P_u_prev(1);
             g_rate = vertcat(g_rate, d_alpha1_first - obj.alpha_rate_max * obj.dt);
@@ -391,7 +531,6 @@ classdef NMPC_Container_final < handle
             g_rate = vertcat(g_rate, d_alpha2_first - obj.alpha_rate_max * obj.dt);
             g_rate = vertcat(g_rate, -d_alpha2_first - obj.alpha_rate_max * obj.dt);
 
-            % SUBSEQUENT STEPS: Constrain consecutive controls
             for k = 1:(N_h-1)
                 d_alpha1 = U(1,k+1) - U(1,k);
                 g_rate = vertcat(g_rate, d_alpha1 - obj.alpha_rate_max * obj.dt);
@@ -407,15 +546,11 @@ classdef NMPC_Container_final < handle
             block_names{end+1} = 'Azimuth rate';
             block_sizes(end+1) = 4 + 4*(N_h-1);
 
-            % --- Braking constraint (surge deceleration limit) ---
-            % NEW: Constraint to reduce excessive braking (fuel cost minimization).
-            % Between consecutive prediction steps, forward speed cannot decrease faster than max_brake_rate.
-            % This prevents the optimizer from making unrealistic sharp decelerations.
-            % First step: constrain u(k=1) relative to initial state u0
+            % --- Braking constraint ---
+            % Constraint to reduce excessive braking (fuel cost minimization).
             g_brake = [];
-            du_brake_first = X(1,1) - P_x0(1);  % This should be >= -max_brake_rate * dt
+            du_brake_first = X(1,1) - P_x0(1);
             g_brake = vertcat(g_brake, du_brake_first + P_max_brake_rate * obj.dt);
-            % Subsequent steps: constrain u(k) relative to u(k-1)
             for k = 1:(N_h)
                 du_brake = X(1,k+1) - X(1,k);
                 g_brake = vertcat(g_brake, du_brake + P_max_brake_rate * obj.dt);
@@ -426,8 +561,7 @@ classdef NMPC_Container_final < handle
             block_names{end+1} = 'Brake deceleration';
             block_sizes(end+1) = 1 + N_h;
 
-            % --- Terminal pose and velocity envelope (soft inequalities) ---
-            % Pose envelope centered on terminal reference at k=N+1.
+            % --- Terminal pose and velocity envelope ---
             g_term = [];
             dx_N = X(4,N_h+1) - P_xref(4,N_h+1);
             dy_N = X(5,N_h+1) - P_xref(5,N_h+1);
@@ -440,7 +574,6 @@ classdef NMPC_Container_final < handle
             g_term = vertcat(g_term, dpsi_N_c - P_term_pose_eps(3) - S_term(3));
             g_term = vertcat(g_term, -dpsi_N_c - P_term_pose_eps(3) - S_term(3));
 
-            % Optional terminal velocity envelope (absolute-value bounds).
             g_term = vertcat(g_term, abs(X(1,N_h+1)) - P_term_vel_max(1) - S_term(4));
             g_term = vertcat(g_term, abs(X(2,N_h+1)) - P_term_vel_max(2) - S_term(5));
             g_term = vertcat(g_term, abs(X(3,N_h+1)) - P_term_vel_max(3) - S_term(6));
@@ -450,8 +583,7 @@ classdef NMPC_Container_final < handle
             block_names{end+1} = 'Terminal pose and velocity';
             block_sizes(end+1) = 9;
 
-            % --- Berth corridor hard constraints in berth-local frame ---
-            % Local frame origin is berth point, x-axis aligned with berth heading.
+            % --- Berth corridor ---
             g_corr = [];
             corr_origin_x = P_berth_corr(1);
             corr_origin_y = P_berth_corr(2);
@@ -479,7 +611,7 @@ classdef NMPC_Container_final < handle
             block_names{end+1} = 'Berth corridor';
             block_sizes(end+1) = 4 * (N_h + 1);
 
-            % --- Twin-stern azipod synchrony constraints (phase-tunable) ---
+            % --- Twin-stern azipod synchrony ---
             g_sync = [];
             max_azi_split = P_sync_limits(1);
             max_stern_split = P_sync_limits(2);
@@ -502,7 +634,7 @@ classdef NMPC_Container_final < handle
             ubg = vertcat(ub_blocks{:});
             n_constraints = size(g, 1);
 
-            %  VARIABLE BOUNDS
+            %%  VARIABLE BOUNDS
             OPT = vertcat(X(:), U(:), S_obs(:), S_term(:));
             n_vars = size(OPT, 1);
 
@@ -534,7 +666,7 @@ classdef NMPC_Container_final < handle
                 lbx(base+5) = obj.n_bow_min;   ubx(base+5) = obj.n_bow_max;
             end
 
-            % Obstacle slack bounds (can be tightened to zero per solve call).
+            % Obstacle slack bounds
             s_off = n_state * (N_h+1) + n_ctrl * N_h;
             for k = 1:(N_h+1)
                 for j = 1:n_obs
@@ -544,7 +676,7 @@ classdef NMPC_Container_final < handle
                 end
             end
 
-            % Terminal slack bounds (can be relaxed per solve call).
+            % Terminal slack bounds
             t_off = s_off + n_obs * (N_h+1);
             for j = 1:n_term_slack
                 idx_t = t_off + j;
@@ -552,7 +684,7 @@ classdef NMPC_Container_final < handle
                 ubx(idx_t) = obj.terminal_pose_slack_default_max;
             end
 
-            %  BUILD SOLVER
+            %%  BUILD SOLVER
             nlp = struct('f', J, 'x', OPT, 'g', g, 'p', P_all);
 
             opts = struct;
@@ -571,7 +703,7 @@ classdef NMPC_Container_final < handle
             opts.ipopt.warm_start_slack_bound_push = 1e-6;
 
             solver_tag = floor(1e7 * rem(now, 1));
-            solver_name = sprintf('nmpc_unified_%d', solver_tag);
+            solver_name = sprintf('nmpc_cbf_%d', solver_tag);
             obj.solver = nlpsol(solver_name, 'ipopt', nlp, opts);
 
             obj.lbx_vec = lbx;
@@ -591,52 +723,20 @@ classdef NMPC_Container_final < handle
 
 
         function [u_opt, X_pred, info] = solve(obj, x0, x_ref, obstacles, u_prev, u_min_forward_override, solve_opts)
-            % solve  Solve NMPC problem
+            % solve  Solve NMPC problem with CBF constraints
             %
             %   [u_opt, X_pred, info] = solve(obj, x0, x_ref, obstacles, u_prev, u_min_forward_override, solve_opts)
             %
             %   Inputs:
-            %       x0        - Current state (8x1)
-            %       x_ref     - Reference trajectory (8 x N+1)
-            %       obstacles - Array of obstacles (optional)
-            %       u_prev    - Previous applied control (4x1) - NEW!
-            %       u_min_forward_override - Optional per-step lower bound for surge state u
-            %       solve_opts - Optional struct:
-            %                    .enable_soft_obstacles (logical)
-            %                    .soft_obs_max_m (nonnegative scalar)
-            %                    .enable_terminal_pose (logical)
-            %                    .term_pose_eps_xy_m (nonnegative scalar)
-            %                    .term_pose_eps_psi_rad (nonnegative scalar)
-            %                    .term_vel_max_u_mps (nonnegative scalar)
-            %                    .term_vel_max_v_mps (nonnegative scalar)
-            %                    .term_vel_max_r_radps (nonnegative scalar)
-            %                    .term_pose_slack_max (nonnegative scalar)
-            %                    .enable_berth_corridor (logical)
-            %                    .berth_corridor_origin_xy ([x; y])
-            %                    .berth_corridor_heading_rad (scalar)
-            %                    .berth_corridor_half_width_m (nonnegative scalar)
-            %                    .berth_corridor_along_min_m (scalar)
-            %                    .berth_corridor_along_max_m (scalar)
-            %                    .map_halfplanes (struct array with fields: normal [2x1], offset scalar)
-            %                    .max_azimuth_split (nonnegative scalar, rad)
-            %                    .max_stern_cmd_split (nonnegative scalar, rpm)
-            %                    .state_weights_diag (9x1 or diagonal matrix)
-            %                    .input_weights_diag (5x1 or diagonal matrix)
-            %                    .rate_weights_diag (5x1 or diagonal matrix)
-            %                    .stage_state_cost_scale (nonnegative scalar)
-            %                    .stage_input_tracking_scale (nonnegative scalar)
-            %                    .terminal_speed_weight (nonnegative scalar)
-            %                    .terminal_pos_weight (nonnegative scalar or [x y])
-            %                    .terminal_heading_weight (nonnegative scalar)
-            %                    .terminal_cost_scale (nonnegative scalar)
-            %                    .terminal_actuator_cost_scale (nonnegative scalar)
-            %                    .terminal_forward_cost_scale (nonnegative scalar)
-            %                    .collision_clearance_m (nonnegative scalar)
-            %
-            %   Outputs:
-            %       u_opt  - Optimal control for current step (4x1)
-            %       X_pred - Predicted state trajectory (8 x N+1)
-            %       info   - Solver information struct
+            %       x0        - Current state (9x1)
+            %       x_ref     - Reference trajectory (9 x N+1)
+            %       obstacles - Array of obstacles with fields:
+            %                     .position [x;y]
+            %                     .radius
+            %                     .velocity [vx;vy] (optional, default [0;0])
+            %       u_prev    - Previous applied control (5x1)
+            %       u_min_forward_override - Optional surge lower bound
+            %       solve_opts - Optional struct with tuning overrides
 
             t_start = tic;
 
@@ -710,7 +810,7 @@ classdef NMPC_Container_final < handle
 
             soft_enable = logical(getOr(solve_opts, 'enable_soft_obstacles', false));
             if soft_enable
-                soft_obs_max_m = max(0.0, getOr(solve_opts, 'soft_obs_max_m', 0.0));
+                soft_obs_max_m = max(0.0, getOr(solve_opts, 'soft_obs_max_m', obj.soft_obs_default_max_m));
             else
                 soft_obs_max_m = 0.0;
             end
@@ -777,25 +877,30 @@ classdef NMPC_Container_final < handle
             berth_corridor_vec = [corr_origin_x; corr_origin_y; corr_psi; corr_half_w; ...
                 corr_along_min; corr_along_max; corr_enable_scalar];
 
-            % Twin-stern azipod synchrony limits (enforced as NLP inequalities)
+            % Twin-stern azipod synchrony limits
             max_az_split_local = max(0.0, min(2*obj.alpha_max, ...
                 getOr(solve_opts, 'max_azimuth_split', obj.azimuth_split_max_default)));
             max_stern_split_local = max(0.0, min(obj.n_max - obj.n_min, ...
                 getOr(solve_opts, 'max_stern_cmd_split', obj.stern_cmd_split_max_default)));
             sync_limits_vec = [max_az_split_local; max_stern_split_local];
 
+            % CBF parameters (runtime-tunable)
+            gamma_obs_local = max(0.01, min(1.0, getOr(solve_opts, 'gamma_cbf_obs', obj.gamma_cbf_obs)));
+            gamma_hp_local = max(0.01, min(1.0, getOr(solve_opts, 'gamma_cbf_hp', obj.gamma_cbf_hp)));
+
             % Handle previous control
             if nargin < 5 || isempty(u_prev)
                 if ~isempty(obj.prev_u)
                     u_prev = obj.prev_u;
                 else
-                    u_prev = [0; 0; x0(7); x0(8); x0(9)];  % Default to current RPMs if no previous control stored
+                    u_prev = [0; 0; x0(7); x0(8); x0(9)];
                 end
             end
 
-            % Obstacle setup
+            % Obstacle setup (with dynamic velocity support)
             obs_pos = 1e8 * ones(2, n_obs);
             obs_rad = zeros(n_obs, 1);
+            obs_vel = zeros(2, n_obs);
             n_real = 0;
             hp_n = zeros(2, n_hp);
             hp_b = -1e8 * ones(n_hp, 1);
@@ -806,6 +911,9 @@ classdef NMPC_Container_final < handle
                 for j = 1:n_real
                     obs_pos(:,j) = obstacles(j).position(1:2);
                     obs_rad(j) = obstacles(j).radius;
+                    if isfield(obstacles(j), 'velocity') && ~isempty(obstacles(j).velocity)
+                        obs_vel(:,j) = obstacles(j).velocity(1:2);
+                    end
                 end
             end
 
@@ -833,15 +941,17 @@ classdef NMPC_Container_final < handle
             u_ref(4,:) = x0(8);
             u_ref(5,:) = min(max(x0(9), obj.n_bow_min), n3_max_local);
 
-            % Build parameter vector (now includes u_prev and max_brake_rate)
-            p_val = [x0(:); x_ref(:); u_ref(:); n_real; obs_pos(:); obs_rad(:); n_hp_real; hp_n(:); hp_b(:); ...
+            % Build parameter vector
+            p_val = [x0(:); x_ref(:); u_ref(:); n_real; obs_pos(:); obs_rad(:); obs_vel(:); ...
+                n_hp_real; hp_n(:); hp_b(:); ...
                 u_prev(:); obj.max_brake_rate; ...
                 q_state_diag(:); r_input_diag(:); r_rate_diag(:); ...
                 [stage_state_scale; stage_input_scale]; ...
                 [term_speed_weight; term_pos_weight(:); term_heading_weight]; ...
                 [terminal_state_scale; terminal_actuator_scale; terminal_forward_scale]; ...
                 collision_clearance; ...
-                term_pose_eps_vec; term_vel_max_vec; berth_corridor_vec; sync_limits_vec];
+                term_pose_eps_vec; term_vel_max_vec; berth_corridor_vec; sync_limits_vec; ...
+                gamma_obs_local; gamma_hp_local];
 
             % Initial guess (warm start)
             if ~isempty(obj.prev_sol)
@@ -907,7 +1017,7 @@ classdef NMPC_Container_final < handle
                     obj.constraint_names{worst_idx}, worst_violation);
             end
 
-            % Fix initial state bounds
+            % Variable bounds
             lbx_local = obj.lbx_vec;
             ubx_local = obj.ubx_vec;
             for k = 2:(N_h+1)
@@ -930,12 +1040,13 @@ classdef NMPC_Container_final < handle
                 ubx_local(base+5) = n3_max_local;
             end
 
-            % Per-step selective soft obstacle constraints.
+            % Obstacle slack bounds
             s_off = n_state*(N_h+1) + n_ctrl*N_h;
             s_idx = (s_off + 1):(s_off + n_obs*(N_h+1));
             lbx_local(s_idx) = 0;
             ubx_local(s_idx) = soft_obs_max_m;
 
+            % Terminal slack bounds
             t_off = s_off + n_obs*(N_h+1);
             t_idx = (t_off + 1):(t_off + n_term_slack);
             lbx_local(t_idx) = 0;
@@ -992,6 +1103,8 @@ classdef NMPC_Container_final < handle
                 info.max_azimuth_split_rad = max_az_split_local;
                 info.max_stern_cmd_split_rpm = max_stern_split_local;
                 info.collision_clearance_m = collision_clearance;
+                info.gamma_cbf_obs = gamma_obs_local;
+                info.gamma_cbf_hp = gamma_hp_local;
                 obj.solve_ok = obj.solve_ok + 1;
 
             catch ME
@@ -1013,6 +1126,8 @@ classdef NMPC_Container_final < handle
                 info.max_azimuth_split_rad = max_az_split_local;
                 info.max_stern_cmd_split_rpm = max_stern_split_local;
                 info.collision_clearance_m = collision_clearance;
+                info.gamma_cbf_obs = gamma_obs_local;
+                info.gamma_cbf_hp = gamma_hp_local;
                 obj.solve_fail = obj.solve_fail + 1;
                 obj.prev_lam_x = [];
                 obj.prev_lam_g = [];
@@ -1078,11 +1193,11 @@ classdef NMPC_Container_final < handle
 
             KT0 = 0.527;  KT1 = -0.455;
 
-            %% FIX #1: PORT STERN AZIPOD (n1) - CORRECT LOCAL VELOCITY KINEMATICS
+            % PORT STERN AZIPOD (n1)
             n1_rps = n1 / 60;
             u_local1 = u - r * stern_port_y;
-            v_local1 = v + r * stern_port_x;              % FIX: was stern_port_y
-            u_inflow1 = u_local1 * cos(alpha1) + v_local1 * sin(alpha1);  % FIX: use u_local1
+            v_local1 = v + r * stern_port_x;
+            u_inflow1 = u_local1 * cos(alpha1) + v_local1 * sin(alpha1);
             u_a1 = u_inflow1 * (1 - wp_stern);
             n1_abs = if_else(n1_rps >= 0, n1_rps, -n1_rps);
             n1_safe = if_else(n1_abs < 0.01, 0.01, n1_abs);
@@ -1093,11 +1208,11 @@ classdef NMPC_Container_final < handle
             T1_gross = rho_w * D_stern_local^4 * n1_rps * n1_abs * KT1_val;
             T1 = (1 - t_stern) * T1_gross;
 
-            %% FIX #2: STARBOARD STERN AZIPOD (n2) - CORRECT LOCAL VELOCITY KINEMATICS
+            % STARBOARD STERN AZIPOD (n2)
             n2_rps = n2 / 60;
-            u_local2 = u - r * stern_starboard_y;        % FIX: was missing
-            v_local2 = v + r * stern_starboard_x;        % FIX: was stern_starboard_y
-            u_inflow2 = u_local2 * cos(alpha2) + v_local2 * sin(alpha2);  % FIX: use u_local2
+            u_local2 = u - r * stern_starboard_y;
+            v_local2 = v + r * stern_starboard_x;
+            u_inflow2 = u_local2 * cos(alpha2) + v_local2 * sin(alpha2);
             u_a2 = u_inflow2 * (1 - wp_stern);
             n2_abs = if_else(n2_rps >= 0, n2_rps, -n2_rps);
             n2_safe = if_else(n2_abs < 0.01, 0.01, n2_abs);
@@ -1108,12 +1223,12 @@ classdef NMPC_Container_final < handle
             T2_gross = rho_w * D_stern_local^4 * n2_rps * n2_abs * KT2_val;
             T2 = (1 - t_stern) * T2_gross;
 
-            %% FIX #3: BOW TUNNEL THRUSTER (n3) - CORRECT YAW COUPLING & WAKE FRACTION
+            % BOW TUNNEL THRUSTER (n3)
             n3_rps = n3 / 60;
-            u_local3 = u - r * bow_y;                    % FIX: was missing
-            v_local3 = v + r * bow_x;                    % FIX: was minus sign (v - r*bow_x)
-            u_inflow3 = v_local3;  % Primarily lateral inflow for tunnel thruster
-            u_a3 = u_inflow3 * (1 - wp_bow);             %   CORRECT: uses wp_bow not t_bow
+            u_local3 = u - r * bow_y;
+            v_local3 = v + r * bow_x;
+            u_inflow3 = v_local3;
+            u_a3 = u_inflow3 * (1 - wp_bow);
             n3_abs = if_else(n3_rps >= 0, n3_rps, -n3_rps);
             n3_safe = if_else(n3_abs < 0.01, 0.01, n3_abs);
             J3 = u_a3 / (n3_safe * D_bow_local);
@@ -1124,7 +1239,7 @@ classdef NMPC_Container_final < handle
             T3_gross = rho_w * D_bow_local^4 * n3_rps * n3_abs * KT3_val;
             T3 = (1 - t_bow) * T3_gross * speed_decay_factor;
 
-            %% THRUST FORCES AND MOMENTS
+            % THRUST FORCES AND MOMENTS
             Fx1 = T1 * cos(alpha1);  Fy1 = T1 * sin(alpha1);
             Fx2 = T2 * cos(alpha2);  Fy2 = T2 * sin(alpha2);
             Fx3 = 0;
