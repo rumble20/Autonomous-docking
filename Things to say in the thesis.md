@@ -1,6 +1,6 @@
 ﻿## About the distinction between past work and my work
 
-"This work presents an integrated motion planning and control framework for autonomous ship docking. Unlike traditional two-stage approaches where a global planner generates a fixed collision-free path that a separate controller blindly tracks, the proposed method employs a Nonlinear Model Predictive Controller that jointly performs trajectory generation and tracking by optimizing control inputs online while explicitly enforcing obstacle-avoidance constraints. A lightweight guidance layer provides high-level navigation directives (desired heading, speed, and waypoint sequencing), but the NMPC retains authority to deviate from the reference trajectory when necessary to satisfy safety constraints and actuator limitations."
+"This work presents an integrated motion planning and control framework for autonomous ship docking. Unlike traditional two-stage approaches where a global planner generates a fixed collision-free path that a separate controller blindly tracks, the proposed method employs a Nonlinear Model Predictive Controller that jointly performs trajectory generation and tracking by optimizing control inputs online while explicitly enforcing obstacle-avoidance constraints. A lightweight guidance layer provides waypoint sequencing and geometric direction (segment heading and optional terminal heading); speed shaping is handled inside NMPC costs and constraints, and the NMPC retains authority to deviate from the reference trajectory when necessary to satisfy safety constraints and actuator limitations."
 
 ### Technical arguments for the thesis
 
@@ -27,10 +27,10 @@ Therefore, the controller is not only tracking; it is also generating a feasible
 The guidance layer currently:
 
 - Selects and advances waypoints (sequential logic)
-- Computes desired heading toward the active segment
-- Builds a shaped reference for NMPC
+- Computes the active segment geometry and desired segment heading
+- Provides optional terminal heading and soft cruise preference
 
-It does not solve a global constrained optimization problem. Collision-avoidance feasibility and dynamic feasibility are handled by NMPC.
+It does not solve a global constrained optimization problem. Collision-avoidance feasibility, speed shaping, and dynamic feasibility are handled by NMPC.
 
 ### Literature support
 
@@ -82,7 +82,7 @@ At solver level (IPOPT):
 
 At geometric/environment level:
 
-- Harbor map is represented through sampled circular keep-out primitives.
+- Harbor map is represented through bounded primitives; half-plane edges are the default, with optional circle sampling when needed.
 - Dynamic obstacles are packed as circle obstacles, with optional latent-awareness virtual obstacles.
 
 At execution level:
@@ -114,8 +114,8 @@ Hard constraints currently include:
 - Euler-discretized model equations are enforced at every horizon step.
 
 3. Obstacle-avoidance inequalities
-- In the active mode, obstacle clearance is enforced between circular obstacles and a yawed rectangular vessel footprint.
-- This is used in both transit and terminal phases.
+- In the active mode, obstacle clearance is enforced between circular obstacles and a yawed rectangular vessel footprint, with optional map half-plane constraints.
+- This is enforced across the horizon without external override logic.
 
 4. State/input bounds
 - Box constraints on surge/sway/yaw rates, azimuth angles, and shaft states/commands are hard.
@@ -124,11 +124,11 @@ Hard constraints currently include:
 - First-step and consecutive azimuth-rate constraints are hard.
 - Deceleration-rate constraint is hard and active.
 
-Selective soft constraints are included for obstacle inequalities in precision-berthing mode. In nominal transit conditions, obstacle constraints remain hard. Near tight terminal situations, bounded slack variables with high penalty are enabled to preserve feasibility without relaxing safety intent globally.
+Selective soft constraints can be enabled for obstacle inequalities in terminal or high-clutter scenarios. In nominal transit conditions, obstacle constraints remain hard. When enabled, bounded slack variables with high penalty preserve feasibility without relaxing safety intent globally.
 
 Thesis framing note:
 
-- This is not a full soft-constraint NMPC. It is a phase-dependent feasibility safeguard: hard constraints by default, selective softening only in constrained endgame conditions, with explicit slack logging for transparency.
+- This is not a full soft-constraint NMPC. It is a configuration-dependent feasibility safeguard: hard constraints by default, selective softening only in constrained endgame conditions, with explicit slack logging for transparency.
 
 A natural extension remains CBF integration, for example:
 
@@ -144,12 +144,12 @@ Practical options:
 
 ## Moving and actuating limits
 
-Guidance and NMPC are coordinated, but not identical in how limits are applied. NMPC and plant integration enforce the hard physical floors/ceilings, while guidance shapes requested speed/heading.
+Guidance and NMPC are coordinated, but not identical in how limits are applied. Guidance provides geometric targets (segment and optional terminal heading), while NMPC and plant integration enforce the hard physical floors/ceilings and the soft speed shaping inside the optimizer.
 
 Main limits in the current setup:
 
 1. Surge speed (NMPC hard bound)
-- The lower bound is phase-dependent: forward-biased in transit, reverse-capable in terminal berthing when needed.
+- The lower bound is scenario-configurable: forward-biased by default, with reverse capability enabled when needed near terminal maneuvers.
 - The upper bound remains hard.
 
 2. Sway speed
@@ -196,7 +196,9 @@ Guidance implications:
 - Near constrained zones, speed reduction supports feasible turning.
 - Consistent obstacle-clearance policy across guidance and NMPC remains important.
 
-## Practical run observation (2026-04-10)
+## Legacy (pre-May) run observation (2026-04-10)
+
+This observation comes from the pre-May branch when external recapture logic was still present. It is retained here for contrast with the current NMPC-only approach.
 
 In the tested dynamic-obstacle scenario, the vessel did not execute a strict turn-then-translate maneuver. Heading changed while forward translation was already active, allowing residual lateral drift after bypass.
 
@@ -214,27 +216,27 @@ Interpretation:
 
 - Remaining issue is mainly guidance/reference recapture robustness, not braking-constraint correctness.
 
-## Recent substantial architecture update (2026-04-13)
+## Legacy (pre-May) architecture update (2026-04-13)
 
-To improve robustness in the final docking leg, the controller was updated with a phase-aware recovery mechanism and explicit maneuver staging. This is a structural change, not a one-off parameter retune.
+In the pre-May branch, the controller was updated with a phase-aware recovery mechanism and explicit maneuver staging. This was a structural change at the time, but these supervisor features are removed in the current NMPC-only approach.
 
 1. Explicit transit-to-berth phase logic
-- The maneuver is now split into Phase A (transit) and Phase B (precision berth) using a horizon-based switching radius
+- The maneuver was split into Phase A (transit) and Phase B (precision berth) using a horizon-based switching radius
 
 $$
 R_s = T_{hor}\sqrt{u_{max}^2 + v_{max}^2}
 $$
 
-- Phase B uses stricter near-berth behavior (collision model and obstacle policy), while Phase A stays lighter for runtime efficiency.
+- Phase B used stricter near-berth behavior (collision model and obstacle policy), while Phase A stayed lighter for runtime efficiency.
 
 2. Trend-based missed-approach detection and recovery
-- Final-leg monitoring now uses the trend of distance-to-final (increase/decrease over consecutive steps), instead of a simple proximity warning.
-- If sustained regression is detected, a temporary recovery mode is latched to force direct-goal recapture with bounded speed and higher yaw authority.
-- Recovery is automatically released after sustained improvement, preventing permanent mode lock-in.
+- Final-leg monitoring used the trend of distance-to-final (increase/decrease over consecutive steps), instead of a simple proximity warning.
+- If sustained regression was detected, a temporary recovery mode latched to force direct-goal recapture with bounded speed and higher yaw authority.
+- Recovery was automatically released after sustained improvement, preventing permanent mode lock-in.
 
-3. Why this matters for thesis claims
-- The update demonstrates supervisory resilience on top of NMPC: when nominal guidance degrades in cluttered terminal geometry, the system applies a controlled fallback policy while keeping the same core optimizer.
-- This supports a stronger claim of operational robustness under realistic harbor uncertainty, rather than only nominal tracking performance.
+3. Why this mattered for thesis claims (pre-May)
+- The update demonstrated supervisory resilience on top of NMPC: when nominal guidance degraded in cluttered terminal geometry, the system applied a controlled fallback policy while keeping the same core optimizer.
+- This supported a stronger claim of operational robustness under realistic harbor uncertainty, rather than only nominal tracking performance.
 
 ## About the actuation motors mounted
 
@@ -251,8 +253,8 @@ The following updates improved physical realism and operational plausibility in 
 - Implemented in: `run_nmpc.m`, `NMPC_Container_final.m`.
 
 2. Forward-motion realism enforced through hard constraints
-- NMPC uses a phase-dependent surge lower bound: forward-biased in transit, reverse-capable in terminal berthing when needed.
-- The RK4 plant integration step also enforces a matching floor.
+- NMPC uses a configurable surge lower bound: forward-biased by default, reverse-capable when enabled for terminal maneuvers.
+- Plant integration can be configured to respect the same bound.
 - Implemented in: `run_nmpc.m`, `NMPC_Container_final.m`.
 
 3. Actuation realism via effort and reverse-motion penalties
@@ -265,8 +267,8 @@ The following updates improved physical realism and operational plausibility in 
 - Implemented in: `NMPC_Container_final.m`.
 
 5. Terminal behavior aligned with large-vessel practice
-- Terminal precision behavior, low-speed heading handling, and soft capture gate are implemented.
-- Implemented in: `run_nmpc.m`.
+- Terminal behavior is now enforced primarily via NMPC terminal costs and constraints rather than external capture gates.
+- Implemented in: `NMPC_Container_final.m` (with minimal run-script plumbing).
 
 6. Harbor-environment coupling retained
 - Map-aware sampling and dynamic-obstacle packaging/replay checks are integrated.
@@ -278,27 +280,32 @@ Explicitly excluded from this realism changelog:
 - Test-specific obstacle placements/headings/speeds
 - Scenario reshaping performed only for isolated experiments
 
-## Tight corridor mode
+## Legacy (pre-May) tight corridor mode
 
-The architecture contains tight-corridor detection and corridor-specific behavior (speed capping and reference-shaping adjustments). In the current default run configuration, this mode is present and enabled.
+The pre-May branch contained tight-corridor detection and corridor-specific behavior (speed capping and reference-shaping adjustments). This external mode is not present in the current NMPC-only branch; corridor behavior is now handled through NMPC costs and constraints.
 
-This can still be justified as a safety-performance extension provided transitions preserve deterministic behavior and identical hard safety constraints.
+## Legacy (pre-May) note on Test 20
 
-## About what I tried with Test 20
-
-The narrow-passage collision is interpreted as a feasibility limitation rather than insufficient aggressiveness. Even with tighter behavior, hard geometric and safety constraints can reduce effective navigable width below required maneuvering envelope. This supports adding supervisory infeasibility handling (slowdown, hold, or replanning) instead of forcing unsafe traversal.
+The narrow-passage collision was interpreted as a feasibility limitation rather than insufficient aggressiveness. Even with tighter external behavior, hard geometric and safety constraints can reduce effective navigable width below the required maneuvering envelope. This supported supervisory infeasibility handling in the pre-May branch; the NMPC-only branch relies on internal costs/constraints and does not use external corridor logic.
 
 ## Reducing solve time and computational complexity
 
-Solve-time reduction was mainly achieved by reducing NLP size and online obstacle-load complexity:
+Solve-time reduction was mainly achieved by reducing NLP size and online obstacle-load complexity.
 
-- Horizon reduced to 25 steps.
-- Active map-obstacle slots reduced to 3.
-- Map sampling density reduced.
-- IPOPT stopping relaxed for real-time use.
-- Final-leg logic stabilized to reduce control churn.
+Pre-May (legacy) levers:
 
-Combined effect: substantial runtime improvement while preserving closed-loop operation.
+- Horizon and obstacle-slot counts were aggressively reduced (e.g., 25-step horizon, 3 active map slots in some runs).
+- Map sampling density was reduced.
+- IPOPT stopping was relaxed for real-time use.
+- Final-leg external logic was simplified to reduce control churn.
+
+Post-May (NMPC-only) levers:
+
+- Horizon is kept moderate and scenario-tuned (no external logic required for stability).
+- Obstacle slots are bounded and packaging is deterministic.
+- Warm start (primal/dual) and relaxed tolerances remain central to real-time behavior.
+
+Combined effect: runtime is higher than the legacy branch but is more principled and reproducible across scenarios.
 
 ### Runtime breakpoint from point to rectangle model
 
@@ -353,9 +360,9 @@ The constraint is applied:
 
 This supports smoother longitudinal speed transitions during obstacle avoidance and final approach.
 
-## Explicit two-phase berthing control (implemented)
+## Legacy (pre-May) explicit two-phase berthing control
 
-The controller now uses an explicit two-phase maneuver policy:
+The pre-May controller used an explicit two-phase maneuver policy implemented outside the core NMPC formulation. The current NMPC-only branch does not use external phase switching; terminal behavior is encoded through NMPC costs and constraints.
 
 1. Phase A: transit
 - Objective: efficient progression along route segments.
@@ -371,7 +378,7 @@ The controller now uses an explicit two-phase maneuver policy:
 - Objective: final capture and heading alignment with a terminal-specific corridor.
 - Role: provide a tighter endgame stage when the route reaches the final docking area.
 
-The phase switch is explicit and logged online using a speed-authority radius:
+The phase switch was explicit and logged online using a speed-authority radius:
 
 $$
 R_s = T_{hor}\sqrt{u_{max}^2 + v_{max}^2}
@@ -379,7 +386,7 @@ $$
 
 where $T_{hor}=N\Delta t$.
 
-This switch also includes hysteresis to avoid phase-chattering near the boundary.
+This switch also included hysteresis to avoid phase-chattering near the boundary.
 
 ### Why this improves berthing
 
@@ -398,7 +405,7 @@ This switch also includes hysteresis to avoid phase-chattering near the boundary
 4. Reduced low-speed dithering
 - A dedicated Phase B surge floor avoids ultra-slow creeping and repeated stop-go recapture behavior.
 
-## Selective soft obstacle constraints near berth (implemented)
+## Selective soft obstacle constraints near berth (current)
 
 To mitigate local infeasibility events near dock walls and cluttered terminal geometry, obstacle constraints support selective softening via nonnegative slack variables:
 
@@ -414,7 +421,7 @@ $$
 
 Activation policy (runtime):
 
-- Enabled only in Phase B and near berth radius, or after a short NMPC failure streak.
+- Enabled only under explicitly configured terminal conditions (no external phase gate is required).
 - Disabled elsewhere by clamping slack upper bounds to zero.
 
 Safety diagnostics now log:
@@ -427,18 +434,18 @@ Interpretation in thesis:
 - Near-zero slack over most runs indicates hard-constraint feasibility is retained.
 - Nonzero slack bursts indicate localized infeasibility pressure (useful for scenario diagnosis, not for routine operation).
 
-## Validation status for this update
+## Legacy (pre-May) validation status for phase logic
 
-The updated implementation was checked with MATLAB Code Analyzer and executed through MCP in a shortened run configuration. The run confirmed:
+The pre-May implementation was checked with MATLAB Code Analyzer and executed through MCP in a shortened run configuration. The run confirmed:
 
 - Multiple solver configurations for transit, berth, and terminal docking
 - Explicit phase-switch radius reporting
 - Runtime phase labeling in progress logs
 - Soft-slack metrics available in summary output
 
-## Two major updates completed after initial two-phase rollout (2026-04-16)
+## Legacy (pre-May) updates after initial two-phase rollout (2026-04-16)
 
-This subsection documents two substantial control-architecture updates that were implemented, tested, and iteratively corrected.
+This subsection documents two substantial control-architecture updates that were implemented, tested, and iteratively corrected in the pre-May branch.
 
 ### Update 1: phase-dependent reverse-motion policy (forward-biased transit, reverse-capable berth)
 
@@ -500,13 +507,13 @@ This preserves solver feasibility in tight terminal geometry while still driving
 
 - Terminal-pose constraints are configured as Phase-B-only by default.
 
-## Scenario-adaptive Phase-B triggering (2026-04-17)
+## Legacy (pre-May) scenario-adaptive Phase-B triggering (2026-04-17)
 
-### Why this change was needed
+### Why this change was needed (pre-May)
 
 In busy harbor scenarios, relying only on "final-leg proximity" to enter precision mode can be too late or inconsistent. Some routes include several intermediate waypoints before the final berth corridor, and constrained navigation may already require berth-grade caution and authority.
 
-### Implemented change
+### Implemented change (pre-May)
 
 Phase-B activation was extended from purely terminal-distance logic to a hybrid trigger:
 
@@ -525,13 +532,13 @@ $$
 
 with a bounded hold counter for robustness against noisy switching.
 
-### Additional control-policy refinements tied to this update
+### Additional control-policy refinements tied to this update (pre-May)
 
 - Reverse allowance in Phase B is no longer globally active at all distances; reverse authority is enabled mainly near terminal distance or under dynamic threat.
 - Mid-speed floor policy is retained in clear-water transit to avoid unnecessary crawl.
 - Environment override was added for animation recording to improve long-run debugging stability.
 
-### Test evidence (MCP MATLAB runs)
+### Test evidence (MCP MATLAB runs, pre-May)
 
 Observed across repeated dynamic-obstacle runs:
 
@@ -577,7 +584,7 @@ This enables objective reporting of when soft feasibility was actually used.
 - too-strict gate: delayed/absent Phase B and increased corridor risk,
 - corrected capped gate: balanced transition with collision-free 400 s validation run.
 
-### Thesis interpretation
+### Thesis interpretation (pre-May)
 
 These two updates collectively strengthen the contribution from a control-design perspective:
 
@@ -590,4 +597,89 @@ Together, they move the method from "safe waypoint tracking" toward a more rigor
 ## Why done in this hierarchical structure and why not MPPF?
 
 "For harbor navigation with dynamic obstacles, berthing corridors, and phase-dependent objectives, a time-parameterized reference provides explicit control over speed profiles, terminal velocity bounds, and corridor constraints. MPPF decouples time from geometry, which complicates dynamic obstacle prediction and berthing phase transitions. Our architecture uses a nominal waypoint reference for trajectory priority, hard NLP constraints for avoidance, and parameterized terminal bounds for berthing—enabling mathematically verifiable priority enforcement while maintaining solver robustness."
+
+## Pre-May / Post-May implementation history and rationale (referring to "revolution" branch)
+
+Note: the following is a consolidated, English translation of development notes and observations. It explains why many outer-loop heuristics were first added and why the project subsequently consolidated behavior into a cleaner NMPC-centric formulation.
+
+What I verified (summary)
+
+- Step 1 — Point Tracking → Line Tracking
+	- Implemented in a line-based NMPC container. New parameters include `P_wp_start`, `P_wp_end` and derived segment geometry (segment vector, length, unit tangent `t_hat`, unit normal `n_hat`). Costs are placed on cross-track error `xte_k`, along-track progress `along_k` and `dist_to_goal`. The time-indexed point reference (`P_xref`) is no longer supplied to the solver.
+
+- Step 2 — Tube MPC
+	- Implemented internal tube logic: `xte_penalty = max(0, abs(xte_k) - W_tube)`. XTE penalties apply only outside the tube while progress-along-segment is always active. Thus the corridor is enforced inside the solver (not as an external mechanism).
+
+- Step 3 — Elimination of external speed governor
+	- The new clean `run_nmpc` run has no speed governor blocks, no `applySpeedGovernor` calls and no external logic that rewrites `U_d`. The solver receives only `soft_speed_cap_mps` and `soft_speed_cap_weight`. Speed is therefore left to NMPC + CBF/constraints.
+
+What I removed from the main script (clean)
+
+- Removed active dependencies and ad-hoc helpers: `speed_governor`, `avoid_ref_cfg`, `xte_recovery_cfg`, `dynamic_threat_cfg`, `tight_corridor_mode`, `missed_approach_cfg`, `buildSimpleRef8`, `applySpeedGovernor`. These are not present as active logic in the cleaned main script.
+
+How the clean `run_nmpc` now works
+
+- Loop responsibilities are minimal and environment-facing:
+	- select the active segment between waypoints
+	- build `path_ref.wp_start`, `path_ref.wp_end`, optional `path_ref.goal_heading`
+	- collect obstacles and half-planes
+	- pass geometry and a `line+tube` cost plus soft cruise cap and terminal cost to the solver
+	- integrate the plant, check collisions and mission success
+
+This produces a purer NMPC structure: environment and simulation plumbing remain in the script; motion decision making lives in the optimizer.
+
+Why this migration was done (computational trade-off)
+
+- Moving decisions into NMPC increased compute time substantially. During development pre-computation and outer heuristics were considered to reduce runtime; however those external fixes often conflicted with each other and were only optimal for narrow test cases. Iterative tests showed the heuristics primarily signalled which costs/constraints the NMPC formulation lacked. Consequently the decision was to formulate those behaviors (more fully) inside NMPC and accept the increased solver cost while applying solver-level optimizations (warm starts, bounded obstacle slots, relaxed tolerances).
+
+Opinion about the change (short)
+
+- Yes — mostly yes. Core components were preserved. The one-by-one fixes were not wasted; they diagnosed requirements. The key change is where the intelligence lives: less in `run_nmpc`, more inside the NMPC problem (costs, constraints, terminal conditions).
+
+What stayed good and was kept in spirit
+
+- Ship model and actuator physics
+- Obstacle handling and map / half-plane safety
+- Hull collision checks and terminal handling
+- Logging, diagnostics, animation and fallback safety plumbing
+
+This is the correct split: environment + simulation in the script, motion decision making in NMPC.
+
+How NMPC now covers previously external behaviors
+
+1) Minimum speed
+- No large outer heuristic block. The solver uses `u_min_forward` and a `max_brake_rate` concept; near final approach bounds can be relaxed. Slowing now emerges because obstacle constraints make fast solutions infeasible rather than because an external governor forces a lower speed.
+
+2) "Keeping the bow straight"
+- Previously partly implemented from outside; now emerges from the optimizer via path-following objective, actuator effort penalties and rate smoothing. If strict heading lock is required it should be encoded as a terminal/phase objective, otherwise stable alignment is produced by the cost design.
+
+3) Guidance
+- Guidance remains but is reduced: it chooses the active segment, advances waypoint index and optionally provides final heading. It no longer performs speed shaping or heavy motion control.
+
+4) Speed planning near obstacles
+- Instead of a custom governor, the mechanism is: soft cruise encouragement + hard/soft safety constraints. Braking and slowdown emerge naturally when fast trajectories are infeasible or expensive.
+
+5) Final stopping
+- Formerly enforced by outer logic; now represented by terminal position/heading/velocity costs and optional soft terminal constraints with bounded slack.
+
+Honest assessment
+
+- The external heuristics were useful: they made the system work while revealing the optimizer's missing elements. The correct engineering path was:
+	- make it work with external fixes
+	- observe recurring failure modes
+	- reformulate the NMPC (add costs/constraints) so heuristics become unnecessary
+
+Important developer note
+
+- I had to substantially reduce or replace `simpleWaypointGuidance` with only geometric indication of direction to give NMPC full freedom. This limits how tightly external code can control motion and explains why many assistive functions were originally added in the main script.
+
+Suggested code / documentation refactor
+
+- When writing results, separate artifacts and experiments into `previous_to_may` (legacy heuristics, intermediate fixes, experiment logs) and `post_may` (clean NMPC-centric implementation, production experiments). This will make comparisons and plots clearer for the thesis.
+
+What you can see in the current implementation
+
+- A pure line+tube NMPC pipeline: segment selection, tube cost, soft cruise cap, terminal cost, hull-aware collision handling, CBF obstacle constraints, and diagnostics for slack/phase/success. Solver warm-starting and bounded obstacle slots are in place to mitigate the increased solve time.
+
+End of translated notes.
 

@@ -1,17 +1,16 @@
 classdef NMPC_Container_final < handle
-    % NMPC_Container_final  NMPC for container ship with twin stern azipods + bow thruster
+    % NMPC_Container_final
+    % Pure NMPC with line tracking, tube-MPC path cost, and CBF safety.
     %
-    %   States:  x = [u v r x y psi n1 n2 n3]'        (9)
-    %   Controls: u = [alpha1 alpha2 n1_c n2_c n3_c]' (5)
+    % States:   x = [u v r x y psi n1 n2 n3]'        (9)
+    % Controls: u = [alpha1 alpha2 n1_c n2_c n3_c]' (5)
     %
-    %   Features:
-    %     - CBF-based obstacle avoidance (static + dynamic)
-    %     - CBF-based half-plane (port boundary) avoidance
-    %     - Oriented-rectangle or point collision model
-    %     - Soft obstacle slack + terminal pose slack
-    %     - Berth corridor constraints
-    %     - Twin-stern azipod synchrony constraints
-    %     - Warm-start with dual variables
+    % Main differences vs point-tracking NMPC:
+    %   - No time-parameterized path_ref_numeric path is required for stage tracking.
+    %   - Path objective is defined by a geometric segment [wp_start -> wp_end].
+    %   - Cross-track error is penalized only outside a tube of width W_tube.
+    %   - Progress is rewarded through along-track distance-to-goal cost.
+    %   - Final stop is activated only on the last waypoint.
 
     properties
         N
@@ -45,7 +44,7 @@ classdef NMPC_Container_final < handle
         alpha_max = pi
         Dn_max = 10
         Dn_bow_max = 8
-        alpha_rate_max = 0.20944  % Max azimuth rate [rad/s] = 12 deg/s (ABB spec)
+        alpha_rate_max = 0.20944
 
         % Obstacle settings
         max_obs = 5
@@ -64,25 +63,33 @@ classdef NMPC_Container_final < handle
         stern_cmd_split_max_default = 40
 
         % CBF parameters
-        gamma_cbf_obs = 0.3           % CBF decay rate for obstacles [0,1]
-        gamma_cbf_hp = 0.25           % CBF decay rate for half-planes [0,1]
-        cbf_obs_terminal_hard = true  % Hard constraint on terminal step (safety net)
+        gamma_cbf_obs = 0.3
+        gamma_cbf_hp = 0.25
+        cbf_obs_terminal_hard = true
+
+        % Path-following / tube-MPC defaults
+        path_xte_weight_default = 12.0
+        path_along_weight_default = 1.2
+        path_tube_half_width_default = 20.0
+        soft_speed_cap_weight_default = 0.20
+        soft_speed_cap_default_mps = 5.0
+        terminal_goal_pos_weight_default = 120.0
+        terminal_goal_heading_weight_default = 50.0
+        terminal_stop_u_weight_default = 40.0
+        terminal_stop_v_weight_default = 25.0
+        terminal_stop_r_weight_default = 25.0
 
         % Actuator and forward motion control
         actuator_force_weight = 0.01
         forward_incentive_weight = 2.5
-        waypoint_heading_weight = 0.0
         u_min_forward = 0.5
         max_brake_rate = 0.3
-        soft_obs_weight = 5e4            % Reduced from 2e5 (CBF handles safety)
-        soft_obs_default_max_m = 0.5     % Reduced from 0.0 (slack as last resort)
+        soft_obs_weight = 5e4
+        soft_obs_default_max_m = 0.5
         terminal_pose_slack_weight = 8e4
         terminal_pose_slack_default_max = 0.0
         stage_state_cost_scale = 1.0
         stage_input_tracking_scale = 1.0
-        terminal_speed_weight = NaN
-        terminal_pos_weight = NaN
-        terminal_heading_weight = NaN
         terminal_cost_scale = 1.0
         terminal_actuator_cost_scale = 1.0
         terminal_forward_cost_scale = 1.0
@@ -121,18 +128,33 @@ classdef NMPC_Container_final < handle
                 cfg = struct();
             end
 
-            obj.N  = getOr(cfg, 'N',  20);
+            obj.N  = getOr(cfg, 'N', 20);
             obj.dt = getOr(cfg, 'dt', 1.0);
-            obj.Q = padDiag(getOr(cfg, 'Q', diag([2.0, 0.1, 3.0, 3.0, 3.0, 6.0, 0.001, 0.001, 0.001])), 9);
-            obj.R = padDiag(getOr(cfg, 'R', diag([0.08, 0.08, 0.005, 0.005, 0.005])), 5);
-            obj.R_rate = padDiag(getOr(cfg, 'R_rate', diag([0.04, 0.04, 0.002, 0.002, 0.002])), 5);
+            obj.Q = padDiag(getOr(cfg, 'Q', diag([0.0, 0.05, 0.08, 0.0, 0.0, 0.0, 0.001, 0.001, 0.001])), 9);
+            obj.R = padDiag(getOr(cfg, 'R', diag([0.10, 0.10, 0.006, 0.006, 0.010])), 5);
+            obj.R_rate = padDiag(getOr(cfg, 'R_rate', diag([0.12, 0.12, 0.004, 0.004, 0.010])), 5);
             obj.max_obs = getOr(cfg, 'max_obs', 5);
             obj.max_halfplanes = max(0, round(getOr(cfg, 'max_halfplanes', 0)));
             obj.r_safety = getOr(cfg, 'r_safety', 30);
-            obj.collision_model = lower(strtrim(getOr(cfg, 'collision_model', 'point')));
+            obj.collision_model = lower(strtrim(getOr(cfg, 'collision_model', 'oriented-rectangle')));
+
+            obj.gamma_cbf_obs = getOr(cfg, 'gamma_cbf_obs', 0.3);
+            obj.gamma_cbf_hp = getOr(cfg, 'gamma_cbf_hp', 0.25);
+            obj.cbf_obs_terminal_hard = logical(getOr(cfg, 'cbf_obs_terminal_hard', true));
+
+            obj.path_xte_weight_default = getOr(cfg, 'path_xte_weight_default', 12.0);
+            obj.path_along_weight_default = getOr(cfg, 'path_along_weight_default', 1.2);
+            obj.path_tube_half_width_default = getOr(cfg, 'path_tube_half_width_default', 20.0);
+            obj.soft_speed_cap_weight_default = getOr(cfg, 'soft_speed_cap_weight_default', 0.20);
+            obj.soft_speed_cap_default_mps = getOr(cfg, 'soft_speed_cap_default_mps', 5.0);
+            obj.terminal_goal_pos_weight_default = getOr(cfg, 'terminal_goal_pos_weight_default', 120.0);
+            obj.terminal_goal_heading_weight_default = getOr(cfg, 'terminal_goal_heading_weight_default', 50.0);
+            obj.terminal_stop_u_weight_default = getOr(cfg, 'terminal_stop_u_weight_default', 40.0);
+            obj.terminal_stop_v_weight_default = getOr(cfg, 'terminal_stop_v_weight_default', 25.0);
+            obj.terminal_stop_r_weight_default = getOr(cfg, 'terminal_stop_r_weight_default', 25.0);
+
             obj.actuator_force_weight = getOr(cfg, 'actuator_force_weight', 0.05);
             obj.forward_incentive_weight = getOr(cfg, 'forward_incentive_weight', 2.5);
-            obj.waypoint_heading_weight = getOr(cfg, 'waypoint_heading_weight', 0.0);
             obj.u_min_forward = getOr(cfg, 'u_min_forward', 0.5);
             obj.max_brake_rate = getOr(cfg, 'max_brake_rate', 0.3);
             obj.soft_obs_weight = getOr(cfg, 'soft_obs_weight', 5e4);
@@ -141,17 +163,9 @@ classdef NMPC_Container_final < handle
             obj.terminal_pose_slack_default_max = getOr(cfg, 'terminal_pose_slack_default_max', 0.0);
             obj.stage_state_cost_scale = getOr(cfg, 'stage_state_cost_scale', 1.0);
             obj.stage_input_tracking_scale = getOr(cfg, 'stage_input_tracking_scale', 1.0);
-            obj.terminal_speed_weight = getOr(cfg, 'terminal_speed_weight', NaN);
-            obj.terminal_pos_weight = getOr(cfg, 'terminal_pos_weight', NaN);
-            obj.terminal_heading_weight = getOr(cfg, 'terminal_heading_weight', NaN);
             obj.terminal_cost_scale = getOr(cfg, 'terminal_cost_scale', 1.0);
             obj.terminal_actuator_cost_scale = getOr(cfg, 'terminal_actuator_cost_scale', 1.0);
             obj.terminal_forward_cost_scale = getOr(cfg, 'terminal_forward_cost_scale', 1.0);
-
-            % CBF parameters
-            obj.gamma_cbf_obs = getOr(cfg, 'gamma_cbf_obs', 0.3);
-            obj.gamma_cbf_hp = getOr(cfg, 'gamma_cbf_hp', 0.25);
-            obj.cbf_obs_terminal_hard = logical(getOr(cfg, 'cbf_obs_terminal_hard', true));
 
             obj.hull_length_m = getOr(cfg, 'hull_length_m', 36);
             obj.hull_beam_m = getOr(cfg, 'hull_beam_m', 12);
@@ -161,25 +175,17 @@ classdef NMPC_Container_final < handle
             obj.hull_smooth_eps = getOr(cfg, 'hull_smooth_eps', 1e-4);
             obj.enable_diagnostics = logical(getOr(cfg, 'enable_diagnostics', false));
 
-            fprintf('NMPC_Container_final: N=%d, dt=%.2f, obs_slots=%d\n', ...
+            fprintf('NMPC_Container_final (line+tube+CBF): N=%d, dt=%.2f, obs_slots=%d\n', ...
                 obj.N, obj.dt, obj.max_obs);
-            fprintf('  map half-plane slots: %d\n', obj.max_halfplanes);
-            fprintf('  9-state model: [u v r x y psi n1 n2 n3]\n');
-            fprintf('  5 controls: [alpha1 alpha2 n1_c n2_c n3_c]\n');
+            fprintf('  line-tracking defaults: W_xte=%.2f | W_along=%.2f | tube=%.1f m\n', ...
+                obj.path_xte_weight_default, obj.path_along_weight_default, obj.path_tube_half_width_default);
+            fprintf('  soft speed cap default: %.2f m/s (weight %.3f)\n', ...
+                obj.soft_speed_cap_default_mps, obj.soft_speed_cap_weight_default);
             fprintf('  CBF obstacle gamma: %.2f | CBF half-plane gamma: %.2f\n', ...
                 obj.gamma_cbf_obs, obj.gamma_cbf_hp);
-            fprintf('  CBF terminal hard constraint: %s\n', mat2str(obj.cbf_obs_terminal_hard));
+            fprintf('  map half-plane slots: %d\n', obj.max_halfplanes);
             fprintf('  surge lower bound: u >= %.2f m/s\n', obj.u_min_forward);
-            fprintf('  azimuth rate limit: %.2f deg/s\n', rad2deg(obj.alpha_rate_max));
             fprintf('  max brake rate: %.2f m/s^2\n', obj.max_brake_rate);
-            fprintf('  soft obstacle slack: weight=%.1f, default_max=%.2f m\n', ...
-                obj.soft_obs_weight, obj.soft_obs_default_max_m);
-            fprintf('  terminal-pose slack: weight=%.1f, default_max=%.2f\n', ...
-                obj.terminal_pose_slack_weight, obj.terminal_pose_slack_default_max);
-            fprintf('  stage scales: state=%.2f, input-track=%.2f\n', ...
-                obj.stage_state_cost_scale, obj.stage_input_tracking_scale);
-            fprintf('  actuator penalty: %.4f | forward incentive: %.2f\n', ...
-                obj.actuator_force_weight, obj.forward_incentive_weight);
             if strcmpi(obj.collision_model, 'oriented-rectangle')
                 fprintf('  collision: oriented rectangle %.1f x %.1f m (clearance %.1f m)\n', ...
                     2*obj.hull_half_length_m, 2*obj.hull_half_beam_m, obj.hull_clearance_m);
@@ -198,20 +204,26 @@ classdef NMPC_Container_final < handle
             n_hp = obj.max_halfplanes;
             n_term_slack = 6;
 
-            %%  DECISION VARIABLES
+            %% Decision variables
             X = SX.sym('X', n_state, N_h+1);
             U = SX.sym('U', n_ctrl, N_h);
-            S_obs = SX.sym('S_obs', n_obs, N_h+1); % Slack for obstacle constraints
-            S_term = SX.sym('S_term', n_term_slack, 1); % Slack for terminal pose constraint
+            S_obs = SX.sym('S_obs', n_obs, N_h+1);
+            S_term = SX.sym('S_term', n_term_slack, 1);
 
-            %%  PARAMETERS
+            %% Parameters
             P_x0       = SX.sym('P_x0', n_state, 1);
-            P_xref     = SX.sym('P_xref', n_state, N_h+1);
+            P_wp_start = SX.sym('P_wp_start', 2, 1);
+            P_wp_end   = SX.sym('P_wp_end', 2, 1);
+            P_goal_heading = SX.sym('P_goal_heading', 1, 1);
+            P_goal_heading_enable = SX.sym('P_goal_heading_enable', 1, 1);
+            P_path_weights = SX.sym('P_path_weights', 4, 1); % [W_xte W_along W_tube W_soft_speed_cap]
+            P_speed_ref = SX.sym('P_speed_ref', 1, 1);
+            P_terminal_path = SX.sym('P_terminal_path', 6, 1); % [W_goal_pos W_goal_heading is_final W_stop_u W_stop_v W_stop_r]
             P_uref     = SX.sym('P_uref', n_ctrl, N_h);
             P_n_obs_real = SX.sym('P_n_obs_real', 1, 1);
             P_obs_pos  = SX.sym('P_obs_pos', 2, n_obs);
             P_obs_rad  = SX.sym('P_obs_rad', n_obs, 1);
-            P_obs_vel  = SX.sym('P_obs_vel', 2, n_obs);  % Dynamic obstacle velocities
+            P_obs_vel  = SX.sym('P_obs_vel', 2, n_obs);
             P_n_hp_real = SX.sym('P_n_hp_real', 1, 1);
             P_hp_n = SX.sym('P_hp_n', 2, n_hp);
             P_hp_b = SX.sym('P_hp_b', n_hp, 1);
@@ -220,99 +232,105 @@ classdef NMPC_Container_final < handle
             P_q_state = SX.sym('P_q_state', n_state, 1);
             P_r_input = SX.sym('P_r_input', n_ctrl, 1);
             P_r_rate = SX.sym('P_r_rate', n_ctrl, 1);
-            P_stage_scales = SX.sym('P_stage_scales', 2, 1); % [stage_state_scale stage_input_scale]
-            P_terminal_weights = SX.sym('P_terminal_weights', 4, 1); % [u x y psi]
-            P_terminal_scales = SX.sym('P_terminal_scales', 3, 1); % [state actuator reverse]
+            P_stage_scales = SX.sym('P_stage_scales', 2, 1);
+            P_terminal_scales = SX.sym('P_terminal_scales', 3, 1);
             P_collision_clearance = SX.sym('P_collision_clearance', 1, 1);
-            P_term_pose_eps = SX.sym('P_term_pose_eps', 3, 1); % Terminal pose tolerance
-            P_term_vel_max = SX.sym('P_term_vel_max', 3, 1); % Terminal velocity tolerance
-            P_berth_corr = SX.sym('P_berth_corr', 7, 1); % [x_min x_max y_min y_max psi_min psi_max speed_max] for berth corridor
-            P_sync_limits = SX.sym('P_sync_limits', 2, 1); % [min_sync max_sync]
-            P_gamma_obs = SX.sym('P_gamma_obs', 1, 1);   % CBF gamma for obstacles
-            P_gamma_hp = SX.sym('P_gamma_hp', 1, 1);     % CBF gamma for half-planes
+            P_term_pose_eps = SX.sym('P_term_pose_eps', 3, 1);
+            P_term_vel_max = SX.sym('P_term_vel_max', 3, 1);
+            P_berth_corr = SX.sym('P_berth_corr', 7, 1);
+            P_sync_limits = SX.sym('P_sync_limits', 2, 1);
+            P_gamma_obs = SX.sym('P_gamma_obs', 1, 1);
+            P_gamma_hp = SX.sym('P_gamma_hp', 1, 1);
 
-            P_all = vertcat(P_x0, P_xref(:), P_uref(:), P_n_obs_real, ...
-                            P_obs_pos(:), P_obs_rad, P_obs_vel(:), ...
+            P_all = vertcat(P_x0, P_wp_start, P_wp_end, P_goal_heading, P_goal_heading_enable, ...
+                            P_path_weights, P_speed_ref, P_terminal_path, ...
+                            P_uref(:), P_n_obs_real, P_obs_pos(:), P_obs_rad, P_obs_vel(:), ...
                             P_n_hp_real, P_hp_n(:), P_hp_b, ...
                             P_u_prev, P_max_brake_rate, ...
                             P_q_state, P_r_input, P_r_rate, ...
-                            P_stage_scales, P_terminal_weights, P_terminal_scales, ...
+                            P_stage_scales, P_terminal_scales, ...
                             P_collision_clearance, ...
                             P_term_pose_eps, P_term_vel_max, P_berth_corr, P_sync_limits, ...
                             P_gamma_obs, P_gamma_hp);
             obj.np_total = size(P_all, 1);
 
-            %%  COST FUNCTION
+            %% Common geometric quantities
+            seg = P_wp_end - P_wp_start;
+            L_seg = sqrt(seg(1)^2 + seg(2)^2 + 1e-6);
+            t_hat = seg / L_seg;
+            n_hat = [-t_hat(2); t_hat(1)];
+
+            %% Cost function
             w_stage_state = P_stage_scales(1);
             w_stage_input = P_stage_scales(2);
-            w_term_u = P_terminal_weights(1);
-            w_term_x = P_terminal_weights(2);
-            w_term_y = P_terminal_weights(3);
-            w_term_psi = P_terminal_weights(4);
             w_terminal_state = P_terminal_scales(1);
             w_terminal_actuator = P_terminal_scales(2);
             w_terminal_forward = P_terminal_scales(3);
 
             J = 0;
-
             g_blocks = {};
             lb_blocks = {};
             ub_blocks = {};
             block_names = {};
             block_sizes = [];
 
-            % Stage cost
+            % Stage cost: line tracking + tube guidance + soft speed cap
             for k = 1:N_h
-                dpsi = X(6,k) - P_xref(6,k);
-                psi_err = atan2(sin(dpsi), cos(dpsi));
+                pos_k = [X(4,k); X(5,k)];
+                err_vec = pos_k - P_wp_start;
+                xte_k = err_vec(1) * n_hat(1) + err_vec(2) * n_hat(2);
+                along_k = err_vec(1) * t_hat(1) + err_vec(2) * t_hat(2);
+                dist_to_goal = L_seg - along_k;
 
-                stage_state_cost = 0;
-                stage_state_cost = stage_state_cost + P_q_state(1) * (X(1,k) - P_xref(1,k))^2;
-                stage_state_cost = stage_state_cost + P_q_state(2) * (X(2,k) - P_xref(2,k))^2;
-                stage_state_cost = stage_state_cost + P_q_state(3) * (X(3,k) - P_xref(3,k))^2;
-                stage_state_cost = stage_state_cost + P_q_state(4) * (X(4,k) - P_xref(4,k))^2;
-                stage_state_cost = stage_state_cost + P_q_state(5) * (X(5,k) - P_xref(5,k))^2;
-                stage_state_cost = stage_state_cost + P_q_state(6) * psi_err^2;
-                stage_state_cost = stage_state_cost + P_q_state(7) * (X(7,k) - P_xref(7,k))^2;
-                stage_state_cost = stage_state_cost + P_q_state(8) * (X(8,k) - P_xref(8,k))^2;
-                stage_state_cost = stage_state_cost + P_q_state(9) * (X(9,k) - P_xref(9,k))^2;
-                J = J + w_stage_state * stage_state_cost;
-                turn_heading_gate = min(1.0, abs(P_xref(3,k)) / 0.10);
-                J = J + obj.waypoint_heading_weight * turn_heading_gate * psi_err^2;
+                xte_abs = abs(xte_k);
+                xte_penalty = if_else(xte_abs > P_path_weights(3), xte_abs - P_path_weights(3), 0);
+                speed_cap_penalty = if_else(X(1,k) > P_speed_ref, X(1,k) - P_speed_ref, 0);
 
-                % Actuator force penalty
+                path_cost = P_path_weights(1) * xte_penalty^2 + ...
+                            P_path_weights(2) * dist_to_goal^2 + ...
+                            P_path_weights(4) * speed_cap_penalty^2;
+
+                % Small regularization only on sway/yaw and actuator states if requested.
+                reg_cost = P_q_state(2) * X(2,k)^2 + ...
+                           P_q_state(3) * X(3,k)^2 + ...
+                           P_q_state(7) * X(7,k)^2 + ...
+                           P_q_state(8) * X(8,k)^2 + ...
+                           P_q_state(9) * X(9,k)^2;
+
+                J = J + w_stage_state * (path_cost + reg_cost);
+
+                % Actuator magnitude and reverse-motion discouragement
                 J = J + obj.actuator_force_weight * (X(7,k)^2 + X(8,k)^2 + X(9,k)^2);
-
-                % Forward velocity encouragement
                 u_back = min(0, X(1,k));
                 J = J + obj.forward_incentive_weight * u_back^2;
 
                 du = U(:,k) - P_uref(:,k);
                 J = J + w_stage_input * sum1(P_r_input .* (du.^2));
 
-                % Obstacle-softening penalty
                 for j = 1:n_obs
                     J = J + obj.soft_obs_weight * S_obs(j,k)^2;
                 end
             end
 
-            % Control rate cost
+            % Control-rate cost
             for k = 1:(N_h-1)
                 dU = U(:,k+1) - U(:,k);
                 J = J + sum1(P_r_rate .* (dU.^2));
             end
 
-            % Terminal cost
-            dpsi_N = X(6,N_h+1) - P_xref(6,N_h+1);
-            psi_err_N = atan2(sin(dpsi_N), cos(dpsi_N));
-            terminal_state_cost = 0;
-            terminal_state_cost = terminal_state_cost + w_term_u * (X(1,N_h+1) - P_xref(1,N_h+1))^2;
-            terminal_state_cost = terminal_state_cost + w_term_x * (X(4,N_h+1) - P_xref(4,N_h+1))^2;
-            terminal_state_cost = terminal_state_cost + w_term_y * (X(5,N_h+1) - P_xref(5,N_h+1))^2;
-            terminal_state_cost = terminal_state_cost + w_term_psi * psi_err_N^2;
-            J = J + w_terminal_state * terminal_state_cost;
-            terminal_heading_gate = min(1.0, abs(P_xref(3,N_h+1)) / 0.10);
-            J = J + obj.waypoint_heading_weight * terminal_heading_gate * psi_err_N^2;
+            % Terminal geometric goal / heading / stop cost
+            pos_N = [X(4,N_h+1); X(5,N_h+1)];
+            goal_err = pos_N - P_wp_end;
+            psi_goal_err = atan2(sin(X(6,N_h+1) - P_goal_heading), cos(X(6,N_h+1) - P_goal_heading));
+
+            terminal_goal_cost = P_terminal_path(1) * (goal_err(1)^2 + goal_err(2)^2) + ...
+                                 P_goal_heading_enable * P_terminal_path(2) * psi_goal_err^2;
+            terminal_stop_cost = P_terminal_path(3) * ( ...
+                                 P_terminal_path(4) * X(1,N_h+1)^2 + ...
+                                 P_terminal_path(5) * X(2,N_h+1)^2 + ...
+                                 P_terminal_path(6) * X(3,N_h+1)^2 );
+
+            J = J + w_terminal_state * terminal_goal_cost + terminal_stop_cost;
             J = J + w_terminal_actuator * 2 * obj.actuator_force_weight * ...
                 (X(7,N_h+1)^2 + X(8,N_h+1)^2 + X(9,N_h+1)^2);
             u_back_N = min(0, X(1,N_h+1));
@@ -322,16 +340,15 @@ classdef NMPC_Container_final < handle
             end
             J = J + obj.terminal_pose_slack_weight * (S_term' * S_term);
 
-            %%  CONSTRAINTS
-
-            % --- Initial condition ---
+            %% Constraints
+            % Initial condition
             g_blocks{end+1} = X(:,1) - P_x0;
             lb_blocks{end+1} = zeros(n_state, 1);
             ub_blocks{end+1} = zeros(n_state, 1);
             block_names{end+1} = 'Initial condition';
             block_sizes(end+1) = n_state;
 
-            % --- Dynamics ---
+            % Dynamics
             g_dyn = [];
             for k = 1:N_h
                 xdot_k = obj.dynamicsCasADi(X(:,k), U(:,k));
@@ -344,21 +361,16 @@ classdef NMPC_Container_final < handle
             block_names{end+1} = 'Dynamics';
             block_sizes(end+1) = n_state*N_h;
 
-            % --- CBF Obstacle Avoidance (static + dynamic) ---
-            % Barrier: h(x,obs) = dist(x, obs) - r_obs - clearance
-            % CBF constraint: h(k+1) - (1-gamma)*h(k) + slack >= 0
-            % Dynamic obstacles: predicted position obs_k = obs_0 + k*dt*vel
+            % CBF obstacle avoidance
             g_obs_cbf = [];
             for k = 1:N_h
                 for j = 1:n_obs
-                    % Predicted obstacle positions at step k and k+1
                     obs_x_k   = P_obs_pos(1,j) + k * obj.dt * P_obs_vel(1,j);
                     obs_y_k   = P_obs_pos(2,j) + k * obj.dt * P_obs_vel(2,j);
                     obs_x_kp1 = P_obs_pos(1,j) + (k+1) * obj.dt * P_obs_vel(1,j);
                     obs_y_kp1 = P_obs_pos(2,j) + (k+1) * obj.dt * P_obs_vel(2,j);
 
                     if strcmpi(obj.collision_model, 'oriented-rectangle')
-                        % h(x_k, obs_k)
                         rx_k = obs_x_k - X(4,k);
                         ry_k = obs_y_k - X(5,k);
                         cpsi_k = cos(X(6,k));
@@ -372,7 +384,6 @@ classdef NMPC_Container_final < handle
                         dist_k = sqrt(dx_k^2 + dy_k^2 + obj.hull_smooth_eps);
                         h_k = dist_k - P_obs_rad(j) - P_collision_clearance;
 
-                        % h(x_{k+1}, obs_{k+1})
                         rx_kp1 = obs_x_kp1 - X(4,k+1);
                         ry_kp1 = obs_y_kp1 - X(5,k+1);
                         cpsi_kp1 = cos(X(6,k+1));
@@ -386,26 +397,21 @@ classdef NMPC_Container_final < handle
                         dist_kp1 = sqrt(dx_kp1^2 + dy_kp1^2 + obj.hull_smooth_eps);
                         h_kp1 = dist_kp1 - P_obs_rad(j) - P_collision_clearance;
                     else
-                        % Point model: h(x_k)
                         dx_k_pt = X(4,k) - obs_x_k;
                         dy_k_pt = X(5,k) - obs_y_k;
                         dist_k = sqrt(dx_k_pt^2 + dy_k_pt^2 + 1e-3);
                         h_k = dist_k - P_obs_rad(j) - P_collision_clearance;
 
-                        % h(x_{k+1})
                         dx_kp1_pt = X(4,k+1) - obs_x_kp1;
                         dy_kp1_pt = X(5,k+1) - obs_y_kp1;
                         dist_kp1 = sqrt(dx_kp1_pt^2 + dy_kp1_pt^2 + 1e-3);
                         h_kp1 = dist_kp1 - P_obs_rad(j) - P_collision_clearance;
                     end
 
-                    % CBF: h(k+1) - (1-gamma)*h(k) + slack >= 0
-                    g_obs_cbf = vertcat(g_obs_cbf, ...
-                        h_kp1 - (1 - P_gamma_obs) * h_k + S_obs(j,k));
+                    g_obs_cbf = vertcat(g_obs_cbf, h_kp1 - (1 - P_gamma_obs) * h_k + S_obs(j,k));
                 end
             end
 
-            % Terminal safety net: hard constraint at k=N_h+1
             if obj.cbf_obs_terminal_hard
                 for j = 1:n_obs
                     obs_x_end = P_obs_pos(1,j) + (N_h+1) * obj.dt * P_obs_vel(1,j);
@@ -430,11 +436,9 @@ classdef NMPC_Container_final < handle
                         dist_end = sqrt(dx_end_pt^2 + dy_end_pt^2 + 1e-3);
                         h_end = dist_end - P_obs_rad(j) - P_collision_clearance;
                     end
-
                     g_obs_cbf = vertcat(g_obs_cbf, h_end + S_obs(j,N_h+1));
                 end
             end
-
             n_cbf_obs = n_obs * N_h;
             if obj.cbf_obs_terminal_hard
                 n_cbf_obs = n_cbf_obs + n_obs;
@@ -445,12 +449,8 @@ classdef NMPC_Container_final < handle
             block_names{end+1} = 'CBF obstacle avoidance';
             block_sizes(end+1) = n_cbf_obs;
 
-            % --- CBF Half-Plane Avoidance ---
-            % Barrier: h_hp(x) = n'*p - b - hull_projection - clearance
-            % CBF: h_hp(k+1) >= (1-gamma_hp) * h_hp(k)
+            % CBF half-plane avoidance
             g_hp_cbf = [];
-
-            % Direct constraint at k=1 (initial safety)
             for h = 1:n_hp
                 if strcmpi(obj.collision_model, 'oriented-rectangle')
                     cpsi_1 = cos(X(6,1));
@@ -466,11 +466,9 @@ classdef NMPC_Container_final < handle
                 g_hp_cbf = vertcat(g_hp_cbf, h_hp_1);
             end
 
-            % CBF constraints for k=1..N_h
             for k = 1:N_h
                 for h = 1:n_hp
                     if strcmpi(obj.collision_model, 'oriented-rectangle')
-                        % h_hp at step k
                         cpsi_k = cos(X(6,k));
                         spsi_k = sin(X(6,k));
                         hull_proj_k = abs(P_hp_n(1,h)*cpsi_k + P_hp_n(2,h)*spsi_k) * obj.hull_half_length_m + ...
@@ -478,7 +476,6 @@ classdef NMPC_Container_final < handle
                         signed_dist_k = P_hp_n(1,h)*X(4,k) + P_hp_n(2,h)*X(5,k) - P_hp_b(h);
                         h_hp_k = signed_dist_k - hull_proj_k - P_collision_clearance;
 
-                        % h_hp at step k+1
                         cpsi_kp1 = cos(X(6,k+1));
                         spsi_kp1 = sin(X(6,k+1));
                         hull_proj_kp1 = abs(P_hp_n(1,h)*cpsi_kp1 + P_hp_n(2,h)*spsi_kp1) * obj.hull_half_length_m + ...
@@ -488,17 +485,13 @@ classdef NMPC_Container_final < handle
                     else
                         signed_dist_k = P_hp_n(1,h)*X(4,k) + P_hp_n(2,h)*X(5,k) - P_hp_b(h);
                         h_hp_k = signed_dist_k - P_collision_clearance;
-
                         signed_dist_kp1 = P_hp_n(1,h)*X(4,k+1) + P_hp_n(2,h)*X(5,k+1) - P_hp_b(h);
                         h_hp_kp1 = signed_dist_kp1 - P_collision_clearance;
                     end
-
-                    % CBF: h(k+1) - (1-gamma_hp)*h(k) >= 0
                     g_hp_cbf = vertcat(g_hp_cbf, h_hp_kp1 - (1 - P_gamma_hp) * h_hp_k);
                 end
             end
 
-            % Terminal hard constraint for half-planes
             for h = 1:n_hp
                 if strcmpi(obj.collision_model, 'oriented-rectangle')
                     cpsi_end = cos(X(6,N_h+1));
@@ -513,29 +506,25 @@ classdef NMPC_Container_final < handle
                 end
                 g_hp_cbf = vertcat(g_hp_cbf, h_hp_end);
             end
-
-            n_cbf_hp = n_hp + n_hp*N_h + n_hp;  % initial + CBF steps + terminal
+            n_cbf_hp = n_hp + n_hp*N_h + n_hp;
             g_blocks{end+1} = g_hp_cbf;
             lb_blocks{end+1} = zeros(n_cbf_hp, 1);
             ub_blocks{end+1} = inf(n_cbf_hp, 1);
             block_names{end+1} = 'CBF half-plane avoidance';
             block_sizes(end+1) = n_cbf_hp;
 
-            % --- Azimuth rate constraints ---
+            % Azimuth-rate constraints
             g_rate = [];
             d_alpha1_first = U(1,1) - P_u_prev(1);
             g_rate = vertcat(g_rate, d_alpha1_first - obj.alpha_rate_max * obj.dt);
             g_rate = vertcat(g_rate, -d_alpha1_first - obj.alpha_rate_max * obj.dt);
-
             d_alpha2_first = U(2,1) - P_u_prev(2);
             g_rate = vertcat(g_rate, d_alpha2_first - obj.alpha_rate_max * obj.dt);
             g_rate = vertcat(g_rate, -d_alpha2_first - obj.alpha_rate_max * obj.dt);
-
             for k = 1:(N_h-1)
                 d_alpha1 = U(1,k+1) - U(1,k);
                 g_rate = vertcat(g_rate, d_alpha1 - obj.alpha_rate_max * obj.dt);
                 g_rate = vertcat(g_rate, -d_alpha1 - obj.alpha_rate_max * obj.dt);
-
                 d_alpha2 = U(2,k+1) - U(2,k);
                 g_rate = vertcat(g_rate, d_alpha2 - obj.alpha_rate_max * obj.dt);
                 g_rate = vertcat(g_rate, -d_alpha2 - obj.alpha_rate_max * obj.dt);
@@ -546,12 +535,11 @@ classdef NMPC_Container_final < handle
             block_names{end+1} = 'Azimuth rate';
             block_sizes(end+1) = 4 + 4*(N_h-1);
 
-            % --- Braking constraint ---
-            % Constraint to reduce excessive braking (fuel cost minimization).
+            % Braking constraint
             g_brake = [];
             du_brake_first = X(1,1) - P_x0(1);
             g_brake = vertcat(g_brake, du_brake_first + P_max_brake_rate * obj.dt);
-            for k = 1:(N_h)
+            for k = 1:N_h
                 du_brake = X(1,k+1) - X(1,k);
                 g_brake = vertcat(g_brake, du_brake + P_max_brake_rate * obj.dt);
             end
@@ -561,19 +549,17 @@ classdef NMPC_Container_final < handle
             block_names{end+1} = 'Brake deceleration';
             block_sizes(end+1) = 1 + N_h;
 
-            % --- Terminal pose and velocity envelope ---
+            % Terminal pose / velocity envelope around final waypoint
             g_term = [];
-            dx_N = X(4,N_h+1) - P_xref(4,N_h+1);
-            dy_N = X(5,N_h+1) - P_xref(5,N_h+1);
-            dpsi_N_c = atan2(sin(X(6,N_h+1) - P_xref(6,N_h+1)), cos(X(6,N_h+1) - P_xref(6,N_h+1)));
-
+            dx_N = X(4,N_h+1) - P_wp_end(1);
+            dy_N = X(5,N_h+1) - P_wp_end(2);
+            dpsi_N_c = atan2(sin(X(6,N_h+1) - P_goal_heading), cos(X(6,N_h+1) - P_goal_heading));
             g_term = vertcat(g_term, dx_N - P_term_pose_eps(1) - S_term(1));
             g_term = vertcat(g_term, -dx_N - P_term_pose_eps(1) - S_term(1));
             g_term = vertcat(g_term, dy_N - P_term_pose_eps(2) - S_term(2));
             g_term = vertcat(g_term, -dy_N - P_term_pose_eps(2) - S_term(2));
             g_term = vertcat(g_term, dpsi_N_c - P_term_pose_eps(3) - S_term(3));
             g_term = vertcat(g_term, -dpsi_N_c - P_term_pose_eps(3) - S_term(3));
-
             g_term = vertcat(g_term, abs(X(1,N_h+1)) - P_term_vel_max(1) - S_term(4));
             g_term = vertcat(g_term, abs(X(2,N_h+1)) - P_term_vel_max(2) - S_term(5));
             g_term = vertcat(g_term, abs(X(3,N_h+1)) - P_term_vel_max(3) - S_term(6));
@@ -583,7 +569,7 @@ classdef NMPC_Container_final < handle
             block_names{end+1} = 'Terminal pose and velocity';
             block_sizes(end+1) = 9;
 
-            % --- Berth corridor ---
+            % Optional berth corridor
             g_corr = [];
             corr_origin_x = P_berth_corr(1);
             corr_origin_y = P_berth_corr(2);
@@ -593,13 +579,11 @@ classdef NMPC_Container_final < handle
             corr_along_max = P_berth_corr(6);
             corr_enable = P_berth_corr(7);
             corr_big_relax = (1 - corr_enable) * 1e6;
-
             for k = 1:(N_h+1)
                 dx_b = X(4,k) - corr_origin_x;
                 dy_b = X(5,k) - corr_origin_y;
                 x_local = cos(corr_psi) * dx_b + sin(corr_psi) * dy_b;
                 y_local = -sin(corr_psi) * dx_b + cos(corr_psi) * dy_b;
-
                 g_corr = vertcat(g_corr, y_local - corr_half_w - corr_big_relax);
                 g_corr = vertcat(g_corr, -y_local - corr_half_w - corr_big_relax);
                 g_corr = vertcat(g_corr, corr_along_min - x_local - corr_big_relax);
@@ -611,7 +595,7 @@ classdef NMPC_Container_final < handle
             block_names{end+1} = 'Berth corridor';
             block_sizes(end+1) = 4 * (N_h + 1);
 
-            % --- Twin-stern azipod synchrony ---
+            % Twin-stern synchrony
             g_sync = [];
             max_azi_split = P_sync_limits(1);
             max_stern_split = P_sync_limits(2);
@@ -634,14 +618,12 @@ classdef NMPC_Container_final < handle
             ubg = vertcat(ub_blocks{:});
             n_constraints = size(g, 1);
 
-            %%  VARIABLE BOUNDS
+            %% Variable bounds
             OPT = vertcat(X(:), U(:), S_obs(:), S_term(:));
             n_vars = size(OPT, 1);
-
             lbx = -inf(n_vars, 1);
-            ubx =  inf(n_vars, 1);
+            ubx = inf(n_vars, 1);
 
-            % State bounds
             for k = 1:(N_h+1)
                 base = (k-1)*n_state;
                 lbx(base+1) = obj.u_min_forward;  ubx(base+1) = 12;
@@ -652,10 +634,9 @@ classdef NMPC_Container_final < handle
                 lbx(base+6) = -inf;       ubx(base+6) = inf;
                 lbx(base+7) = obj.n_min;  ubx(base+7) = obj.n_max;
                 lbx(base+8) = obj.n_min;  ubx(base+8) = obj.n_max;
-                lbx(base+9) = obj.n_bow_min;  ubx(base+9) = obj.n_bow_max;
+                lbx(base+9) = obj.n_bow_min; ubx(base+9) = obj.n_bow_max;
             end
 
-            % Control bounds
             u_off = n_state * (N_h+1);
             for k = 1:N_h
                 base = u_off + (k-1)*n_ctrl;
@@ -666,7 +647,6 @@ classdef NMPC_Container_final < handle
                 lbx(base+5) = obj.n_bow_min;   ubx(base+5) = obj.n_bow_max;
             end
 
-            % Obstacle slack bounds
             s_off = n_state * (N_h+1) + n_ctrl * N_h;
             for k = 1:(N_h+1)
                 for j = 1:n_obs
@@ -676,7 +656,6 @@ classdef NMPC_Container_final < handle
                 end
             end
 
-            % Terminal slack bounds
             t_off = s_off + n_obs * (N_h+1);
             for j = 1:n_term_slack
                 idx_t = t_off + j;
@@ -684,9 +663,8 @@ classdef NMPC_Container_final < handle
                 ubx(idx_t) = obj.terminal_pose_slack_default_max;
             end
 
-            %%  BUILD SOLVER
+            %% Build solver
             nlp = struct('f', J, 'x', OPT, 'g', g, 'p', P_all);
-
             opts = struct;
             opts.ipopt.print_level = 0;
             opts.print_time = 0;
@@ -703,7 +681,7 @@ classdef NMPC_Container_final < handle
             opts.ipopt.warm_start_slack_bound_push = 1e-6;
 
             solver_tag = floor(1e7 * rem(now, 1));
-            solver_name = sprintf('nmpc_cbf_%d', solver_tag);
+            solver_name = sprintf('nmpc_line_tube_cbf_%d', solver_tag);
             obj.solver = nlpsol(solver_name, 'ipopt', nlp, opts);
 
             obj.lbx_vec = lbx;
@@ -721,25 +699,17 @@ classdef NMPC_Container_final < handle
             end
         end
 
-
-        function [u_opt, X_pred, info] = solve(obj, x0, x_ref, obstacles, u_prev, u_min_forward_override, solve_opts)
-            % solve  Solve NMPC problem with CBF constraints
+        function [u_opt, X_pred, info] = solve(obj, x0, path_ref, obstacles, u_prev, u_min_forward_override, solve_opts)
+            % solve  Solve line-tracking NMPC
             %
-            %   [u_opt, X_pred, info] = solve(obj, x0, x_ref, obstacles, u_prev, u_min_forward_override, solve_opts)
+            % path_ref can be:
+            %   struct with fields:
+            %       .wp_start [2x1]
+            %       .wp_end   [2x1]
+            %       .goal_heading_rad (optional)
+            %       .goal_heading_enable (optional)
             %
-            %   Inputs:
-            %       x0        - Current state (9x1)
-            %       x_ref     - Reference trajectory (9 x N+1)
-            %       obstacles - Array of obstacles with fields:
-            %                     .position [x;y]
-            %                     .radius
-            %                     .velocity [vx;vy] (optional, default [0;0])
-            %       u_prev    - Previous applied control (5x1)
-            %       u_min_forward_override - Optional surge lower bound
-            %       solve_opts - Optional struct with tuning overrides
-
             t_start = tic;
-
             if ~obj.solver_built
                 obj.buildSolver();
             end
@@ -756,9 +726,16 @@ classdef NMPC_Container_final < handle
             else
                 u_min_local = max(-4.0, min(12.0, u_min_forward_override));
             end
-
             if nargin < 7 || isempty(solve_opts)
                 solve_opts = struct();
+            end
+
+            [wp_start_xy, wp_end_xy, goal_heading_rad, goal_heading_enable] = parsePathRefArg(path_ref, x0);
+            if isfield(solve_opts, 'goal_heading_rad') && ~isempty(solve_opts.goal_heading_rad)
+                goal_heading_rad = solve_opts.goal_heading_rad;
+            end
+            if isfield(solve_opts, 'goal_heading_enable') && ~isempty(solve_opts.goal_heading_enable)
+                goal_heading_enable = logical(solve_opts.goal_heading_enable);
             end
 
             q_state_default = diag(obj.Q);
@@ -773,33 +750,26 @@ classdef NMPC_Container_final < handle
 
             stage_state_scale = max(0.0, getOr(solve_opts, 'stage_state_cost_scale', obj.stage_state_cost_scale));
             stage_input_scale = max(0.0, getOr(solve_opts, 'stage_input_tracking_scale', obj.stage_input_tracking_scale));
-
-            if isnan(obj.terminal_speed_weight)
-                term_speed_default = 2 * q_state_default(1);
-            else
-                term_speed_default = obj.terminal_speed_weight;
-            end
-            term_speed_weight = max(0.0, getOr(solve_opts, 'terminal_speed_weight', term_speed_default));
-
-            if isnan(obj.terminal_pos_weight)
-                term_pos_default = [2 * q_state_default(4); 2 * q_state_default(5)];
-            else
-                term_pos_default = [obj.terminal_pos_weight; obj.terminal_pos_weight];
-            end
-            term_pos_raw = getOr(solve_opts, 'terminal_pos_weight', term_pos_default);
-            term_pos_weight = padVector(term_pos_raw, 2, term_pos_default);
-            term_pos_weight = max(0.0, term_pos_weight);
-
-            if isnan(obj.terminal_heading_weight)
-                term_heading_default = 2 * q_state_default(6);
-            else
-                term_heading_default = obj.terminal_heading_weight;
-            end
-            term_heading_weight = max(0.0, getOr(solve_opts, 'terminal_heading_weight', term_heading_default));
-
             terminal_state_scale = max(0.0, getOr(solve_opts, 'terminal_cost_scale', obj.terminal_cost_scale));
             terminal_actuator_scale = max(0.0, getOr(solve_opts, 'terminal_actuator_cost_scale', obj.terminal_actuator_cost_scale));
             terminal_forward_scale = max(0.0, getOr(solve_opts, 'terminal_forward_cost_scale', obj.terminal_forward_cost_scale));
+
+            path_xte_weight = max(0.0, getOr(solve_opts, 'path_xte_weight', obj.path_xte_weight_default));
+            path_along_weight = max(0.0, getOr(solve_opts, 'path_along_weight', obj.path_along_weight_default));
+            path_tube_half_width = max(0.0, getOr(solve_opts, 'path_tube_half_width_m', obj.path_tube_half_width_default));
+            soft_speed_cap_weight = max(0.0, getOr(solve_opts, 'soft_speed_cap_weight', obj.soft_speed_cap_weight_default));
+            soft_speed_cap_mps = getOr(solve_opts, 'soft_speed_cap_mps', obj.soft_speed_cap_default_mps);
+            if isempty(soft_speed_cap_mps) || ~isfinite(soft_speed_cap_mps)
+                soft_speed_cap_mps = 1e6;
+            end
+            soft_speed_cap_mps = max(0.0, soft_speed_cap_mps);
+
+            is_final_waypoint = logical(getOr(solve_opts, 'is_final_waypoint', false));
+            terminal_goal_pos_weight = max(0.0, getOr(solve_opts, 'terminal_goal_pos_weight', obj.terminal_goal_pos_weight_default));
+            terminal_goal_heading_weight = max(0.0, getOr(solve_opts, 'terminal_goal_heading_weight', obj.terminal_goal_heading_weight_default));
+            terminal_stop_u_weight = max(0.0, getOr(solve_opts, 'terminal_stop_u_weight', obj.terminal_stop_u_weight_default));
+            terminal_stop_v_weight = max(0.0, getOr(solve_opts, 'terminal_stop_v_weight', obj.terminal_stop_v_weight_default));
+            terminal_stop_r_weight = max(0.0, getOr(solve_opts, 'terminal_stop_r_weight', obj.terminal_stop_r_weight_default));
 
             if strcmpi(obj.collision_model, 'oriented-rectangle')
                 collision_clearance_default = obj.hull_clearance_m;
@@ -814,6 +784,7 @@ classdef NMPC_Container_final < handle
             else
                 soft_obs_max_m = 0.0;
             end
+
             n3_max_local = obj.n_bow_max;
             if isfield(solve_opts, 'n3_max') && ~isempty(solve_opts.n3_max)
                 n3_max_local = max(0.0, min(obj.n_bow_max, solve_opts.n3_max));
@@ -829,7 +800,11 @@ classdef NMPC_Container_final < handle
                     term_eps_x = max(0.0, term_eps_xy_raw(1));
                     term_eps_y = max(0.0, term_eps_xy_raw(min(2, numel(term_eps_xy_raw))));
                 end
-                term_eps_psi = max(0.0, getOr(solve_opts, 'term_pose_eps_psi_rad', deg2rad(8.0)));
+                if goal_heading_enable
+                    term_eps_psi = max(0.0, getOr(solve_opts, 'term_pose_eps_psi_rad', deg2rad(8.0)));
+                else
+                    term_eps_psi = pi;
+                end
                 term_vel_u = max(0.0, getOr(solve_opts, 'term_vel_max_u_mps', inf));
                 term_vel_v = max(0.0, getOr(solve_opts, 'term_vel_max_v_mps', inf));
                 term_vel_r = max(0.0, getOr(solve_opts, 'term_vel_max_r_radps', inf));
@@ -843,7 +818,6 @@ classdef NMPC_Container_final < handle
                 term_vel_r = 1e6;
                 term_slack_max = 0.0;
             end
-
             term_pose_eps_vec = [term_eps_x; term_eps_y; term_eps_psi];
             term_vel_max_vec = [term_vel_u; term_vel_v; term_vel_r];
 
@@ -860,9 +834,7 @@ classdef NMPC_Container_final < handle
                 corr_along_min = getOr(solve_opts, 'berth_corridor_along_min_m', -1e6);
                 corr_along_max = getOr(solve_opts, 'berth_corridor_along_max_m', 1e6);
                 if corr_along_max < corr_along_min
-                    tmp = corr_along_min;
-                    corr_along_min = corr_along_max;
-                    corr_along_max = tmp;
+                    tmp = corr_along_min; corr_along_min = corr_along_max; corr_along_max = tmp;
                 end
                 corr_enable_scalar = 1.0;
             else
@@ -877,18 +849,12 @@ classdef NMPC_Container_final < handle
             berth_corridor_vec = [corr_origin_x; corr_origin_y; corr_psi; corr_half_w; ...
                 corr_along_min; corr_along_max; corr_enable_scalar];
 
-            % Twin-stern azipod synchrony limits
-            max_az_split_local = max(0.0, min(2*obj.alpha_max, ...
-                getOr(solve_opts, 'max_azimuth_split', obj.azimuth_split_max_default)));
-            max_stern_split_local = max(0.0, min(obj.n_max - obj.n_min, ...
-                getOr(solve_opts, 'max_stern_cmd_split', obj.stern_cmd_split_max_default)));
+            max_az_split_local = max(0.0, min(2*obj.alpha_max, getOr(solve_opts, 'max_azimuth_split', obj.azimuth_split_max_default)));
+            max_stern_split_local = max(0.0, min(obj.n_max - obj.n_min, getOr(solve_opts, 'max_stern_cmd_split', obj.stern_cmd_split_max_default)));
             sync_limits_vec = [max_az_split_local; max_stern_split_local];
-
-            % CBF parameters (runtime-tunable)
             gamma_obs_local = max(0.01, min(1.0, getOr(solve_opts, 'gamma_cbf_obs', obj.gamma_cbf_obs)));
             gamma_hp_local = max(0.01, min(1.0, getOr(solve_opts, 'gamma_cbf_hp', obj.gamma_cbf_hp)));
 
-            % Handle previous control
             if nargin < 5 || isempty(u_prev)
                 if ~isempty(obj.prev_u)
                     u_prev = obj.prev_u;
@@ -897,7 +863,7 @@ classdef NMPC_Container_final < handle
                 end
             end
 
-            % Obstacle setup (with dynamic velocity support)
+            % Obstacle setup
             obs_pos = 1e8 * ones(2, n_obs);
             obs_rad = zeros(n_obs, 1);
             obs_vel = zeros(2, n_obs);
@@ -905,7 +871,6 @@ classdef NMPC_Container_final < handle
             hp_n = zeros(2, n_hp);
             hp_b = -1e8 * ones(n_hp, 1);
             n_hp_real = 0;
-
             if nargin >= 4 && ~isempty(obstacles)
                 n_real = min(length(obstacles), n_obs);
                 for j = 1:n_real
@@ -913,47 +878,60 @@ classdef NMPC_Container_final < handle
                     obs_rad(j) = obstacles(j).radius;
                     if isfield(obstacles(j), 'velocity') && ~isempty(obstacles(j).velocity)
                         obs_vel(:,j) = obstacles(j).velocity(1:2);
+                    elseif isfield(obstacles(j), 'speed') && isfield(obstacles(j), 'heading')
+                        obs_vel(:,j) = obstacles(j).speed * [cos(obstacles(j).heading); sin(obstacles(j).heading)];
                     end
                 end
             end
-
             if isfield(solve_opts, 'map_halfplanes') && ~isempty(solve_opts.map_halfplanes) && n_hp > 0
                 hp_in = solve_opts.map_halfplanes;
                 n_hp_real = min(length(hp_in), n_hp);
                 for h = 1:n_hp_real
                     n_h = hp_in(h).normal(:);
-                    if numel(n_h) < 2
-                        continue;
-                    end
+                    if numel(n_h) < 2, continue; end
                     n_h = n_h(1:2);
                     n_norm = norm(n_h);
-                    if n_norm < 1e-9
-                        continue;
-                    end
+                    if n_norm < 1e-9, continue; end
                     hp_n(:,h) = n_h / n_norm;
                     hp_b(h) = hp_in(h).offset;
                 end
             end
 
-            % Reference control
+            % Control reference: keep it light, mostly for smoothness.
             u_ref = zeros(n_ctrl, N_h);
             u_ref(3,:) = x0(7);
             u_ref(4,:) = x0(8);
             u_ref(5,:) = min(max(x0(9), obj.n_bow_min), n3_max_local);
+            if isfield(solve_opts, 'cruise_rpm_ref') && ~isempty(solve_opts.cruise_rpm_ref)
+                rpm_ref = solve_opts.cruise_rpm_ref;
+                if isscalar(rpm_ref)
+                    rpm_ref = [rpm_ref; rpm_ref; 0];
+                else
+                    rpm_ref = rpm_ref(:);
+                    if numel(rpm_ref) < 3
+                        rpm_ref = [rpm_ref(:); zeros(3-numel(rpm_ref),1)];
+                    end
+                end
+                u_ref(3,:) = rpm_ref(1);
+                u_ref(4,:) = rpm_ref(2);
+                u_ref(5,:) = rpm_ref(3);
+            end
 
-            % Build parameter vector
-            p_val = [x0(:); x_ref(:); u_ref(:); n_real; obs_pos(:); obs_rad(:); obs_vel(:); ...
+            p_val = [x0(:); wp_start_xy(:); wp_end_xy(:); goal_heading_rad; double(goal_heading_enable); ...
+                [path_xte_weight; path_along_weight; path_tube_half_width; soft_speed_cap_weight]; soft_speed_cap_mps; ...
+                [terminal_goal_pos_weight; terminal_goal_heading_weight; double(is_final_waypoint); ...
+                 terminal_stop_u_weight; terminal_stop_v_weight; terminal_stop_r_weight]; ...
+                u_ref(:); n_real; obs_pos(:); obs_rad(:); obs_vel(:); ...
                 n_hp_real; hp_n(:); hp_b(:); ...
                 u_prev(:); obj.max_brake_rate; ...
                 q_state_diag(:); r_input_diag(:); r_rate_diag(:); ...
                 [stage_state_scale; stage_input_scale]; ...
-                [term_speed_weight; term_pos_weight(:); term_heading_weight]; ...
                 [terminal_state_scale; terminal_actuator_scale; terminal_forward_scale]; ...
                 collision_clearance; ...
                 term_pose_eps_vec; term_vel_max_vec; berth_corridor_vec; sync_limits_vec; ...
                 gamma_obs_local; gamma_hp_local];
 
-            % Initial guess (warm start)
+            % Warm start
             if ~isempty(obj.prev_sol)
                 X_prev = reshape(obj.prev_sol(1:n_state*(N_h+1)), n_state, N_h+1);
                 u_s = n_state*(N_h+1) + 1;
@@ -968,14 +946,12 @@ classdef NMPC_Container_final < handle
                 U_init = [U_prev(:,2:end), U_prev(:,end)];
                 S_init = [S_prev(:,2:end), S_prev(:,end)];
                 T_init = T_prev;
-
                 x0_guess = [X_init(:); U_init(:); S_init(:); T_prev(:)];
             else
                 X_init = repmat(x0, 1, N_h+1);
                 U_init = u_ref;
                 S_init = zeros(n_obs, N_h+1);
                 T_init = zeros(n_term_slack, 1);
-
                 for k = 1:N_h
                     xk = X_init(:,k);
                     try
@@ -989,20 +965,17 @@ classdef NMPC_Container_final < handle
                         X_init(:,k+1) = xk;
                     end
                 end
-
                 x0_guess = [X_init(:); U_init(:); S_init(:); T_init(:)];
             end
 
-            if obj.enable_diagnostics && ~isempty(obj.g_func) && ~isempty(obj.constraint_names) && ...
-                    ~isempty(obj.constraint_block_sizes)
+            if obj.enable_diagnostics && ~isempty(obj.g_func) && ~isempty(obj.constraint_names) && ~isempty(obj.constraint_block_sizes)
                 g0 = full(obj.g_func(X_init, U_init, S_init, T_init, p_val));
                 block_starts = cumsum([1, obj.constraint_block_sizes(1:end-1)]);
                 block_max_violation = -inf(numel(obj.constraint_names), 1);
                 for idx = 1:numel(obj.constraint_names)
                     block_len = obj.constraint_block_sizes(idx);
                     if block_len <= 0
-                        block_max_violation(idx) = 0;
-                        continue;
+                        block_max_violation(idx) = 0; continue;
                     end
                     start_idx = block_starts(idx);
                     stop_idx = start_idx + block_len - 1;
@@ -1017,7 +990,7 @@ classdef NMPC_Container_final < handle
                     obj.constraint_names{worst_idx}, worst_violation);
             end
 
-            % Variable bounds
+            % Bounds
             lbx_local = obj.lbx_vec;
             ubx_local = obj.ubx_vec;
             for k = 2:(N_h+1)
@@ -1032,41 +1005,29 @@ classdef NMPC_Container_final < handle
             end
             lbx_local(9) = x0(9);
             ubx_local(9) = x0(9);
-
             u_off = n_state * (N_h+1);
             for k = 1:N_h
                 base = u_off + (k-1)*n_ctrl;
                 lbx_local(base+5) = obj.n_bow_min;
                 ubx_local(base+5) = n3_max_local;
             end
-
-            % Obstacle slack bounds
             s_off = n_state*(N_h+1) + n_ctrl*N_h;
             s_idx = (s_off + 1):(s_off + n_obs*(N_h+1));
             lbx_local(s_idx) = 0;
             ubx_local(s_idx) = soft_obs_max_m;
-
-            % Terminal slack bounds
             t_off = s_off + n_obs*(N_h+1);
             t_idx = (t_off + 1):(t_off + n_term_slack);
             lbx_local(t_idx) = 0;
             ubx_local(t_idx) = term_slack_max;
 
-            % Solve
             try
                 use_dual_warm_start = ~isempty(obj.prev_lam_x) && ~isempty(obj.prev_lam_g) && ...
-                    numel(obj.prev_lam_x) == numel(x0_guess) && ...
-                    numel(obj.prev_lam_g) == numel(obj.lbg_vec);
-
-                solver_args = {'x0', x0_guess, ...
-                    'lbx', lbx_local, 'ubx', ubx_local, ...
-                    'lbg', obj.lbg_vec, 'ubg', obj.ubg_vec, ...
-                    'p', p_val};
-
+                    numel(obj.prev_lam_x) == numel(x0_guess) && numel(obj.prev_lam_g) == numel(obj.lbg_vec);
+                solver_args = {'x0', x0_guess, 'lbx', lbx_local, 'ubx', ubx_local, ...
+                    'lbg', obj.lbg_vec, 'ubg', obj.ubg_vec, 'p', p_val};
                 if use_dual_warm_start
                     solver_args = [solver_args, {'lam_x0', obj.prev_lam_x, 'lam_g0', obj.prev_lam_g}]; %#ok<AGROW>
                 end
-
                 sol = obj.solver(solver_args{:});
 
                 sol_x = full(sol.x);
@@ -1080,7 +1041,6 @@ classdef NMPC_Container_final < handle
 
                 u_opt = U_sol(:,1);
                 X_pred = X_sol;
-
                 obj.prev_sol = sol_x;
                 obj.prev_u = u_opt;
                 if isfield(sol, 'lam_x') && isfield(sol, 'lam_g')
@@ -1099,18 +1059,19 @@ classdef NMPC_Container_final < handle
                 info.sum_soft_slack_m = sum(S_sol(:));
                 info.terminal_pose_enabled = term_enable;
                 info.max_terminal_slack = max(T_sol(:));
-                info.berth_corridor_enabled = corr_enable;
-                info.max_azimuth_split_rad = max_az_split_local;
-                info.max_stern_cmd_split_rpm = max_stern_split_local;
-                info.collision_clearance_m = collision_clearance;
+                info.path_xte_weight = path_xte_weight;
+                info.path_along_weight = path_along_weight;
+                info.path_tube_half_width_m = path_tube_half_width;
+                info.soft_speed_cap_mps = soft_speed_cap_mps;
+                info.is_final_waypoint = is_final_waypoint;
                 info.gamma_cbf_obs = gamma_obs_local;
                 info.gamma_cbf_hp = gamma_hp_local;
+                info.wp_start = wp_start_xy;
+                info.wp_end = wp_end_xy;
                 obj.solve_ok = obj.solve_ok + 1;
-
             catch ME
                 u_opt = [0; 0; x0(7); x0(8); x0(9)];
                 X_pred = repmat(x0, 1, N_h+1);
-
                 info.success = false;
                 info.error = ME.message;
                 info.n_obs_real = n_real;
@@ -1122,24 +1083,24 @@ classdef NMPC_Container_final < handle
                 info.sum_soft_slack_m = nan;
                 info.terminal_pose_enabled = term_enable;
                 info.max_terminal_slack = nan;
-                info.berth_corridor_enabled = corr_enable;
-                info.max_azimuth_split_rad = max_az_split_local;
-                info.max_stern_cmd_split_rpm = max_stern_split_local;
-                info.collision_clearance_m = collision_clearance;
+                info.path_xte_weight = path_xte_weight;
+                info.path_along_weight = path_along_weight;
+                info.path_tube_half_width_m = path_tube_half_width;
+                info.soft_speed_cap_mps = soft_speed_cap_mps;
+                info.is_final_waypoint = is_final_waypoint;
                 info.gamma_cbf_obs = gamma_obs_local;
                 info.gamma_cbf_hp = gamma_hp_local;
+                info.wp_start = wp_start_xy;
+                info.wp_end = wp_end_xy;
                 obj.solve_fail = obj.solve_fail + 1;
                 obj.prev_lam_x = [];
                 obj.prev_lam_g = [];
-
                 if obj.solve_fail <= 5
                     fprintf('  [NMPC FAIL #%d] %s\n', obj.solve_fail, ME.message);
                 end
             end
-
             info.solve_time = toc(t_start);
         end
-
         function xdot = dynamicsCasADi(obj, x, u_in)
             import casadi.*
 
@@ -1289,6 +1250,70 @@ classdef NMPC_Container_final < handle
             n3_dot = if_else(n3_dot > obj.Dn_bow_max, obj.Dn_bow_max, if_else(n3_dot < -obj.Dn_bow_max, -obj.Dn_bow_max, n3_dot));
 
             xdot = [u_dot; v_dot; r_dot; x_dot; y_dot; psi_dot; n1_dot; n2_dot; n3_dot];
+        end
+    end
+end
+
+
+function [wp_start_xy, wp_end_xy, goal_heading_rad, goal_heading_enable] = parsePathRefArg(path_ref, x0)
+    wp_start_xy = x0(4:5);
+    wp_end_xy = x0(4:5);
+    goal_heading_rad = x0(6);
+    goal_heading_enable = false;
+
+    if isempty(path_ref)
+        return;
+    end
+
+    if isstruct(path_ref)
+        if isfield(path_ref, 'wp_start') && ~isempty(path_ref.wp_start)
+            wp_start_xy = path_ref.wp_start(1:2);
+        end
+        if isfield(path_ref, 'wp_end') && ~isempty(path_ref.wp_end)
+            wp_end_xy = path_ref.wp_end(1:2);
+        end
+        if isfield(path_ref, 'goal_heading_rad') && ~isempty(path_ref.goal_heading_rad)
+            goal_heading_rad = path_ref.goal_heading_rad;
+        else
+            seg = wp_end_xy - wp_start_xy;
+            if norm(seg) > 1e-9
+                goal_heading_rad = atan2(seg(2), seg(1));
+            end
+        end
+        if isfield(path_ref, 'goal_heading_enable') && ~isempty(path_ref.goal_heading_enable)
+            goal_heading_enable = logical(path_ref.goal_heading_enable);
+        end
+        return;
+    end
+
+    if isnumeric(path_ref)
+        sz = size(path_ref);
+        if numel(sz) == 2 && sz(1) >= 6 && sz(2) >= 2
+            % Legacy numeric matrix
+            wp_start_xy = path_ref(4:5, 1);
+            wp_end_xy = path_ref(4:5, end);
+            goal_heading_rad = path_ref(6, end);
+            goal_heading_enable = true;
+            return;
+        elseif isequal(sz, [2 2])
+            wp_start_xy = path_ref(:,1);
+            wp_end_xy = path_ref(:,2);
+            seg = wp_end_xy - wp_start_xy;
+            if norm(seg) > 1e-9
+                goal_heading_rad = atan2(seg(2), seg(1));
+            end
+            goal_heading_enable = false;
+            return;
+        elseif numel(path_ref) >= 4
+            raw = path_ref(:);
+            wp_start_xy = raw(1:2);
+            wp_end_xy = raw(3:4);
+            seg = wp_end_xy - wp_start_xy;
+            if norm(seg) > 1e-9
+                goal_heading_rad = atan2(seg(2), seg(1));
+            end
+            goal_heading_enable = false;
+            return;
         end
     end
 end
