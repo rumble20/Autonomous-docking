@@ -27,9 +27,6 @@ function animateSimResult(traj, waypoints, t_vec, harbor, cfg)
 %     .recordFps    Recording frame rate             (default 15)
 %     .videoFile    Output MP4 path                  (default 'nmpc_run.mp4')
 %     .gifFile      Output GIF path                  (default 'nmpc_run.gif')
-%     .showSpeedPlot    Show speed subplot           (default true)
-%     .showControlPlot  Show control subplot         (default false)
-%     .controlPlotShowActual Plot actual RPM states  (default true)
 %     .plannedRoutes  Planned route history for each step (optional):
 %                   cell array length N with each entry containing either:
 %                     - state matrix (>=6 x K) where rows 4/5 are x/y
@@ -95,16 +92,13 @@ dynamicObsHistory = cfgGet(cfg, 'dynamicObsHistory', []);
 dynamicObsRadius = cfgGet(cfg, 'dynamicObsRadius', 20);
 hullCfg = cfgGet(cfg, 'hullCfg', []);
 flipShipImageVertical = cfgGet(cfg, 'flipShipImageVertical', false);
-shipImageScale = cfgGet(cfg, 'shipImageScale', 1.45);
+shipImageScale = cfgGet(cfg, 'shipImageScale', 1.8);
 showHullHitbox = cfgGet(cfg, 'showHullHitbox', false);
 recordVideo = cfgGet(cfg, 'recordVideo', false);
 recordGif = cfgGet(cfg, 'recordGif', false);
 recordFps = cfgGet(cfg, 'recordFps', 15);
 videoFile = cfgGet(cfg, 'videoFile', 'nmpc_run.mp4');
 gifFile = cfgGet(cfg, 'gifFile', 'nmpc_run.gif');
-showSpeedPlot = cfgGet(cfg, 'showSpeedPlot', true);
-showControlPlot = cfgGet(cfg, 'showControlPlot', false);
-controlPlotShowActual = cfgGet(cfg, 'controlPlotShowActual', true);
 plannedRoutes = cfgGet(cfg, 'plannedRoutes', []);
 plannedRouteMaxHistory = cfgGet(cfg, 'plannedRouteMaxHistory', 6);
 plannedRouteAlphaMin = cfgGet(cfg, 'plannedRouteAlphaMin', 0.10);
@@ -120,80 +114,73 @@ thrusterLineWidth = cfgGet(cfg, 'thrusterLineWidth', 2.0);
 thrusterPowerExponent = cfgGet(cfg, 'thrusterPowerExponent', 1.6);
 thrusterSmoothing = cfgGet(cfg, 'thrusterSmoothing', 0.60);
 
-if ~isempty(thrusterHistory) && size(thrusterHistory, 1) ~= 5 && size(thrusterHistory, 2) == 5
-thrusterHistory = thrusterHistory';
-end
-if showControlPlot && (isempty(thrusterHistory) || size(thrusterHistory, 1) ~= 5)
-showControlPlot = false;
-end
-
 %  1. Load image once  (only when file path changes)
 useImage = true;  % set false if loading fails
 
 if isempty(cachedImgFile) || ~strcmp(imgFile, cachedImgFile) || isempty(shipImg)
 
-if isempty(imgFile) || ~isfile(imgFile)
-fprintf('  [animateSimResult] WARNING: image not found: "%s"\n  >> Falling back to triangle icon.\n', imgFile);
-useImage = false;
-else
-fprintf('  [animateSimResult] Loading ship icon: "%s"...\n', imgFile);
-try
-[rawImg, ~, rawAlpha] = imread(imgFile);
-rawImg = im2double(rawImg);
+    if isempty(imgFile) || ~isfile(imgFile)
+        fprintf('  [animateSimResult] WARNING: image not found: "%s"\n  >> Falling back to triangle icon.\n', imgFile);
+        useImage = false;
+    else
+        fprintf('  [animateSimResult] Loading ship icon: "%s"...\n', imgFile);
+        try
+            [rawImg, ~, rawAlpha] = imread(imgFile);
+            rawImg = im2double(rawImg);
 
-% Alpha: use PNG channel if present, else fully opaque.
-if isempty(rawAlpha)
-rawAlpha = ones(size(rawImg,1), size(rawImg,2));
-else
-rawAlpha = double(rawAlpha) / 255;
-end
+            % Alpha: use PNG channel if present, else fully opaque.
+            if isempty(rawAlpha)
+                rawAlpha = ones(size(rawImg,1), size(rawImg,2));
+            else
+                rawAlpha = double(rawAlpha) / 255;
+            end
 
-% Optional vertical flip for icons stored with opposite row orientation.
-% Default false so bow/stern orientation follows the source image directly.
-if flipShipImageVertical
-shipImg   = flipud(rawImg);
-shipAlpha = flipud(rawAlpha);
-else
-shipImg   = rawImg;
-shipAlpha = rawAlpha;
-end
+            % Optional vertical flip for icons stored with opposite row orientation.
+            % Default false so bow/stern orientation follows the source image directly.
+            if flipShipImageVertical
+                shipImg   = flipud(rawImg);
+                shipAlpha = flipud(rawAlpha);
+            else
+                shipImg   = rawImg;
+                shipAlpha = rawAlpha;
+            end
 
-shipHeightPx  = size(shipImg, 1);
-shipWidthPx   = size(shipImg, 2);
+            shipHeightPx  = size(shipImg, 1);
+            shipWidthPx   = size(shipImg, 2);
 
-% Effective icon aspect from non-transparent pixels so we do not
-% stretch square canvases with tall/narrow ship silhouettes.
-mask = shipAlpha > 0.05;
-cols = find(any(mask, 1));
-rows = find(any(mask, 2));
-if isempty(cols) || isempty(rows)
-shipEffWidthPx = shipWidthPx;
-shipEffHeightPx = shipHeightPx;
-else
-shipEffWidthPx = cols(end) - cols(1) + 1;
-shipEffHeightPx = rows(end) - rows(1) + 1;
-end
+            % Effective icon aspect from non-transparent pixels so we do not
+            % stretch square canvases with tall/narrow ship silhouettes.
+            mask = shipAlpha > 0.05;
+            cols = find(any(mask, 1));
+            rows = find(any(mask, 2));
+            if isempty(cols) || isempty(rows)
+                shipEffWidthPx = shipWidthPx;
+                shipEffHeightPx = shipHeightPx;
+            else
+                shipEffWidthPx = cols(end) - cols(1) + 1;
+                shipEffHeightPx = rows(end) - rows(1) + 1;
+            end
 
-cachedImgFile = imgFile;
-fprintf('  [animateSimResult] Icon loaded (%dx%d px).\n', shipWidthPx, shipHeightPx);
-catch ME
-fprintf('  [animateSimResult] WARNING: could not load image: %s\n  >> Falling back to triangle icon.\n', ME.message);
-shipImg  = [];
-useImage = false;
-end
-end
+            cachedImgFile = imgFile;
+            fprintf('  [animateSimResult] Icon loaded (%dx%d px).\n', shipWidthPx, shipHeightPx);
+        catch ME
+            fprintf('  [animateSimResult] WARNING: could not load image: %s\n  >> Falling back to triangle icon.\n', ME.message);
+            shipImg  = [];
+            useImage = false;
+        end
+    end
 else
-% Cache hit — reuse already-loaded image.
-if isempty(shipEffWidthPx) || isempty(shipEffHeightPx)
-shipEffWidthPx = shipWidthPx;
-shipEffHeightPx = shipHeightPx;
-end
+    % Cache hit — reuse already-loaded image.
+    if isempty(shipEffWidthPx) || isempty(shipEffHeightPx)
+        shipEffWidthPx = shipWidthPx;
+        shipEffHeightPx = shipHeightPx;
+    end
 end
 
 %  2. Prepare trajectory data — extract x/y/psi from state matrix, apply frame-skip for animation
 if size(traj, 1) < 6
-error('animateSimResult:InvalidTrajectorySize', ...
-'Expected traj to have at least 6 rows [u v r x y psi]. Got %dx%d.', size(traj,1), size(traj,2));
+    error('animateSimResult:InvalidTrajectorySize', ...
+    'Expected traj to have at least 6 rows [u v r x y psi]. Got %dx%d.', size(traj,1), size(traj,2));
 end
 
 N     = size(traj, 2);
@@ -202,40 +189,18 @@ xPath = traj(4, :);   % North
 yPath = traj(5, :);   % East
 psi   = traj(6, :);   % heading [rad]
 
-% Ensure t_vec matches trajectory length
-if isempty(t_vec)
-    t_vec = (0:N-1);
-else
-    % If t_vec length doesn't match traj, resample or truncate
-    if numel(t_vec) ~= N
-        % Assume t_vec is the commanded/simulation time; resample traj to match it
-        t_vec = t_vec(:)';  % ensure row vector
-        if numel(t_vec) < N
-            % Extend t_vec linearly
-            dt_last = t_vec(end) - t_vec(max(1,end-1));
-            t_vec = [t_vec, t_vec(end) + dt_last*(1:N-numel(t_vec))];
-        else
-            % Truncate both to match
-            N = numel(t_vec);
-            u_vel = u_vel(1:N);
-            xPath = xPath(1:N);
-            yPath = yPath(1:N);
-            psi = psi(1:N);
-            traj = traj(:, 1:N);
-        end
-    end
-end
-
 % Downsampling
 skip = max(1, floor(N / maxFrames));
 idx  = 1 : skip : N;
+
+if isempty(t_vec), t_vec = (0:N-1); end
 
 %  3. Set up figure & static elements — create styled figure with SUBPLOT layout
 hFig = figure(figNo);
 clf(hFig);
 set(hFig, 'Name',        sprintf('NMPC Animation — %s', testName), ...
-'NumberTitle', 'off', ...
-'Color',       [0.09 0.09 0.13]);
+          'NumberTitle', 'off', ...
+          'Color',       [0.09 0.09 0.13]);
 
 % Make animation window larger for better readability in live view and recordings.
 scr = get(0, 'ScreenSize');
@@ -246,48 +211,17 @@ figY = max(20, round((scr(4) - figH) / 2));
 set(hFig, 'Position', [figX, figY, figW, figH]);
 
 % Create subplots and assign custom proportions for clearer composition.
-nPanels = 1 + double(showSpeedPlot) + double(showControlPlot);
-ax_speed = [];
-ax_ctrl = [];
-
-ax = subplot(nPanels, 1, 1, 'Parent', hFig);
+ax = subplot(2, 1, 1, 'Parent', hFig);
+ax_speed = subplot(2, 1, 2, 'Parent', hFig);
 hold(ax, 'on');
-
-if nPanels == 1
-set(ax, 'Position', [0.06, 0.08, 0.91, 0.86]);
-elseif nPanels == 2
-set(ax, 'Position', [0.06, 0.36, 0.91, 0.60]);
-if showSpeedPlot
-ax_speed = subplot(nPanels, 1, 2, 'Parent', hFig);
 hold(ax_speed, 'on');
+
+% [left bottom width height] in normalized units
+set(ax,       'Position', [0.06, 0.36, 0.91, 0.60]);
 set(ax_speed, 'Position', [0.06, 0.08, 0.91, 0.22]);
-else
-ax_ctrl = subplot(nPanels, 1, 2, 'Parent', hFig);
-hold(ax_ctrl, 'on');
-set(ax_ctrl, 'Position', [0.06, 0.08, 0.91, 0.22]);
-end
-else
-set(ax, 'Position', [0.06, 0.46, 0.91, 0.48]);
-if showSpeedPlot
-ax_speed = subplot(nPanels, 1, 2, 'Parent', hFig);
-hold(ax_speed, 'on');
-set(ax_speed, 'Position', [0.06, 0.27, 0.91, 0.16]);
-end
-if showControlPlot
-ax_ctrl = subplot(nPanels, 1, 3, 'Parent', hFig);
-hold(ax_ctrl, 'on');
-set(ax_ctrl, 'Position', [0.06, 0.08, 0.91, 0.15]);
-end
-end
 
-% Map axes styling — ensure `ax` is a valid axes handle before using it
-if isgraphics(ax)
-    axes(ax);
-    axis equal;
-else
-    ax = gca; % fall back to current axes so subsequent calls succeed
-    axis equal;
-end
+% Map axes styling
+axis(ax, 'equal');
 grid(ax, 'on');
 ax.Color     = [0.11 0.11 0.16];
 ax.XColor    = [0.75 0.75 0.80];
@@ -297,10 +231,9 @@ ax.GridAlpha = 0.5;
 xlabel(ax, 'East / y  [m]',  'Color', [0.90 0.90 0.95], 'FontSize', 11);
 ylabel(ax, 'North / x  [m]', 'Color', [0.90 0.90 0.95], 'FontSize', 11);
 title(ax, sprintf('Ship Simulation — %s', testName), ...
-'Color', [1 1 1], 'FontSize', 13, 'FontWeight', 'bold');
+    'Color', [1 1 1], 'FontSize', 13, 'FontWeight', 'bold');
 
-% Speed plot axes styling
-if showSpeedPlot
+% NEW: Speed plot axes styling
 ax_speed.Color = [0.11 0.11 0.16];
 ax_speed.XColor = [0.75 0.75 0.80];
 ax_speed.YColor = [0.75 0.75 0.80];
@@ -311,193 +244,80 @@ xlabel(ax_speed, 'Time [s]', 'Color', [0.90 0.90 0.95], 'FontSize', 11);
 ylabel(ax_speed, 'Surge velocity [m/s]', 'Color', [0.90 0.90 0.95], 'FontSize', 11);
 title(ax_speed, 'Forward Speed Profile', 'Color', [1 1 1], 'FontSize', 12, 'FontWeight', 'bold');
 set(ax_speed, 'XLim', [t_vec(1), t_vec(end)]);
-u_min = min(u_vel);
-u_max = max(u_vel);
-if u_min == u_max
-u_pad = max(0.1, abs(u_min) * 0.05);
-else
-u_pad = 0.05 * (u_max - u_min);
-end
-set(ax_speed, 'YLim', [u_min - u_pad, u_max + u_pad]);
+set(ax_speed, 'YLim', [min(u_vel)*0.95, max(u_vel)*1.05]);
 
-% Ghost profile (full trajectory at low opacity)
+% NEW: Ghost profile (full trajectory at low opacity)
 plot(ax_speed, t_vec, u_vel, '-', 'Color', [0.35 0.55 1.00], 'LineWidth', 1.2, ...
-'DisplayName', 'Full profile (ghost)', 'HandleVisibility', 'on');
-end
-
-% Control plot axes styling
-ctrlLen = 0;
-t_ctrl = [];
-ctrlAlphaDeg = [];
-ctrlNcmd = [];
-ctrlNact = [];
-ctrlHasAct = false;
-hCtrlAlpha1 = [];
-hCtrlAlpha2 = [];
-hCtrlN1 = [];
-hCtrlN2 = [];
-hCtrlN3 = [];
-if showControlPlot
-ax_ctrl.Color = [0.11 0.11 0.16];
-ax_ctrl.XColor = [0.75 0.75 0.80];
-ax_ctrl.YColor = [0.75 0.75 0.80];
-ax_ctrl.GridColor = [0.28 0.28 0.38];
-ax_ctrl.GridAlpha = 0.5;
-grid(ax_ctrl, 'on');
-xlabel(ax_ctrl, 'Time [s]', 'Color', [0.90 0.90 0.95], 'FontSize', 11);
-title(ax_ctrl, 'Thruster Commands', 'Color', [1 1 1], 'FontSize', 12, 'FontWeight', 'bold');
-
-ctrlLen = min(size(thrusterHistory, 2), numel(t_vec));
-if ctrlLen > 0
-t_ctrl = t_vec(1:ctrlLen);
-ctrlAlphaDeg = rad2deg(thrusterHistory(1:2, 1:ctrlLen));
-ctrlNcmd = thrusterHistory(3:5, 1:ctrlLen);
-ctrlHasAct = controlPlotShowActual && size(traj, 1) >= 9;
-
-ctrlColors = cfgGet(thrusterCfg, 'colors', []);
-if isempty(ctrlColors)
-ctrlColors = [0.95 0.45 0.20; 0.95 0.45 0.20; 0.35 0.85 1.0];
-end
-if size(ctrlColors, 1) < 3
-ctrlColors = repmat(ctrlColors(1, :), 3, 1);
-end
-
-yyaxis(ax_ctrl, 'left');
-plot(ax_ctrl, t_ctrl, ctrlAlphaDeg(1, :), '-', 'Color', ctrlColors(1, :), ...
-'LineWidth', 1.2, 'DisplayName', 'alpha1 cmd');
-plot(ax_ctrl, t_ctrl, ctrlAlphaDeg(2, :), '-', 'Color', ctrlColors(2, :), ...
-'LineWidth', 1.2, 'DisplayName', 'alpha2 cmd');
-ylabel(ax_ctrl, 'Azimuth [deg]', 'Color', [0.90 0.90 0.95], 'FontSize', 11);
-alpha_min = min(ctrlAlphaDeg(:));
-alpha_max = max(ctrlAlphaDeg(:));
-if alpha_min == alpha_max
-alpha_pad = max(5, abs(alpha_min) * 0.05);
-else
-alpha_pad = 0.05 * (alpha_max - alpha_min);
-end
-set(ax_ctrl, 'YLim', [alpha_min - alpha_pad, alpha_max + alpha_pad]);
-
-yyaxis(ax_ctrl, 'right');
-plot(ax_ctrl, t_ctrl, ctrlNcmd(1, :), '-', 'Color', ctrlColors(1, :), ...
-'LineWidth', 1.2, 'DisplayName', 'n1 cmd');
-plot(ax_ctrl, t_ctrl, ctrlNcmd(2, :), '-', 'Color', ctrlColors(2, :), ...
-'LineWidth', 1.2, 'DisplayName', 'n2 cmd');
-plot(ax_ctrl, t_ctrl, ctrlNcmd(3, :), '-', 'Color', ctrlColors(3, :), ...
-'LineWidth', 1.2, 'DisplayName', 'n3 cmd');
-if ctrlHasAct
-actLen = min(size(traj, 2), ctrlLen);
-t_act = t_ctrl(1:actLen);
-ctrlNact = traj(7:9, 1:actLen);
-plot(ax_ctrl, t_act, ctrlNact(1, :), '--', 'Color', ctrlColors(1, :), ...
-'LineWidth', 1.1, 'DisplayName', 'n1 act');
-plot(ax_ctrl, t_act, ctrlNact(2, :), '--', 'Color', ctrlColors(2, :), ...
-'LineWidth', 1.1, 'DisplayName', 'n2 act');
-plot(ax_ctrl, t_act, ctrlNact(3, :), '--', 'Color', ctrlColors(3, :), ...
-'LineWidth', 1.1, 'DisplayName', 'n3 act');
-end
-ylabel(ax_ctrl, 'Shaft speed [rpm]', 'Color', [0.90 0.90 0.95], 'FontSize', 11);
-n_min = min(ctrlNcmd(:));
-n_max = max(ctrlNcmd(:));
-if ctrlHasAct
-n_min = min(n_min, min(ctrlNact(:)));
-n_max = max(n_max, max(ctrlNact(:)));
-end
-if n_min == n_max
-n_pad = max(10, abs(n_min) * 0.05);
-else
-n_pad = 0.05 * (n_max - n_min);
-end
-set(ax_ctrl, 'YLim', [n_min - n_pad, n_max + n_pad]);
-set(ax_ctrl, 'XLim', [t_ctrl(1), t_ctrl(end)]);
-
-yyaxis(ax_ctrl, 'left');
-hCtrlAlpha1 = plot(ax_ctrl, t_ctrl(1), ctrlAlphaDeg(1, 1), 'o', ...
-'Color', ctrlColors(1, :), 'MarkerFaceColor', ctrlColors(1, :), ...
-'MarkerSize', 6, 'HandleVisibility', 'off');
-hCtrlAlpha2 = plot(ax_ctrl, t_ctrl(1), ctrlAlphaDeg(2, 1), 'o', ...
-'Color', ctrlColors(2, :), 'MarkerFaceColor', ctrlColors(2, :), ...
-'MarkerSize', 6, 'HandleVisibility', 'off');
-yyaxis(ax_ctrl, 'right');
-hCtrlN1 = plot(ax_ctrl, t_ctrl(1), ctrlNcmd(1, 1), 'o', ...
-'Color', ctrlColors(1, :), 'MarkerFaceColor', ctrlColors(1, :), ...
-'MarkerSize', 6, 'HandleVisibility', 'off');
-hCtrlN2 = plot(ax_ctrl, t_ctrl(1), ctrlNcmd(2, 1), 'o', ...
-'Color', ctrlColors(2, :), 'MarkerFaceColor', ctrlColors(2, :), ...
-'MarkerSize', 6, 'HandleVisibility', 'off');
-hCtrlN3 = plot(ax_ctrl, t_ctrl(1), ctrlNcmd(3, 1), 'o', ...
-'Color', ctrlColors(3, :), 'MarkerFaceColor', ctrlColors(3, :), ...
-'MarkerSize', 6, 'HandleVisibility', 'off');
-end
-end
+    'DisplayName', 'Full profile (ghost)', 'HandleVisibility', 'on');
 
 % plotMap() creates many patch objects; we capture them and clear them from
 % the legend (HandleVisibility='off') so they don't appear as 'data1...dataN'.
 if ~isempty(harbor) && isobject(harbor) && ismethod(harbor, 'plotMap')
-try
-axes(ax);  % make ax the current axes before plotMap draws into gca
-ch_before = get(ax, 'Children');
-harbor.plotMap();
-ch_after  = get(ax, 'Children');
-new_map_h = setdiff(ch_after, ch_before);
-if ~isempty(new_map_h)
-set(new_map_h, 'HandleVisibility', 'off');
-end
-hold(ax, 'on');
-catch ME
-warning('animateShip:plotMapFailed', '%s', ME.message);
-end
+    try
+        axes(ax);  % make ax the current axes before plotMap draws into gca
+        ch_before = get(ax, 'Children');
+        harbor.plotMap();
+        ch_after  = get(ax, 'Children');
+        new_map_h = setdiff(ch_after, ch_before);
+        if ~isempty(new_map_h)
+            set(new_map_h, 'HandleVisibility', 'off');
+        end
+        hold(ax, 'on');
+    catch ME
+        warning('animateShip:plotMapFailed', '%s', ME.message);
+    end
 end
 
 % --- Circular obstacles ---------------------------------------------------
 if showCollisionCircles && isfield(cfg, 'circObs') && ~isempty(cfg.circObs)
-th = linspace(0, 2*pi, 64);
-for k = 1:length(cfg.circObs)
-ox = cfg.circObs(k).position(2);  % East (plot x-axis)
-oy = cfg.circObs(k).position(1);  % North (plot y-axis)
-r  = cfg.circObs(k).radius;
-plot(ax, ox + r*cos(th), oy + r*sin(th), ...
-'Color', [1.0 0.35 0.35], 'LineWidth', 1.1, ...
-'HandleVisibility', 'off');
-end
+    th = linspace(0, 2*pi, 64);
+    for k = 1:length(cfg.circObs)
+        ox = cfg.circObs(k).position(2);  % East (plot x-axis)
+        oy = cfg.circObs(k).position(1);  % North (plot y-axis)
+        r  = cfg.circObs(k).radius;
+        plot(ax, ox + r*cos(th), oy + r*sin(th), ...
+             'Color', [1.0 0.35 0.35], 'LineWidth', 1.1, ...
+             'HandleVisibility', 'off');
+    end
 end
 
 hDynObs = gobjects(0);
 if ~isempty(dynamicObsHistory)
-th_dyn = linspace(0, 2*pi, 40);
-nDyn = size(dynamicObsHistory, 1);
-dynCols = lines(max(1, nDyn));
-hDynObs = gobjects(nDyn, 1);
-for k = 1:nDyn
-xk = dynamicObsHistory(k,2,1);
-yk = dynamicObsHistory(k,1,1);
-hDynObs(k) = plot(ax, xk + dynamicObsRadius*cos(th_dyn), yk + dynamicObsRadius*sin(th_dyn), ...
-'--', 'Color', dynCols(k,:), 'LineWidth', 1.2, 'HandleVisibility', 'off');
-end
+    th_dyn = linspace(0, 2*pi, 40);
+    nDyn = size(dynamicObsHistory, 1);
+    dynCols = lines(max(1, nDyn));
+    hDynObs = gobjects(nDyn, 1);
+    for k = 1:nDyn
+        xk = dynamicObsHistory(k,2,1);
+        yk = dynamicObsHistory(k,1,1);
+        hDynObs(k) = plot(ax, xk + dynamicObsRadius*cos(th_dyn), yk + dynamicObsRadius*sin(th_dyn), ...
+            '--', 'Color', dynCols(k,:), 'LineWidth', 1.2, 'HandleVisibility', 'off');
+    end
 end
 
 % --- Ghost trajectory of the executed path (full run, low opacity) -------
 plot(ax, yPath, xPath, '-', ...
-'Color', [0.35 0.55 1.00], 'LineWidth', 1.2, ...
-'DisplayName', 'Executed path (ghost)');
+    'Color', [0.35 0.55 1.00], 'LineWidth', 1.2, ...
+    'DisplayName', 'Executed path (ghost)');
 
 % --- Extra paths (e.g. target ship trajectory) ---------------------------
 if isfield(cfg, 'extraPaths') && ~isempty(cfg.extraPaths)
-for ep = cfg.extraPaths(:)'
-e = ep{1};
-% e = {x_array, y_array, linestyle, legend_name}
-plot(ax, e{2}, e{1}, e{3}, 'LineWidth', 1.5, 'DisplayName', e{4});
-end
+    for ep = cfg.extraPaths(:)'
+        e = ep{1};
+        % e = {x_array, y_array, linestyle, legend_name}
+        plot(ax, e{2}, e{1}, e{3}, 'LineWidth', 1.5, 'DisplayName', e{4});
+    end
 end
 
 % --- Waypoints ------------------------------------------------------------
 if ~isempty(waypoints)
-plot(ax, waypoints(:,2), waypoints(:,1), 'r*-', ...
-'MarkerSize', 10, 'LineWidth', 1.0, 'DisplayName', 'Waypoints');
+    plot(ax, waypoints(:,2), waypoints(:,1), 'r*-', ...
+         'MarkerSize', 10, 'LineWidth', 1.0, 'DisplayName', 'Waypoints');
 end
 
 % --- Start marker ---------------------------------------------------------
 plot(ax, yPath(1), xPath(1), 'go', ...
-'MarkerSize', 8, 'MarkerFaceColor', 'g', 'DisplayName', 'Start');
+     'MarkerSize', 8, 'MarkerFaceColor', 'g', 'DisplayName', 'Start');
 
 % --- Axis limits (add margin) --------------------------------------------
 marginFrac = 0.08;
@@ -515,86 +335,79 @@ ylim(ax, [xMid - halfSpan, xMid + halfSpan]);
 % When hull config is available, keep icon size physically consistent
 % with the same rectangle used by collision/hitbox plotting.
 if ~isempty(hullCfg) && isfield(hullCfg, 'half_beam_m') && isfield(hullCfg, 'half_length_m')
-boxWidth  = 2 * hullCfg.half_beam_m;
-boxHeight = 2 * hullCfg.half_length_m;
-if useImage
-effAspect = shipEffHeightPx / max(shipEffWidthPx, 1); % height/width
-shipWidthAx  = min(boxWidth, boxHeight / max(effAspect, 1e-6));
-shipHeightAx = shipWidthAx * effAspect;
+    boxWidth  = 2 * hullCfg.half_beam_m;
+    boxHeight = 2 * hullCfg.half_length_m;
+    if useImage
+        effAspect = shipEffHeightPx / max(shipEffWidthPx, 1); % height/width
+        shipWidthAx  = min(boxWidth, boxHeight / max(effAspect, 1e-6));
+        shipHeightAx = shipWidthAx * effAspect;
+    else
+        shipWidthAx  = boxWidth;
+        shipHeightAx = boxHeight;
+    end
 else
-shipWidthAx  = boxWidth;
-shipHeightAx = boxHeight;
-end
-else
-shipWidthAx  = axRng * shipSize;
-if useImage
-shipHeightAx = shipWidthAx * (shipHeightPx / shipWidthPx);
-else
-shipHeightAx = shipWidthAx * 2.5;
-end
+    shipWidthAx  = axRng * shipSize;
+    if useImage
+        shipHeightAx = shipWidthAx * (shipHeightPx / shipWidthPx);
+    else
+        shipHeightAx = shipWidthAx * 2.5;
+    end
 end
 
 % --- Initialise ship handle ----------------------------------------------
 cx0 = yPath(1);  cy0 = xPath(1);  psi0 = psi(1);
 if ~isempty(hullCfg) && isstruct(hullCfg) && isfield(hullCfg, 'half_length_m') && isfield(hullCfg, 'half_beam_m')
-shipHalfLen = hullCfg.half_length_m;
-shipHalfBeam = hullCfg.half_beam_m;
+    shipHalfLen = hullCfg.half_length_m;
+    shipHalfBeam = hullCfg.half_beam_m;
 else
-shipHalfLen = shipHeightAx / 2;
-shipHalfBeam = shipWidthAx / 2;
+    shipHalfLen = shipHeightAx / 2;
+    shipHalfBeam = shipWidthAx / 2;
 end
 
 % Display-only scaling for the ship icon (does not alter collision hitbox geometry).
 shipImgHalfLen = shipHalfLen;
 shipImgHalfBeam = shipHalfBeam;
 if useImage
-shipImageScale = max(0.5, shipImageScale);
-shipImgHalfLen = shipHalfLen * shipImageScale;
-shipImgHalfBeam = shipHalfBeam * shipImageScale;
+    shipImageScale = max(0.5, shipImageScale);
+    shipImgHalfLen = shipHalfLen * shipImageScale;
+    shipImgHalfBeam = shipHalfBeam * shipImageScale;
 end
 
 if useImage
-[xq0, yq0] = computeShipImageQuad(cx0, cy0, shipImgHalfLen, shipImgHalfBeam, psi0);
-hShip = surface(ax, ...
-xq0, yq0, zeros(2), ...
-'CData', shipImg, ...
-'FaceColor', 'texturemap', ...
-'EdgeColor', 'none', ...
-'AlphaData', shipAlpha, ...
-'FaceAlpha', 'texturemap', ...
-'HandleVisibility', 'off');
-uistack(hShip, 'top');
+    [xq0, yq0] = computeShipImageQuad(cx0, cy0, shipImgHalfLen, shipImgHalfBeam, psi0);
+    hShip = surface(ax, ...
+        xq0, yq0, zeros(2), ...
+        'CData', shipImg, ...
+        'FaceColor', 'texturemap', ...
+        'EdgeColor', 'none', ...
+        'AlphaData', shipAlpha, ...
+        'FaceAlpha', 'texturemap', ...
+        'HandleVisibility', 'off');
+    uistack(hShip, 'top');
 else
-[tx, ty] = shipTriangle(cx0, cy0, 2 * shipHalfBeam, psi0);
-hShip = fill(ax, tx, ty, [0.20 0.75 1.00], ...
-'EdgeColor', 'w', 'LineWidth', 1.2, 'HandleVisibility', 'off');
+    [tx, ty] = shipTriangle(cx0, cy0, 2 * shipHalfBeam, psi0);
+    hShip = fill(ax, tx, ty, [0.20 0.75 1.00], ...
+        'EdgeColor', 'w', 'LineWidth', 1.2, 'HandleVisibility', 'off');
 end
 
-% Small bow-direction arrow (always visible, independent of icon details)
-bowArrowLen = max(10, 0.45 * (2 * shipHalfLen));
-hBow = quiver(ax, cx0, cy0, bowArrowLen*sin(psi0), bowArrowLen*cos(psi0), 0, ...
-'Color', [1.0 0.95 0.10], 'LineWidth', 2.4, 'MaxHeadSize', 2.2, ...
-'HandleVisibility', 'off');
-uistack(hBow, 'top');
+% Bow-direction arrow removed to reduce visual clutter
 
 % --- Live trail line ------------------------------------------------------
 hTrail = plot(ax, yPath(1), xPath(1), '-', ...
-'Color', [0.20 0.85 0.45], 'LineWidth', 2, ...
-'DisplayName', 'Own ship');
+              'Color', [0.20 0.85 0.45], 'LineWidth', 2, ...
+              'DisplayName', 'Own ship');
 
-% --- Hull footprint rectangle (if hull_cfg provided) ---------------------
 % --- Hull footprint rectangle (if enabled) -------------------------------
 hHullRect = [];
 if showHullHitbox && ~isempty(hullCfg) && isstruct(hullCfg) && isfield(hullCfg, 'half_length_m')
-% Initialize rectangle at starting position
-cx0 = yPath(1);  cy0 = xPath(1);  psi0 = psi(1);
-rectCorners0 = computeHullCorners(cx0, cy0, hullCfg.half_length_m, hullCfg.half_beam_m, psi0);
-hHullRect = patch(ax, rectCorners0(1,:), rectCorners0(2,:), ...
-[1.0 0.50 0.20], ...
-'FaceAlpha', 0.04, 'EdgeColor', [1.0 0.62 0.18], ...
-'LineWidth', 2.0, 'LineStyle', '--', 'HandleVisibility', 'off');
-uistack(hHullRect, 'top');
-uistack(hBow, 'top');
+    % Initialize rectangle at starting position
+    cx0 = yPath(1);  cy0 = xPath(1);  psi0 = psi(1);
+    rectCorners0 = computeHullCorners(cx0, cy0, hullCfg.half_length_m, hullCfg.half_beam_m, psi0);
+    hHullRect = patch(ax, rectCorners0(1,:), rectCorners0(2,:), ...
+                      [1.0 0.50 0.20], ...
+                      'FaceAlpha', 0.04, 'EdgeColor', [1.0 0.62 0.18], ...
+                      'LineWidth', 2.0, 'LineStyle', '--', 'HandleVisibility', 'off');
+    uistack(hHullRect, 'top');
 end
 
 % --- Thruster arrows (optional) ------------------------------------------
@@ -635,36 +448,27 @@ if haveThrusters
             'HandleVisibility', 'off');
     end
     uistack(hThrusters, 'top');
-    uistack(hBow, 'top');
+
 end
 
 % --- Time stamp -----------------------------------------------------------
 xlims = xlim(ax);  ylims = ylim(ax);
 hTime = text(ax, xlims(1) + 0.02*diff(xlims), ...
-ylims(2) - 0.04*diff(ylims), ...
-'t = 0 s', ...
-'Color', [1 1 1], 'FontSize', 11, 'FontWeight', 'bold');
+                 ylims(2) - 0.04*diff(ylims), ...
+                 't = 0 s', ...
+                 'Color', [1 1 1], 'FontSize', 11, 'FontWeight', 'bold');
 
 % Legend for map
 if showLegend
-legend(ax, 'show', 'Location', 'best', ...
-'TextColor', [0.90 0.90 0.95], 'Color', [0.09 0.09 0.13], ...
-'EdgeColor', [0.35 0.35 0.45]);
+    legend(ax, 'show', 'Location', 'best', ...
+        'TextColor', [0.90 0.90 0.95], 'Color', [0.09 0.09 0.13], ...
+        'EdgeColor', [0.35 0.35 0.45]);
 end
 
-% Speed plot legend
-if showSpeedPlot
+% NEW: Speed plot legend
 legend(ax_speed, 'show', 'Location', 'best', ...
-'TextColor', [0.90 0.90 0.95], 'Color', [0.09 0.09 0.13], ...
-'EdgeColor', [0.35 0.35 0.45], 'FontSize', 9);
-end
-
-% Control plot legend
-if showControlPlot
-legend(ax_ctrl, 'show', 'Location', 'best', ...
-'TextColor', [0.90 0.90 0.95], 'Color', [0.09 0.09 0.13], ...
-'EdgeColor', [0.35 0.35 0.45], 'FontSize', 9);
-end
+    'TextColor', [0.90 0.90 0.95], 'Color', [0.09 0.09 0.13], ...
+    'EdgeColor', [0.35 0.35 0.45], 'FontSize', 9);
 
 drawnow;
 
@@ -673,66 +477,60 @@ writerObj = [];
 gifInitialized = false;
 videoFileSaved = videoFile;
 if recordVideo
-[vdir, ~, ~] = fileparts(videoFile);
-if ~isempty(vdir) && ~exist(vdir, 'dir')
-mkdir(vdir);
-end
-profiles = {'MPEG-4', 'Motion JPEG AVI'};
-open_ok = false;
-lastErr = '';
-for p = 1:numel(profiles)
-profileName = profiles{p};
-tryFile = videoFile;
-if ~strcmpi(profileName, 'MPEG-4')
-[vp, vn, ~] = fileparts(videoFile);
-tryFile = fullfile(vp, [vn '.avi']);
-end
-try
-writerObj = VideoWriter(tryFile, profileName);
-writerObj.FrameRate = max(1, recordFps);
-open(writerObj);
-videoFileSaved = tryFile;
-open_ok = true;
-if strcmpi(profileName, 'MPEG-4')
-fprintf('  [animateSimResult] Recording video: "%s"\n', videoFileSaved);
-else
-fprintf('  [animateSimResult] MPEG-4 unavailable, recording with %s: "%s"\n', profileName, videoFileSaved);
-end
-break;
-catch ME
-lastErr = ME.message;
-writerObj = [];
-end
-end
-if ~open_ok
-warning('animateSimResult:VideoOpenFailed', 'Could not open video writer: %s', lastErr);
-recordVideo = false;
-end
+    [vdir, ~, ~] = fileparts(videoFile);
+    if ~isempty(vdir) && ~exist(vdir, 'dir')
+        mkdir(vdir);
+    end
+    profiles = {'MPEG-4', 'Motion JPEG AVI'};
+    open_ok = false;
+    lastErr = '';
+    for p = 1:numel(profiles)
+        profileName = profiles{p};
+        tryFile = videoFile;
+        if ~strcmpi(profileName, 'MPEG-4')
+            [vp, vn, ~] = fileparts(videoFile);
+            tryFile = fullfile(vp, [vn '.avi']);
+        end
+        try
+            writerObj = VideoWriter(tryFile, profileName);
+            writerObj.FrameRate = max(1, recordFps);
+            open(writerObj);
+            videoFileSaved = tryFile;
+            open_ok = true;
+            if strcmpi(profileName, 'MPEG-4')
+                fprintf('  [animateSimResult] Recording video: "%s"\n', videoFileSaved);
+            else
+                fprintf('  [animateSimResult] MPEG-4 unavailable, recording with %s: "%s"\n', profileName, videoFileSaved);
+            end
+            break;
+        catch ME
+            lastErr = ME.message;
+            writerObj = [];
+        end
+    end
+    if ~open_ok
+        warning('animateSimResult:VideoOpenFailed', 'Could not open video writer: %s', lastErr);
+        recordVideo = false;
+    end
 end
 if recordGif
-[gdir, ~, ~] = fileparts(gifFile);
-if ~isempty(gdir) && ~exist(gdir, 'dir')
-mkdir(gdir);
-end
-fprintf('  [animateSimResult] Recording GIF: "%s"\n', gifFile);
+    [gdir, ~, ~] = fileparts(gifFile);
+    if ~isempty(gdir) && ~exist(gdir, 'dir')
+        mkdir(gdir);
+    end
+    fprintf('  [animateSimResult] Recording GIF: "%s"\n', gifFile);
 end
 
 %  4. Animate — step through downsampled frames, update ship icon position and live trail
-speedX_live = [];
-speedY_live = [];
-hSpeedLine = [];
-hSpeedMarker = [];
-if showSpeedPlot
-% Initialize live speed visualization
+% NEW: Initialize live speed visualization
 speedX_live = [t_vec(1)];                    % Time points for live speed
 speedY_live = [u_vel(1)];                    % Speed values for live line
 hSpeedLine = plot(ax_speed, speedX_live, speedY_live, '-', ...
-'Color', [0.20 0.85 0.45], 'LineWidth', 2.2, ...
-'DisplayName', 'Live speed', 'HandleVisibility', 'on');
+    'Color', [0.20 0.85 0.45], 'LineWidth', 2.2, ...
+    'DisplayName', 'Live speed', 'HandleVisibility', 'on');
 hSpeedMarker = plot(ax_speed, t_vec(1), u_vel(1), 'o', ...
-'Color', [1.0 0.95 0.10], 'MarkerSize', 7, 'MarkerFaceColor', [1.0 0.95 0.10], ...
-'HandleVisibility', 'off');
-end
+    'Color', [1.0 0.95 0.10], 'MarkerSize', 7, 'MarkerFaceColor', [1.0 0.95 0.10], ...
+    'HandleVisibility', 'off');
 
 trailX = yPath(1);
 trailY = xPath(1);
@@ -748,53 +546,50 @@ planHistLen = getPlanHistoryLength(plannedRoutes);
 planHistUsesFrames = planHistLen > 0 && planHistLen == numel(idx) && planHistLen ~= N;
 
 for k = 1:length(idx)
-i = idx(k);
+    i = idx(k);
 
-cx = yPath(i);   % East  → plot x
-cy = xPath(i);   % North → plot y
+    cx = yPath(i);   % East  → plot x
+    cy = xPath(i);   % North → plot y
 
-% Move ship icon and align orientation to hull heading
-if useImage
-[xq, yq] = computeShipImageQuad(cx, cy, shipImgHalfLen, shipImgHalfBeam, psi(i));
-set(hShip, 'XData', xq, 'YData', yq);
-else
-[tx, ty] = shipTriangle(cx, cy, 2 * shipHalfBeam, psi(i));
-set(hShip, 'XData', tx, 'YData', ty);
-end
+    % Move ship icon and align orientation to hull heading
+    if useImage
+        [xq, yq] = computeShipImageQuad(cx, cy, shipImgHalfLen, shipImgHalfBeam, psi(i));
+        set(hShip, 'XData', xq, 'YData', yq);
+    else
+        [tx, ty] = shipTriangle(cx, cy, 2 * shipHalfBeam, psi(i));
+        set(hShip, 'XData', tx, 'YData', ty);
+    end
 
-set(hBow, 'XData', cx, 'YData', cy, ...
-'UData', bowArrowLen*sin(psi(i)), 'VData', bowArrowLen*cos(psi(i)));
+    % Update hull footprint rectangle
+    if ~isempty(hHullRect) && isvalid(hHullRect)
+        rectCorners = computeHullCorners(cx, cy, hullCfg.half_length_m, hullCfg.half_beam_m, psi(i));
+        set(hHullRect, 'XData', rectCorners(1,:), 'YData', rectCorners(2,:));
+    end
 
-% Update hull footprint rectangle
-if ~isempty(hHullRect) && isvalid(hHullRect)
-rectCorners = computeHullCorners(cx, cy, hullCfg.half_length_m, hullCfg.half_beam_m, psi(i));
-set(hHullRect, 'XData', rectCorners(1,:), 'YData', rectCorners(2,:));
-end
+    % Update trail
+    trailX(end+1) = cx;   %#ok<AGROW>
+    trailY(end+1) = cy;   %#ok<AGROW>
+    set(hTrail, 'XData', trailX, 'YData', trailY);
 
-% Update trail
-trailX(end+1) = cx;   %#ok<AGROW>
-trailY(end+1) = cy;   %#ok<AGROW>
-set(hTrail, 'XData', trailX, 'YData', trailY);
+    % Update time stamp
+    if i <= length(t_vec)
+        set(hTime, 'String', sprintf('t = %.0f s', t_vec(i)));
+    end
 
-% Update time stamp
-if i <= length(t_vec)
-set(hTime, 'String', sprintf('t = %.0f s', t_vec(i)));
-end
-
-% Update dynamic obstacles (if provided)
-if ~isempty(hDynObs)
-th_dyn = linspace(0, 2*pi, 40);
-for d = 1:length(hDynObs)
-xk = dynamicObsHistory(d,2,min(i, size(dynamicObsHistory,3)));
-yk = dynamicObsHistory(d,1,min(i, size(dynamicObsHistory,3)));
-if isfinite(xk) && isfinite(yk)
-set(hDynObs(d), 'XData', xk + dynamicObsRadius*cos(th_dyn), ...
-'YData', yk + dynamicObsRadius*sin(th_dyn), 'Visible', 'on');
-else
-set(hDynObs(d), 'Visible', 'off');
-end
-end
-end
+    % Update dynamic obstacles (if provided)
+    if ~isempty(hDynObs)
+        th_dyn = linspace(0, 2*pi, 40);
+        for d = 1:length(hDynObs)
+            xk = dynamicObsHistory(d,2,min(i, size(dynamicObsHistory,3)));
+            yk = dynamicObsHistory(d,1,min(i, size(dynamicObsHistory,3)));
+            if isfinite(xk) && isfinite(yk)
+                set(hDynObs(d), 'XData', xk + dynamicObsRadius*cos(th_dyn), ...
+                    'YData', yk + dynamicObsRadius*sin(th_dyn), 'Visible', 'on');
+            else
+                set(hDynObs(d), 'Visible', 'off');
+            end
+        end
+    end
 
     % Thruster arrows (if provided)
     if haveThrusters && ~isempty(hThrusters)
@@ -892,107 +687,81 @@ end
             if exist('hShip', 'var') && isvalid(hShip)
                 uistack(hShip, 'top');
             end
-            if exist('hBow', 'var') && isvalid(hBow)
-                uistack(hBow, 'top');
-            end
             if ~isempty(hHullRect) && isvalid(hHullRect)
                 uistack(hHullRect, 'top');
             end
         end
     end
 
-% Update live speed plot
-if showSpeedPlot
-speedX_live(end+1) = t_vec(i);
-speedY_live(end+1) = u_vel(i);
-set(hSpeedLine, 'XData', speedX_live, 'YData', speedY_live);
-set(hSpeedMarker, 'XData', t_vec(i), 'YData', u_vel(i));
-end
+    % NEW: Update live speed plot - append current point to live line and marker
+    speedX_live(end+1) = t_vec(i);
+    speedY_live(end+1) = u_vel(i);
+    set(hSpeedLine, 'XData', speedX_live, 'YData', speedY_live);
+    set(hSpeedMarker, 'XData', t_vec(i), 'YData', u_vel(i));
 
-% Update live control markers
-if showControlPlot && ctrlLen > 0
-ctrl_i = min(i, ctrlLen);
-t_i = t_ctrl(ctrl_i);
-if ~isempty(hCtrlAlpha1) && isvalid(hCtrlAlpha1)
-set(hCtrlAlpha1, 'XData', t_i, 'YData', ctrlAlphaDeg(1, ctrl_i));
-end
-if ~isempty(hCtrlAlpha2) && isvalid(hCtrlAlpha2)
-set(hCtrlAlpha2, 'XData', t_i, 'YData', ctrlAlphaDeg(2, ctrl_i));
-end
-if ~isempty(hCtrlN1) && isvalid(hCtrlN1)
-set(hCtrlN1, 'XData', t_i, 'YData', ctrlNcmd(1, ctrl_i));
-end
-if ~isempty(hCtrlN2) && isvalid(hCtrlN2)
-set(hCtrlN2, 'XData', t_i, 'YData', ctrlNcmd(2, ctrl_i));
-end
-if ~isempty(hCtrlN3) && isvalid(hCtrlN3)
-set(hCtrlN3, 'XData', t_i, 'YData', ctrlNcmd(3, ctrl_i));
-end
-end
+    drawnow;          % flush every frame so the animation is actually visible
 
-drawnow;          % flush every frame so the animation is actually visible
+    % Write animation frame to outputs (if enabled)
+    if recordVideo || recordGif
+        try
+            frame = getframe(hFig);
+            if recordVideo && ~isempty(writerObj)
+                writeVideo(writerObj, frame);
+            end
+            if recordGif
+                [imRgb, mapGif] = rgb2ind(frame2im(frame), 256);
+                if ~gifInitialized
+                    imwrite(imRgb, mapGif, gifFile, 'gif', 'LoopCount', inf, ...
+                        'DelayTime', max(0.01, 1/max(1, recordFps)));
+                    gifInitialized = true;
+                else
+                    imwrite(imRgb, mapGif, gifFile, 'gif', 'WriteMode', 'append', ...
+                        'DelayTime', max(0.01, 1/max(1, recordFps)));
+                end
+            end
+        catch ME
+            warning('animateSimResult:FrameWriteFailed', 'Frame capture/write failed: %s', ME.message);
+            recordVideo = false;
+            recordGif = false;
+        end
+    end
 
-% Write animation frame to outputs (if enabled)
-if recordVideo || recordGif
-try
-frame = getframe(hFig);
-if recordVideo && ~isempty(writerObj)
-writeVideo(writerObj, frame);
-end
-if recordGif
-[imRgb, mapGif] = rgb2ind(frame2im(frame), 256);
-if ~gifInitialized
-imwrite(imRgb, mapGif, gifFile, 'gif', 'LoopCount', inf, ...
-'DelayTime', max(0.01, 1/max(1, recordFps)));
-gifInitialized = true;
-else
-imwrite(imRgb, mapGif, gifFile, 'gif', 'WriteMode', 'append', ...
-'DelayTime', max(0.01, 1/max(1, recordFps)));
-end
-end
-catch ME
-warning('animateSimResult:FrameWriteFailed', 'Frame capture/write failed: %s', ME.message);
-recordVideo = false;
-recordGif = false;
-end
-end
-
-pause(pauseTime); % pacing: default 0.05 s → ~20 fps
+    pause(pauseTime); % pacing: default 0.05 s → ~20 fps
 end
 
 % Mark final position without the large arrow marker.
 plot(ax, yPath(end), xPath(end), 'ro', ...
-'MarkerSize', 6, 'MarkerFaceColor', [1 0.3 0.3], ...
-'DisplayName', 'End', 'LineWidth', 1.0);
+    'MarkerSize', 6, 'MarkerFaceColor', [1 0.3 0.3], ...
+    'DisplayName', 'End', 'LineWidth', 1.0);
 drawnow;
 
 % Final frame write + cleanup
 if recordVideo || recordGif
-try
-    frame = getframe(hFig);
+    try
+        frame = getframe(hFig);
+        if recordVideo && ~isempty(writerObj)
+            writeVideo(writerObj, frame);
+        end
+        if recordGif
+            [imRgb, mapGif] = rgb2ind(frame2im(frame), 256);
+            if ~gifInitialized
+                imwrite(imRgb, mapGif, gifFile, 'gif', 'LoopCount', inf, ...
+                    'DelayTime', max(0.01, 1/max(1, recordFps)));
+            else
+                imwrite(imRgb, mapGif, gifFile, 'gif', 'WriteMode', 'append', ...
+                    'DelayTime', max(0.01, 1/max(1, recordFps)));
+            end
+        end
+    catch ME
+        warning('animateSimResult:FinalFrameWriteFailed', 'Final frame capture/write failed: %s', ME.message);
+    end
+end
 if recordVideo && ~isempty(writerObj)
-    writeVideo(writerObj, frame);
-end
-if recordGif
-    [imRgb, mapGif] = rgb2ind(frame2im(frame), 256);
-if ~gifInitialized
-    imwrite(imRgb, mapGif, gifFile, 'gif', 'LoopCount', inf, ...
-    'DelayTime', max(0.01, 1/max(1, recordFps)));
-else
-    imwrite(imRgb, mapGif, gifFile, 'gif', 'WriteMode', 'append', ...
-    'DelayTime', max(0.01, 1/max(1, recordFps)));
-end
-end
-catch ME
-    warning('animateSimResult:FinalFrameWriteFailed', 'Final frame capture/write failed: %s', ME.message);
-end
-end
-if recordVideo && ~isempty(writerObj)
-try
-    close(writerObj);
-catch ME
-    warning('animateSimResult:VideoCloseFailed', 'Could not close video writer cleanly: %s', ME.message);
-end
+    try
+        close(writerObj);
+    catch ME
+        warning('animateSimResult:VideoCloseFailed', 'Could not close video writer cleanly: %s', ME.message);
+    end
 end
 if recordVideo
     fprintf('  [animateSimResult] Video saved: "%s"\n', videoFileSaved);
@@ -1001,28 +770,28 @@ if recordGif
     fprintf('  [animateSimResult] GIF saved: "%s"\n', gifFile);
 end
 
-end
+end % ---- end of animateSimResult ----------------------------------------
 
 %  Triangle fallback — arrowhead icon pointing in direction psi [rad], used when no image file is loaded
 function [tx, ty] = shipTriangle(cx, cy, w, psi)
-% A simple arrow-head: bow at top (North = psi=0)
-h = w * 2.5;
-% Local coords: bow tip at (0, h/2), stern corners at (±w/2, -h/2)
-lx = [0,  w/2, 0, -w/2, 0];
-ly = [h/2, -h/2, -h/4, -h/2, h/2];
-% Map body frame to plot frame (x=East, y=North) with psi referenced from North.
-s = sin(psi);  c = cos(psi);
-tx = cx + s.*lx + c.*ly;   % East
-ty = cy + c.*lx - s.*ly;   % North
+    % A simple arrow-head: bow at top (North = psi=0)
+    h = w * 2.5;
+    % Local coords: bow tip at (0, h/2), stern corners at (±w/2, -h/2)
+    lx = [0,  w/2, 0, -w/2, 0];
+    ly = [h/2, -h/2, -h/4, -h/2, h/2];
+    % Map body frame to plot frame (x=East, y=North) with psi referenced from North.
+    s = sin(psi);  c = cos(psi);
+    tx = cx + s.*lx + c.*ly;   % East
+    ty = cy + c.*lx - s.*ly;   % North
 end
 
 %  Local helper — cfgGet returns cfg.(name) if present and non-empty, otherwise returns default
 function v = cfgGet(s, name, default)
-if isfield(s, name) && ~isempty(s.(name))
-v = s.(name);
-else
-v = default;
-end
+    if isfield(s, name) && ~isempty(s.(name))
+        v = s.(name);
+    else
+        v = default;
+    end
 end
 
 %  Hull footprint rectangle corner computation — returns 4 corner points (closed polygon)
@@ -1035,18 +804,18 @@ end
 %    corners     - 2×5 array: [cx1 cx2 cx3 cx4 cx1; cy1 cy2 cy3 cy4 cy1] (closed loop)
 %
 function corners = computeHullCorners(cx, cy, half_len, half_beam, psi)
-% Rectangle corners in body frame (ship-aligned), then rotate and translate
-% Bow at +x (length direction), starboard at +y (beam direction)
-local_x = [ half_len,  half_len, -half_len, -half_len,  half_len];
-local_y = [ half_beam, -half_beam, -half_beam,  half_beam,  half_beam];
-
-% Map from body frame to plot frame (East, North) with psi from North.
-s = sin(psi);   c = cos(psi);
-world_x = s .* local_x + c .* local_y;  % East
-world_y = c .* local_x - s .* local_y;  % North
-
-% Translate to center position
-corners = [cx + world_x; cy + world_y];
+    % Rectangle corners in body frame (ship-aligned), then rotate and translate
+    % Bow at +x (length direction), starboard at +y (beam direction)
+    local_x = [ half_len,  half_len, -half_len, -half_len,  half_len];
+    local_y = [ half_beam, -half_beam, -half_beam,  half_beam,  half_beam];
+    
+    % Map from body frame to plot frame (East, North) with psi from North.
+    s = sin(psi);   c = cos(psi);
+    world_x = s .* local_x + c .* local_y;  % East
+    world_y = c .* local_x - s .* local_y;  % North
+    
+    % Translate to center position
+    corners = [cx + world_x; cy + world_y];
 end
 
 function [xq, yq] = computeShipImageQuad(cx, cy, half_len, half_beam, psi)
@@ -1054,15 +823,15 @@ function [xq, yq] = computeShipImageQuad(cx, cy, half_len, half_beam, psi)
 % Corner order (body frame):
 %   A = bow-port, B = bow-starboard, C = stern-starboard, D = stern-port
 % surface uses [A B; D C] to map image rows bow->stern, cols port->starboard.
-local_x = [ half_len,  half_len, -half_len, -half_len];
-local_y = [ half_beam, -half_beam, -half_beam,  half_beam];
+    local_x = [ half_len,  half_len, -half_len, -half_len];
+    local_y = [ half_beam, -half_beam, -half_beam,  half_beam];
 
-s = sin(psi);   c = cos(psi);
-world_x = cx + s .* local_x + c .* local_y;
-world_y = cy + c .* local_x - s .* local_y;
+    s = sin(psi);   c = cos(psi);
+    world_x = cx + s .* local_x + c .* local_y;
+    world_y = cy + c .* local_x - s .* local_y;
 
-xq = [world_x(1), world_x(2); world_x(4), world_x(3)];
-yq = [world_y(1), world_y(2); world_y(4), world_y(3)];
+    xq = [world_x(1), world_x(2); world_x(4), world_x(3)];
+    yq = [world_y(1), world_y(2); world_y(4), world_y(3)];
 end
 
 function [px, py] = bodyToWorldPoint(cx, cy, x_body, y_body, psi)
@@ -1158,7 +927,7 @@ function n = getPlanHistoryLength(planHist)
     if isempty(planHist)
         return;
     end
-    if iscell(planHist) || isstruct(planHist) 
+    if iscell(planHist) || isstruct(planHist)
         n = numel(planHist);
     elseif isnumeric(planHist) && ndims(planHist) == 3
         n = size(planHist, 3);

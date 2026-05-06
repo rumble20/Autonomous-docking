@@ -79,13 +79,13 @@ static_obstacles = [];
 
 % Dynamic obstacles.
 dynamic_obs_positions_xy = [-2300, -2800; -2300, -3000];
-dynamic_obs_headings_deg = [135; 45];
+dynamic_obs_headings_deg = [180; 90];
 dynamic_obs_speeds_mps   = [3; 3];
 enable_dynamic_obstacles = true;
 dynamic_obs_radius_m     = 25;
 dynamic_obs_speed_mps    = 5;
 dynamic_obs_nmpc_guard_m = 0;
-dynamic_obs_start_mode   = 'immediate';   % immediate | proximity
+dynamic_obs_start_mode   = 'proximity';   % immediate | proximity
 dynamic_obs_trigger_distance_m = 300;
 dynamic_obs_boundary_margin = 200;
 dynamic_obs_boundary_policy = 'wrap';     % wrap | bounce | hold
@@ -93,13 +93,13 @@ dynamic_obs_boundary_policy = 'wrap';     % wrap | bounce | hold
 % Dynamic latent awareness (optional planning-only envelopes).
 dynamic_latent_awareness = struct();
 dynamic_latent_awareness.enabled = true;
-dynamic_latent_awareness.n_samples = 4;
+dynamic_latent_awareness.n_saamples = 4;
 dynamic_latent_awareness.dt_s = 2.0;
 dynamic_latent_awareness.inflate_radius_m = 8.0;
 dynamic_latent_awareness.sample_radius_gain = 0.15;
 
 % Simulation.
-T_final = 30;
+T_final = 1000;
 R_accept = 90;
 R_accept_final = 10;
 R_accept_final_soft = 50;
@@ -193,7 +193,7 @@ sched_cfg = struct();
 
 % Speed scheduling
 sched_cfg.u_cruise_mps = cruise_speed_mps;      % normal open-water preference
-sched_cfg.u_tight_mps  = 1.8;                   % preferred speed in tight geometry
+sched_cfg.u_tight_mps  = 2.5;                   % preferred speed in tight geometry
 sched_cfg.u_berth_mps  = 0.45;                  % preferred speed near final berth
 
 sched_cfg.soft_speed_weight_far  = 0.03;
@@ -205,11 +205,11 @@ sched_cfg.u_min_forward_near = 0.02;
 
 % Tightness from map clearance
 sched_cfg.clearance_lo_m = 45;   % full caution if nearer than this
-sched_cfg.clearance_hi_m = 140;  % no caution if farther than this
+sched_cfg.clearance_hi_m = 110;  % no caution if farther than this
 
 % Optional channel width awareness
 sched_cfg.channel_width_lo_m = 70;
-sched_cfg.channel_width_hi_m = 180;
+sched_cfg.channel_width_hi_m = 140;
 
 % Stopping-distance awareness
 sched_cfg.brake_eff_mps2 = 0.55;   % effective deceleration for caution logic
@@ -219,7 +219,7 @@ sched_cfg.stop_buffer_m  = 35;     % extra comparison slack
 % Turn severity awareness
 sched_cfg.turn_angle_lo_deg = 15;
 sched_cfg.turn_angle_hi_deg = 55;
-sched_cfg.turn_dist_far_m   = 240;
+sched_cfg.turn_dist_far_m   = 180;
 sched_cfg.turn_dist_near_m  = 60;
 
 % Berth ramp
@@ -277,7 +277,7 @@ sched_cfg.d_cpa_th      = 60.0;    % m: CPA threshold for caution
 sched_cfg.v_close_ref   = 3.0;     % m/s: closing rate reference
 sched_cfg.cos_beta_max  = cos(deg2rad(120)); % 120deg forward sector
 sched_cfg.d_dot_ref     = 2.0;     % m/s: separation rate threshold
-sched_cfg.u_yield       = 0.6;    % m/s: crawl speed during yield
+sched_cfg.u_yield       = 1;    % m/s: crawl speed during yield
 sched_cfg.w_along_min   = 0.35;    % minimal progress reward
 sched_cfg.R_rate_scale_yield = 2;% control smoothness multiplier
 sched_cfg.map_barrier_w_base = 0.0;
@@ -860,6 +860,8 @@ if lambda_berth >= max(0.20, lambda_turn)
     solve_opts.goal_heading_enable = true; solve_opts.goal_heading_rad = deg2rad(berth_cfg.heading_deg);
 elseif lambda_turn > 0.05 || lambda_return > 0.1
     solve_opts.goal_heading_enable = true; solve_opts.goal_heading_rad = chi_seg;
+elseif on_final_waypoint
+    solve_opts.goal_heading_enable = true; solve_opts.goal_heading_rad = chi_seg;
 else
     solve_opts.goal_heading_enable = false;
 end
@@ -928,6 +930,34 @@ end
 solve_opts.u_min_forward = desired_u_min_forward;
 
 if on_final_waypoint, solve_opts.enable_terminal_pose = true; end
+
+if on_final_waypoint
+    lambda_gate_final = revRamp01(d_to_active_end, 25, 160);
+    lambda_terminal_conn = max([lambda_gate_final, lambda_return, 0.5*lambda_tight]);
+
+    % Never drop heading guidance on final segment
+    solve_opts.goal_heading_enable = true;
+    solve_opts.goal_heading_rad = chi_seg;
+
+    % Tighten line adherence near the terminal segment
+    solve_opts.terminal_line_xte_weight = lerp(70.0, 260.0, lambda_terminal_conn);
+    solve_opts.terminal_line_heading_weight = lerp(25.0, 110.0, lambda_terminal_conn);
+
+    % Also tighten stage path tracking near the gate
+    solve_opts.path_xte_weight = max( ...
+        solve_opts.path_xte_weight, ...
+        lerp(16.0, 34.0, lambda_gate_final));
+
+    solve_opts.path_tube_half_width_m = min( ...
+        solve_opts.path_tube_half_width_m, ...
+        lerp(12.0, 7.0, lambda_gate_final));
+
+    % Keep endpoint attraction, but not alone
+    solve_opts.terminal_goal_pos_weight = max( ...
+        solve_opts.terminal_goal_pos_weight, ...
+        lerp(90.0, 180.0, lambda_gate_final));
+end
+
 
 % Update logs
 lambda_tight_log(i) = lambda_tight; lambda_stop_log(i) = lambda_stop;

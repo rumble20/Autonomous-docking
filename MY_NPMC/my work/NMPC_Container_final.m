@@ -237,6 +237,7 @@ classdef NMPC_Container_final < handle
             P_map_barrier_w = SX.sym('P_map_barrier_w', 1, 1);   % Soft map-boundary cost weight
             P_map_soft_margin = SX.sym('P_map_soft_margin', 1, 1); % Soft map-boundary margin (base distance for penalty)
             P_R_rate_scale  = SX.sym('P_R_rate_scale',  1, 1);   % Control-rate scaling during yield
+            P_terminal_line = SX.sym('P_terminal_line', 2, 1); % [W_xte_term W_psi_term]
             P_u_prev   = SX.sym('P_u_prev', n_ctrl, 1);
             P_max_brake_rate = SX.sym('P_max_brake_rate', 1, 1);
             P_q_state = SX.sym('P_q_state', n_state, 1);
@@ -261,7 +262,7 @@ classdef NMPC_Container_final < handle
                             P_stage_scales, P_terminal_scales, ...
                             P_collision_clearance, ...
                             P_term_pose_eps, P_term_vel_max, P_berth_corr, P_sync_limits, ...
-                            P_gamma_obs, P_gamma_hp, P_map_barrier_w, P_R_rate_scale, P_map_soft_margin);
+                            P_gamma_obs, P_gamma_hp, P_map_barrier_w, P_R_rate_scale, P_map_soft_margin, P_terminal_line);
             obj.np_total = size(P_all, 1);
 
             %% Common geometric quantities
@@ -300,11 +301,14 @@ classdef NMPC_Container_final < handle
 
                 psi_err_k = atan2(sin(X(6,k) - psi_path_ref), cos(X(6,k) - psi_path_ref));
 
+                u_speed_err = X(1,k) - P_speed_ref;
+
                 path_cost = 0.15 * P_path_weights(1) * xte_inside^2 + ...
                             1.00 * P_path_weights(1) * xte_outside^2 + ...
                             P_path_weights(2) * dist_to_goal^2 + ...
                             P_path_heading_weight * psi_err_k^2 + ...
-                            P_path_weights(4);
+                            P_path_weights(4) * u_speed_err^2;
+
 
                 reg_cost = P_q_state(2) * X(2,k)^2 + ...
                         P_q_state(3) * X(3,k)^2 + ...
@@ -392,10 +396,11 @@ classdef NMPC_Container_final < handle
             psi_path_N = atan2(t_hat(2), t_hat(1));
             psi_err_N = atan2(sin(psi_N - psi_path_N), cos(psi_N - psi_path_N));
 
-            W_xte_term = 70;
-            W_psi_term = 25;
+            W_xte_term = P_terminal_line(1);
+            W_psi_term = P_terminal_line(2);
 
             J = J + W_xte_term * xte_N^2 + W_psi_term * psi_err_N^2;
+
 
 
             %% Constraints
@@ -836,6 +841,10 @@ classdef NMPC_Container_final < handle
             terminal_stop_v_weight = max(0.0, getOr(solve_opts, 'terminal_stop_v_weight', obj.terminal_stop_v_weight_default));
             terminal_stop_r_weight = max(0.0, getOr(solve_opts, 'terminal_stop_r_weight', obj.terminal_stop_r_weight_default));
 
+            terminal_line_xte_weight = max(0.0, getOr(solve_opts, 'terminal_line_xte_weight', 70.0));
+            terminal_line_heading_weight = max(0.0, getOr(solve_opts, 'terminal_line_heading_weight', 25.0));
+
+
             if strcmpi(obj.collision_model, 'oriented-rectangle')
                 collision_clearance_default = obj.hull_clearance_m;
             else
@@ -994,6 +1003,7 @@ classdef NMPC_Container_final < handle
                 [terminal_state_scale; terminal_actuator_scale; terminal_forward_scale]; ...
                 collision_clearance; ...
                 term_pose_eps_vec; term_vel_max_vec; berth_corridor_vec; sync_limits_vec; ...
+                [terminal_line_xte_weight; terminal_line_heading_weight]; ...
                 gamma_obs_local; gamma_hp_local; ...
                 max(0, getOr(solve_opts, 'map_barrier_weight', 0.0)); max(1.0, getOr(solve_opts, 'R_rate_scale_obs', 1.0));...
                 map_soft_margin];
