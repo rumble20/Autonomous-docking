@@ -18,15 +18,15 @@ fprintf('═══════════════════════�
 
 % Waypoints: rows = [x, y].
 % No heading is stored in the waypoint list anymore.
-waypoints = [-3000, -2600; -2600, -2700; -2350, -2600; -2200, -2650; -2050, -2600];
+waypoints = [-3000, -2600; -2800, -2700; -2600, -2700; -2350, -2650; -2200, -2650; -1940, -2450];
 
 % BERTHING MODE ==========================================================
 % This block fully replaces the old waypoint third-column final heading.
 % Use it to tell the ship how to approach and park at the final target.
 berth_cfg = struct();
 berth_cfg.enabled = false;                 % true = use precise berthing mode
-berth_cfg.target_xy = [-2050; -2600];     % final parking position [x; y]
-berth_cfg.heading_deg = 0;                % desired final ship heading
+berth_cfg.target_xy = [-1940; -2450];     % final parking position [x; y]
+berth_cfg.heading_deg = 30;                % desired final ship heading
 berth_cfg.prepare_last_n_segments = 3;    % start preparing on last route segments
 berth_cfg.activate_dist_m = 260;          % force berth mode when this close to berth target
 berth_cfg.preview_heading_weight = 18.0;  % mild early heading preparation before full berth mode
@@ -61,9 +61,9 @@ route_follow_cfg = struct();
 route_follow_cfg.tighten_near_gate_dist_m = 180;
 route_follow_cfg.tighten_tube_m = 15;
 route_follow_cfg.tighten_xte_weight = 16.0;
-route_follow_cfg.transit_goal_pos_weight_far  = 18.0;
-route_follow_cfg.transit_goal_pos_weight_mid  = 35.0;
-route_follow_cfg.transit_goal_pos_weight_near = 65.0;
+route_follow_cfg.transit_goal_pos_weight_far  = 30.0;
+route_follow_cfg.transit_goal_pos_weight_mid  = 50.0;
+route_follow_cfg.transit_goal_pos_weight_near = 90.0;
 route_follow_cfg.transit_goal_dist_mid_m  = 220;
 route_follow_cfg.transit_goal_dist_near_m = 120;
 route_follow_cfg.sharp_turn_deg = 28;
@@ -78,25 +78,25 @@ cruise_speed_mps = 5.0;
 static_obstacles = [];
 
 % Dynamic obstacles.
-dynamic_obs_positions_xy = [-2300, -2800];
-dynamic_obs_headings_deg = [80];
-dynamic_obs_speeds_mps   = [3];
+dynamic_obs_positions_xy = [-2300, -2800; -2300, -3000];
+dynamic_obs_headings_deg = [135; 45];
+dynamic_obs_speeds_mps   = [3; 3];
 enable_dynamic_obstacles = true;
 dynamic_obs_radius_m     = 25;
 dynamic_obs_speed_mps    = 5;
 dynamic_obs_nmpc_guard_m = 0;
-dynamic_obs_start_mode   = 'proximity';   % immediate | proximity
+dynamic_obs_start_mode   = 'immediate';   % immediate | proximity
 dynamic_obs_trigger_distance_m = 300;
 dynamic_obs_boundary_margin = 200;
 dynamic_obs_boundary_policy = 'wrap';     % wrap | bounce | hold
 
 % Dynamic latent awareness (optional planning-only envelopes).
 dynamic_latent_awareness = struct();
-dynamic_latent_awareness.enabled = false;
-dynamic_latent_awareness.n_samples = 0;
+dynamic_latent_awareness.enabled = true;
+dynamic_latent_awareness.n_samples = 4;
 dynamic_latent_awareness.dt_s = 2.0;
-dynamic_latent_awareness.inflate_radius_m = 0.0;
-dynamic_latent_awareness.sample_radius_gain = 0.0;
+dynamic_latent_awareness.inflate_radius_m = 8.0;
+dynamic_latent_awareness.sample_radius_gain = 0.15;
 
 % Simulation.
 T_final = 1000;
@@ -228,7 +228,7 @@ sched_cfg.berth_d_full_m     = 35;
 
 % Weight scheduling
 sched_cfg.xte_weight_far  = path_cost_cfg.W_xte_heavy;
-sched_cfg.xte_weight_near = 18.0;
+sched_cfg.xte_weight_near = 24.0;
 
 sched_cfg.tube_far_m  = path_cost_cfg.W_tube_m;
 sched_cfg.tube_near_m = 10.0;
@@ -236,7 +236,7 @@ sched_cfg.tube_near_m = 10.0;
 sched_cfg.heading_weight_far   = 0.0;
 sched_cfg.heading_weight_turn  = 12.0;
 sched_cfg.heading_weight_berth = 140.0;
-sched_cfg.heading_weight_return = 18.0;
+sched_cfg.heading_weight_return = 35.0;
 
 sched_cfg.stop_u_weight_far   = 0.0;
 sched_cfg.stop_u_weight_berth = 120.0;
@@ -277,9 +277,9 @@ sched_cfg.d_cpa_th      = 60.0;    % m: CPA threshold for caution
 sched_cfg.v_close_ref   = 3.0;     % m/s: closing rate reference
 sched_cfg.cos_beta_max  = cos(deg2rad(120)); % 120deg forward sector
 sched_cfg.d_dot_ref     = 2.0;     % m/s: separation rate threshold
-sched_cfg.u_yield       = 0.02;    % m/s: crawl speed during yield
-sched_cfg.w_along_min   = 0.10;    % minimal progress reward
-sched_cfg.R_rate_scale_yield = 3.5;% control smoothness multiplier
+sched_cfg.u_yield       = 0.6;    % m/s: crawl speed during yield
+sched_cfg.w_along_min   = 0.35;    % minimal progress reward
+sched_cfg.R_rate_scale_yield = 2;% control smoothness multiplier
 sched_cfg.map_barrier_w_base = 0.0;
 sched_cfg.map_barrier_w_near = 18.0;
 sched_cfg.map_soft_margin_m = 18;
@@ -822,7 +822,7 @@ solve_opts.path_heading_weight = max([ ...
 
 
 % ROUTE-ORDER RESTORE / GATE TIGHTENING
-if lambda_berth < 0.05
+if lambda_berth < 0.05 && lambda_yield < 0.10 && lambda_return < 0.15
     if d_to_active_end <= route_follow_cfg.transit_goal_dist_near_m
         transit_goal_w = route_follow_cfg.transit_goal_pos_weight_near;
     elseif d_to_active_end <= route_follow_cfg.transit_goal_dist_mid_m
