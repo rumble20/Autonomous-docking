@@ -295,15 +295,16 @@ classdef NMPC_Container_final < handle
                 dist_to_goal = L_seg - along_k;
 
                 xte_abs = abs(xte_k);
-                xte_penalty = if_else(xte_abs > P_path_weights(3), xte_abs - P_path_weights(3), 0);
-                speed_cap_penalty = if_else(X(1,k) > P_speed_ref, X(1,k) - P_speed_ref, 0);
+                xte_inside = min(xte_abs, P_path_weights(3));
+                xte_outside = if_else(xte_abs > P_path_weights(3), xte_abs - P_path_weights(3), 0);
 
                 psi_err_k = atan2(sin(X(6,k) - psi_path_ref), cos(X(6,k) - psi_path_ref));
 
-                path_cost = P_path_weights(1) * xte_penalty^2 + ...
+                path_cost = 0.15 * P_path_weights(1) * xte_inside^2 + ...
+                            1.00 * P_path_weights(1) * xte_outside^2 + ...
                             P_path_weights(2) * dist_to_goal^2 + ...
                             P_path_heading_weight * psi_err_k^2 + ...
-                            P_path_weights(4) * speed_cap_penalty^2;
+                            P_path_weights(4);
 
                 reg_cost = P_q_state(2) * X(2,k)^2 + ...
                         P_q_state(3) * X(3,k)^2 + ...
@@ -356,8 +357,10 @@ classdef NMPC_Container_final < handle
 
             % Terminal geometric goal / heading / stop cost
             pos_N = [X(4,N_h+1); X(5,N_h+1)];
+            psi_N = X(6,N_h+1);
+
             goal_err = pos_N - P_wp_end;
-            psi_goal_err = atan2(sin(X(6,N_h+1) - P_goal_heading), cos(X(6,N_h+1) - P_goal_heading));
+            psi_goal_err = atan2(sin(psi_N - P_goal_heading), cos(psi_N - P_goal_heading));
 
             terminal_goal_cost = P_terminal_path(1) * (goal_err(1)^2 + goal_err(2)^2) + ...
                                  P_goal_heading_enable * P_terminal_path(2) * psi_goal_err^2;
@@ -371,10 +374,29 @@ classdef NMPC_Container_final < handle
                 (X(7,N_h+1)^2 + X(8,N_h+1)^2 + X(9,N_h+1)^2);
             u_back_N = min(0, X(1,N_h+1));
             J = J + w_terminal_forward * 2 * obj.forward_incentive_weight * u_back_N^2;
+
             for j = 1:n_obs
                 J = J + obj.soft_obs_weight * S_obs(j,N_h+1)^2;
             end
             J = J + obj.terminal_pose_slack_weight * (S_term' * S_term);
+
+            % Terminal line recapture to active segment
+            seg = P_wp_end - P_wp_start;
+            seg_len = sqrt(seg(1)^2 + seg(2)^2) + 1e-9;
+            t_hat = seg / seg_len;
+            n_hat = [-t_hat(2); t_hat(1)];
+
+            eN = pos_N - P_wp_start;
+            xte_N = n_hat.' * eN;
+
+            psi_path_N = atan2(t_hat(2), t_hat(1));
+            psi_err_N = atan2(sin(psi_N - psi_path_N), cos(psi_N - psi_path_N));
+
+            W_xte_term = 70;
+            W_psi_term = 25;
+
+            J = J + W_xte_term * xte_N^2 + W_psi_term * psi_err_N^2;
+
 
             %% Constraints
             % Initial condition

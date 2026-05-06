@@ -2,6 +2,22 @@
 
 "This work presents an integrated motion planning and control framework for autonomous ship docking. Unlike traditional two-stage approaches where a global planner generates a fixed collision-free path that a separate controller blindly tracks, the proposed method employs a Nonlinear Model Predictive Controller that jointly performs trajectory generation and tracking by optimizing control inputs online while explicitly enforcing obstacle-avoidance constraints. A lightweight guidance layer provides waypoint sequencing and geometric direction (segment heading and optional terminal heading); speed shaping is handled inside NMPC costs and constraints, and the NMPC retains authority to deviate from the reference trajectory when necessary to satisfy safety constraints and actuator limitations."
 
+## Important claim
+
+Does the NMPC also do trajectory generation?
+Yes — this is actually one of your strongest claims. This is important to articulate clearly.
+In a classical pipeline:
+Path planner → Trajectory generator → Trajectory tracker → Controller
+In your framework:
+Waypoints + berth target → NMPC solves optimal X_pred* → Apply u_opt(0)
+The predicted state sequence X_pred (N+1 states × N steps) IS the trajectory, generated and optimized online at every step subject to:
+Full nonlinear 9-state ship dynamics (not a simplified model)
+Tube corridor constraints (geometric path)
+CBF obstacle/map safety constraints
+Terminal berth pose + velocity envelope
+There is no separate trajectory generator. The NLP solution simultaneously decides where to go and how to get there, respecting all physics and constraints. This is genuinely not just "following" — it is trajectory optimization with receding horizon, which collapses planning and control into one problem.
+This is arguably the clearest "unified" aspect of your framework, and worth highlighting explicitly in the paper.
+
 ### Technical arguments for the thesis
 
 1. The reference is soft, constraints are hard
@@ -1048,3 +1064,12 @@ This update transforms dynamic obstacle avoidance from a \textbf{reactive, dista
 All without a single discrete mode switch—pure continuous optimization driven by geometry, relative motion, and predicted interaction quality.
 
 \end{document}
+
+
+## Observation after this big change
+
+The autonomous path selection by the nmpc still make it sway a lot into directions and paths which are not strictly related to the waypoints indicated and the general route. this brings me back to being temptative about restoring a "recovery mode" which in the previous case it was found to be not optimal.
+
+So the cycle goes on and the perfect trade-off between making the dynamic ship follow rougly the waypoints and keeping the solution mostly an autonomous decision based optimal control problem is very difficult to achieve. 
+
+Honestly, you cannot fully escape some form of context-awareness for the transit-to-berth problem. Here's why: the cost landscape for open-water transit and for millimeter-precision berthing are fundamentally incompatible — if you maximize progress at sea, you overshoot the berth; if you apply berthing precision weights globally, the ship crawls. Something must bridge them.

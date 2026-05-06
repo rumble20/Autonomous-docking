@@ -99,7 +99,7 @@ dynamic_latent_awareness.inflate_radius_m = 8.0;
 dynamic_latent_awareness.sample_radius_gain = 0.15;
 
 % Simulation.
-T_final = 1000;
+T_final = 30;
 R_accept = 90;
 R_accept_final = 10;
 R_accept_final_soft = 50;
@@ -285,11 +285,6 @@ sched_cfg.map_barrier_w_near = 18.0;
 sched_cfg.map_soft_margin_m = 18;
 
 
-% PID fallback.
-pid_Kp = 1.8;
-pid_Ki = 0.02;
-pid_Kd = 1.2;
-
 %% NORMALIZE / SETUP ======================================================
 static_obstacles = normalizeStaticObstacles(static_obstacles);
 berth_cfg = normalizeBerthCfg(berth_cfg, waypoints);
@@ -450,7 +445,6 @@ traj     = zeros(9, length(t)+1);
 ctrl     = zeros(5, length(t));
 solve_ok = false(1, length(t));
 xte_log  = zeros(1, length(t));
-fallback = false(1, length(t));
 X_pred_hist = cell(1, length(t));
 step_time_log     = nan(1, length(t));
 guide_time_log    = nan(1, length(t));
@@ -495,9 +489,6 @@ if n_dyn > 0
         dyn_obs_hist(jj, :, 1) = dynamic_obstacles(jj).position(1:2)';
     end
 end
-
-psi_err_int = 0;
-psi_err_prev = 0;
 u_prev = [0; 0; n1_cruise; n2_cruise; n3_cruise];
 u_prev_ship = x(1);
 
@@ -873,7 +864,9 @@ else
     solve_opts.goal_heading_enable = false;
 end
 
-solve_opts.terminal_goal_pos_weight = lerp(sched_cfg.term_pos_weight_far, sched_cfg.term_pos_weight_berth, lambda_berth);
+solve_opts.terminal_goal_pos_weight = max( ...
+    solve_opts.terminal_goal_pos_weight, ...
+    lerp(sched_cfg.term_pos_weight_far, sched_cfg.term_pos_weight_berth, lambda_berth));
 solve_opts.terminal_stop_u_weight = lerp(sched_cfg.stop_u_weight_far, sched_cfg.stop_u_weight_berth, lambda_berth);
 solve_opts.terminal_stop_v_weight = lerp(0.0, sched_cfg.stop_v_weight_berth, lambda_berth);
 solve_opts.terminal_stop_r_weight = lerp(0.0, sched_cfg.stop_r_weight_berth, lambda_berth);
@@ -958,24 +951,7 @@ ref_time_log(i) = toc(t_seg);
     if isfield(info, 'max_terminal_slack'), terminal_pose_slack_max_log(i) = info.max_terminal_slack; end
     X_pred_hist{i} = X_pred;
 
-    % 6) PID fallback if solver fails
-    if ~info.success
-        psi_err = wrapToPi(chi_ctrl - x(6));
-        psi_err_int = psi_err_int + psi_err * dt;
-        psi_err_int = max(-1, min(1, psi_err_int));
-        psi_err_dot = (psi_err - psi_err_prev) / dt;
-        psi_err_prev = psi_err;
-        alpha = pid_Kp * psi_err + pid_Ki * psi_err_int + pid_Kd * psi_err_dot;
-        alpha = max(-pi/4, min(pi/4, alpha));
-        n1_cmd = n1_cruise;
-        u_opt = [alpha; alpha; n1_cmd; n1_cmd; 0];
-        fallback(i) = true;
-        if sum(fallback(1:i)) <= 3
-            fprintf('  ⚠ NMPC fail at t=%.0f s, using PID fallback\n', t(i));
-        end
-    end
-
-    % 7) Plant integration
+    % 6) Plant integration
     t_seg = tic;
     x = rk4Step9(x, u_opt, dt);
     integr_time_log(i) = toc(t_seg);
@@ -985,7 +961,7 @@ ref_time_log(i) = toc(t_seg);
     step_time_log(i) = toc(t_step);
     rt_ratio_log(i) = step_time_log(i) / max(dt, 1e-9);
 
-    % 8) Collision checks
+    % 7) Collision checks
     [hit_static, ~, ~] = detectHullCircleHit(x, static_obstacles, hull_cfg, 0.0);
     [hit_map_samples, ~, ~] = detectHullCircleHit(x, obs_map, hull_cfg, 0.0);
     [hit_dyn_latent, ~, ~] = detectHullCircleHit(x, obs_dyn_latent, hull_cfg, 0.0);
@@ -1006,7 +982,7 @@ ref_time_log(i) = toc(t_seg);
         break;
     end
 
-    % 9) Logging
+    % 8) Logging
     steps = i;
     traj(:, i+1) = x;
     ctrl(:, i) = u_opt;
@@ -1017,7 +993,7 @@ ref_time_log(i) = toc(t_seg);
     psi_ref_log(i) = chi_ctrl;
     u_prev = u_opt;
 
-    % 10) Progress print
+    % 9) Progress print
     if i == 1 || mod(i, 20) == 0 || ~info.success || rt_ratio_log(i) > 1.0
         d_nearest_obs = inf;
         for j = 1:length(obs_local)
@@ -1030,7 +1006,7 @@ ref_time_log(i) = toc(t_seg);
             t(i), mode_str, x(4), x(5), rad2deg(x(6)), wp_idx, xte, d_nearest_obs, ...
             1e3*step_time_log(i), rt_ratio_log(i), round(n_obs_log(i)));
     end
-    % 11) Mission complete
+    % 10) Mission complete
     mission_goal_xy = waypoints(end,1:2)';
     mission_capture_radius = R_accept_final;
     mission_capture_radius_soft = R_accept_final_soft;
@@ -1095,7 +1071,6 @@ traj     = traj(:, 1:steps+1);
 ctrl     = ctrl(:, 1:steps);
 solve_ok = solve_ok(1:steps);
 xte_log  = xte_log(1:steps);
-fallback = fallback(1:steps);
 t_sim    = (0:steps) * dt;
 X_pred_hist = X_pred_hist(1:steps);
 step_time_log   = step_time_log(1:steps);
@@ -1141,7 +1116,6 @@ try
     fprintf('  SUMMARY\n');
     fprintf('══════════════════════════════════════════════════════════════\n');
     fprintf('  NMPC solves: %d/%d (%.1f%%)\n', n_ok, n_tot, 100*n_ok/max(n_tot,1));
-    fprintf('  PID fallback: %d times\n', sum(fallback));
     fprintf('  Mean |XTE|: %.1f m, Max |XTE|: %.1f m\n', mean(abs(xte_log)), max(abs(xte_log)));
     fprintf('  Final position: (%.1f, %.1f)\n', traj(4,end), traj(5,end));
     fprintf('  Final heading: %.1f deg\n', rad2deg(traj(6,end)));
@@ -1185,6 +1159,20 @@ try
             anim_cfg.hullCfg = hull_cfg;
             anim_cfg.plannedRoutes = X_pred_hist;
             anim_cfg.thrusterHistory = ctrl;
+            thr_cfg = struct();
+            thr_cfg.pos_body_m = [
+                -0.45 * hull_cfg.length_m, -0.5 * hull_cfg.beam_m;
+                -0.45 * hull_cfg.length_m,  0.5 * hull_cfg.beam_m;
+                 0.17 * hull_cfg.length_m,  0.0 * hull_cfg.beam_m
+            ];
+            thr_cfg.types = {'azipod', 'azipod', 'bow'};
+            thr_cfg.n_max = [160 160 140];
+            thr_cfg.alpha_idx = [1 2 0];
+            thr_cfg.rpm_idx = [3 4 5];
+            thr_cfg.alpha_fixed = [NaN NaN pi/2];
+            anim_cfg.thrusterCfg = thr_cfg;
+            anim_cfg.showControlPlot = true;
+            anim_cfg.showSpeedPlot = false;
             anim_cfg.dynamicObsHistory = dyn_obs_hist(:, :, 1:steps+1);
             anim_cfg.dynamicObsRadius = dynamic_obs_radius_m;
             anim_cfg.circObs = static_obstacles;
