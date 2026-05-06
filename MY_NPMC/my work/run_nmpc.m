@@ -14,7 +14,7 @@ fprintf('═══════════════════════�
 fprintf('  NMPC HARBOR NAVIGATION — LINE TRACKING + TUBE MPC\n');
 fprintf('══════════════════════════════════════════════════════════════\n\n');
 
-%% USER CONFIGURATION =====================================================
+%% USER CONFIGURATION 
 
 % Waypoints: rows = [x, y].
 % No heading is stored in the waypoint list anymore.
@@ -79,15 +79,15 @@ static_obstacles = [];
 
 % Dynamic obstacles.
 dynamic_obs_positions_xy = [-2300, -2800];
-dynamic_obs_headings_deg = [135];
+dynamic_obs_headings_deg = [80];
 dynamic_obs_speeds_mps   = [3];
-enable_dynamic_obstacles = false;
+enable_dynamic_obstacles = true;
 dynamic_obs_radius_m     = 25;
 dynamic_obs_speed_mps    = 5;
 dynamic_obs_nmpc_guard_m = 0;
 dynamic_obs_start_mode   = 'proximity';   % immediate | proximity
-dynamic_obs_trigger_distance_m = 400;
-dynamic_obs_boundary_margin = 300;
+dynamic_obs_trigger_distance_m = 300;
+dynamic_obs_boundary_margin = 200;
 dynamic_obs_boundary_policy = 'wrap';     % wrap | bounce | hold
 
 % Dynamic latent awareness (optional planning-only envelopes).
@@ -101,8 +101,8 @@ dynamic_latent_awareness.sample_radius_gain = 0.0;
 % Simulation.
 T_final = 1000;
 R_accept = 90;
-R_accept_final = 25;
-R_accept_final_soft = 65;
+R_accept_final = 10;
+R_accept_final_soft = 50;
 final_capture_speed_mps = 2.5;
 final_capture_hold_s = 6;
 n1_cruise = 100;
@@ -136,7 +136,7 @@ map_sample_radius_m = 20;
 map_edge_spacing_m = 60;
 map_include_interior_samples = false;
 map_interior_spacing_m = 120;
-max_map_halfplanes_transit = 6;
+max_map_halfplanes_transit = 10;
 map_halfplane_min_edge_m = 15;
 map_lookahead_time_s = 75;
 map_lookahead_min_m  = 420;
@@ -148,18 +148,17 @@ map_half_width_max_m = 420;
 nmpc_N  = 50;
 nmpc_dt = 1.0;
 r_safety = 40;
-max_brake_rate = 0.4;
+max_brake_rate = 0.8;
 actuator_force_weight = 0.015;
-forward_incentive_weight = 2.0;
-u_min_forward = 0.3;
-u_min_final_reverse_mps = -1.20;
+forward_incentive_weight = 1;
+u_min_forward = 0.1;
 
 % Tube-MPC path cost.
 path_cost_cfg = struct();
 path_cost_cfg.W_xte_heavy = 12.0;
 path_cost_cfg.W_along = 1.2;
 path_cost_cfg.W_tube_m = 20.0;
-path_cost_cfg.soft_speed_cap_weight = 0.20;
+path_cost_cfg.soft_speed_cap_weight = 0.05;
 path_cost_cfg.soft_speed_cap_mps = cruise_speed_mps;
 
 % Final waypoint terminal cost.
@@ -188,6 +187,103 @@ azipod_sync_cfg.transit_alpha_split_rad = deg2rad(60);
 azipod_sync_cfg.transit_stern_split_rpm = 60;
 azipod_sync_cfg.final_alpha_split_rad   = deg2rad(20);
 azipod_sync_cfg.final_stern_split_rpm   = 20;
+
+% CONTINUOUS CAUTION / BERTHING SCHEDULER 
+sched_cfg = struct();
+
+% Speed scheduling
+sched_cfg.u_cruise_mps = cruise_speed_mps;      % normal open-water preference
+sched_cfg.u_tight_mps  = 1.8;                   % preferred speed in tight geometry
+sched_cfg.u_berth_mps  = 0.45;                  % preferred speed near final berth
+
+sched_cfg.soft_speed_weight_far  = 0.03;
+sched_cfg.soft_speed_weight_near = 0.70;
+
+% Forward lower bound scheduling
+sched_cfg.u_min_forward_far  = u_min_forward;
+sched_cfg.u_min_forward_near = 0.02;
+
+% Tightness from map clearance
+sched_cfg.clearance_lo_m = 45;   % full caution if nearer than this
+sched_cfg.clearance_hi_m = 140;  % no caution if farther than this
+
+% Optional channel width awareness
+sched_cfg.channel_width_lo_m = 70;
+sched_cfg.channel_width_hi_m = 180;
+
+% Stopping-distance awareness
+sched_cfg.brake_eff_mps2 = 0.55;   % effective deceleration for caution logic
+sched_cfg.stop_margin_m  = 25;     % extra margin
+sched_cfg.stop_buffer_m  = 35;     % extra comparison slack
+
+% Turn severity awareness
+sched_cfg.turn_angle_lo_deg = 15;
+sched_cfg.turn_angle_hi_deg = 55;
+sched_cfg.turn_dist_far_m   = 240;
+sched_cfg.turn_dist_near_m  = 60;
+
+% Berth ramp
+sched_cfg.berth_d_activate_m = berth_cfg.activate_dist_m;
+sched_cfg.berth_d_full_m     = 35;
+
+% Weight scheduling
+sched_cfg.xte_weight_far  = path_cost_cfg.W_xte_heavy;
+sched_cfg.xte_weight_near = 18.0;
+
+sched_cfg.tube_far_m  = path_cost_cfg.W_tube_m;
+sched_cfg.tube_near_m = 10.0;
+
+sched_cfg.heading_weight_far   = 0.0;
+sched_cfg.heading_weight_turn  = 12.0;
+sched_cfg.heading_weight_berth = 140.0;
+sched_cfg.heading_weight_return = 18.0;
+
+sched_cfg.stop_u_weight_far   = 0.0;
+sched_cfg.stop_u_weight_berth = 120.0;
+sched_cfg.stop_v_weight_berth = 80.0;
+sched_cfg.stop_r_weight_berth = 80.0;
+
+sched_cfg.term_pos_weight_far   = route_follow_cfg.transit_goal_pos_weight_far;
+sched_cfg.term_pos_weight_berth = 220.0;
+
+% Terminal envelope scheduling near berth
+sched_cfg.term_xy_far_m   = [10; 10];
+sched_cfg.term_xy_near_m  = berth_cfg.pose_eps_xy_m(:);
+sched_cfg.term_psi_far_rad  = deg2rad(12);
+sched_cfg.term_psi_near_rad = deg2rad(berth_cfg.pose_eps_psi_deg);
+
+sched_cfg.term_u_far_mps = 1.2;
+sched_cfg.term_u_near_mps = berth_cfg.vel_max_u_mps;
+sched_cfg.term_v_far_mps = 0.5;
+sched_cfg.term_v_near_mps = berth_cfg.vel_max_v_mps;
+sched_cfg.term_r_far_radps = deg2rad(5);
+sched_cfg.term_r_near_radps = berth_cfg.vel_max_r_radps;
+
+% Berth corridor scheduling
+sched_cfg.corridor_half_width_far_m  = 22;
+sched_cfg.corridor_half_width_near_m = berth_cfg.corridor_half_width_m;
+
+% Blend rule
+sched_cfg.use_max_blend = true;   % if false, use weighted sum below
+sched_cfg.w_tight = 0.45;
+sched_cfg.w_stop  = 0.25;
+sched_cfg.w_turn  = 0.35;
+sched_cfg.w_berth = 0.80;
+
+% DYNAMIC OBSTACLE INTERACTION SCHEDULER
+sched_cfg.T_cpa_far     = 20.0;    % s: near-zero TTC activation at/above this
+sched_cfg.T_cpa_near    = 5.0;     % s: strong TTC activation at/below this
+sched_cfg.d_cpa_th      = 60.0;    % m: CPA threshold for caution
+sched_cfg.v_close_ref   = 3.0;     % m/s: closing rate reference
+sched_cfg.cos_beta_max  = cos(deg2rad(120)); % 120deg forward sector
+sched_cfg.d_dot_ref     = 2.0;     % m/s: separation rate threshold
+sched_cfg.u_yield       = 0.02;    % m/s: crawl speed during yield
+sched_cfg.w_along_min   = 0.10;    % minimal progress reward
+sched_cfg.R_rate_scale_yield = 3.5;% control smoothness multiplier
+sched_cfg.map_barrier_w_base = 0.0;
+sched_cfg.map_barrier_w_near = 18.0;
+sched_cfg.map_soft_margin_m = 18;
+
 
 % PID fallback.
 pid_Kp = 1.8;
@@ -377,6 +473,18 @@ soft_slack_sum_log = nan(1, length(t));
 terminal_pose_slack_max_log = nan(1, length(t));
 az_split_limit_log = nan(1, length(t));
 stern_split_limit_log = nan(1, length(t));
+% Lambda scheduler logs
+lambda_tight_log = nan(1, length(t));
+lambda_stop_log  = nan(1, length(t));
+lambda_turn_log  = nan(1, length(t));
+lambda_berth_log = nan(1, length(t));
+lambda_yield_log = nan(1, length(t));
+lambda_return_log= nan(1, length(t));
+lambda_ttc_log   = nan(1, length(t));
+lambda_total_log = nan(1, length(t));
+u_cap_log        = nan(1, length(t));
+d_edge_log       = nan(1, length(t));
+d_stop_log       = nan(1, length(t));
 traj(:,1) = x;
 steps = 0;
 
@@ -496,155 +604,344 @@ guide_time_log(i) = toc(t_seg);
         end
     end
 
-    obs_dyn = struct('position', {}, 'radius', {}, 'velocity', {});
-    obs_dyn_latent = struct('position', {}, 'radius', {}, 'velocity', {});
+    obs_dyn = struct('position', {}, 'radius', {}, 'speed', {}, 'heading', {});
+    obs_dyn_latent = struct('position', {}, 'radius', {}, 'speed', {}, 'heading', {});
+
     if enable_dynamic_obstacles && ~isempty(dynamic_obstacles)
         obs_dyn = dynamicToCircleObstacles(dynamic_obstacles, dynamic_obs_nmpc_guard_m);
+
         if isfield(dynamic_latent_awareness, 'enabled') && dynamic_latent_awareness.enabled
-            obs_dyn_latent = buildLatentDynamicAwarenessObstacles(dynamic_obstacles, x(4:5), dynamic_latent_awareness);
+            obs_dyn_latent = buildLatentDynamicAwarenessObstacles( ...
+                dynamic_obstacles, x(4:5), dynamic_latent_awareness);
         end
-        for kk = 1:length(obs_dyn)
-            if isfield(dynamic_obstacles(kk), 'speed') && isfield(dynamic_obstacles(kk), 'heading')
-                obs_dyn(kk).velocity = dynamic_obstacles(kk).speed * ...
-                    [cos(dynamic_obstacles(kk).heading); sin(dynamic_obstacles(kk).heading)];
-            else
-                obs_dyn(kk).velocity = [0; 0];
-            end
-        end
-        for kk = 1:length(obs_dyn_latent)
-            obs_dyn_latent(kk).velocity = [0; 0];
-        end
+
+        % Force same field schema and row shape before concatenation
+        obs_local      = normalizeObstacleSchema(obs_local);
+        obs_dyn_latent = normalizeObstacleSchema(obs_dyn_latent);
+        obs_dyn        = normalizeObstacleSchema(obs_dyn);
+
         obs_local = [obs_local, obs_dyn_latent, obs_dyn];
         obs_pack_drift_log(i) = computeDynamicPackagingDrift(dynamic_obstacles, obs_local);
     end
-    obs_time_log(i) = toc(t_seg);
+
+obs_time_log(i) = toc(t_seg);
+
 % 4) Solve options: segment cost + tube cost + endpoint pull + optional berth mode
 t_seg = tic;
 solve_opts = struct();
+
 solve_opts.state_weights_diag = diag(nmpc_cfg.Q);
 solve_opts.input_weights_diag = diag(nmpc_cfg.R);
-solve_opts.rate_weights_diag = diag(nmpc_cfg.R_rate);
-solve_opts.stage_state_cost_scale = 1.0;
-solve_opts.stage_input_tracking_scale = 1.0;
-solve_opts.terminal_cost_scale = 1.0;
-solve_opts.terminal_actuator_cost_scale = 1.0;
-solve_opts.terminal_forward_cost_scale = 1.0;
+solve_opts.rate_weights_diag  = diag(nmpc_cfg.R_rate);
+
+solve_opts.stage_state_cost_scale         = 1.0;
+solve_opts.stage_input_tracking_scale     = 1.0;
+solve_opts.terminal_cost_scale            = 1.0;
+solve_opts.terminal_actuator_cost_scale   = 1.0;
+solve_opts.terminal_forward_cost_scale    = 1.0;
+
 solve_opts.collision_clearance_m = hull_cfg.nmpc_clearance_m;
-solve_opts.path_xte_weight = path_cost_cfg.W_xte_heavy;
-solve_opts.path_along_weight = path_cost_cfg.W_along;
-solve_opts.path_tube_half_width_m = path_cost_cfg.W_tube_m;
+solve_opts.path_xte_weight       = path_cost_cfg.W_xte_heavy;
+solve_opts.path_along_weight     = path_cost_cfg.W_along;
+solve_opts.path_tube_half_width_m= path_cost_cfg.W_tube_m;
 solve_opts.soft_speed_cap_weight = path_cost_cfg.soft_speed_cap_weight;
-solve_opts.soft_speed_cap_mps = path_cost_cfg.soft_speed_cap_mps;
+solve_opts.soft_speed_cap_mps    = path_cost_cfg.soft_speed_cap_mps;
+
 solve_opts.goal_heading_enable = goal_heading_enable;
-solve_opts.goal_heading_rad = goal_heading_rad;
-solve_opts.is_final_waypoint = on_final_waypoint;
+solve_opts.goal_heading_rad    = goal_heading_rad;
+solve_opts.is_final_waypoint   = on_final_waypoint;
+
 solve_opts.enable_soft_obstacles = soft_obstacle_cfg.enabled;
-solve_opts.soft_obs_max_m = soft_obstacle_cfg.max_slack_m;
-solve_opts.map_halfplanes = map_halfplanes;
+solve_opts.soft_obs_max_m        = soft_obstacle_cfg.max_slack_m;
+solve_opts.map_halfplanes        = map_halfplanes;
 
-d_to_active_end = norm(x(4:5) - wp_end_xy);
-turn_angle_deg = getWaypointTurnAngleDeg(waypoints, seg_start_idx);
+% Safe defaults for optional scheduled fields
+solve_opts.terminal_goal_pos_weight     = terminal_goal_cfg.pos_weight;
+solve_opts.terminal_goal_heading_weight = terminal_goal_cfg.heading_weight;
+solve_opts.terminal_stop_u_weight       = terminal_goal_cfg.stop_u_weight;
+solve_opts.terminal_stop_v_weight       = terminal_goal_cfg.stop_v_weight;
+solve_opts.terminal_stop_r_weight       = terminal_goal_cfg.stop_r_weight;
 
-if (~berth_mode_active) && ((d_to_active_end < route_follow_cfg.tighten_near_gate_dist_m) || ...
-        (turn_angle_deg >= route_follow_cfg.sharp_turn_deg))
-    solve_opts.path_tube_half_width_m = min(solve_opts.path_tube_half_width_m, ...
-        route_follow_cfg.tighten_tube_m);
-    solve_opts.path_xte_weight = max(solve_opts.path_xte_weight, ...
-        route_follow_cfg.tighten_xte_weight);
+solve_opts.enable_terminal_pose   = false;
+solve_opts.term_pose_eps_xy_m     = terminal_goal_cfg.term_pose_eps_xy_m(:);
+solve_opts.term_pose_eps_psi_rad  = deg2rad(terminal_goal_cfg.term_pose_eps_psi_deg);
+solve_opts.term_vel_max_u_mps     = terminal_goal_cfg.term_vel_max_u_mps;
+solve_opts.term_vel_max_v_mps     = terminal_goal_cfg.term_vel_max_v_mps;
+solve_opts.term_vel_max_r_radps   = terminal_goal_cfg.term_vel_max_r_radps;
+solve_opts.term_pose_slack_max    = terminal_goal_cfg.term_pose_slack_max;
+
+solve_opts.enable_berth_corridor = false;
+if isfield(berth_cfg, 'corridor_origin_xy') && ~isempty(berth_cfg.corridor_origin_xy)
+    solve_opts.berth_corridor_origin_xy = berth_cfg.corridor_origin_xy(:);
+else
+    solve_opts.berth_corridor_origin_xy = [0; 0];
+end
+if isfield(berth_cfg, 'corridor_heading_deg') && ~isempty(berth_cfg.corridor_heading_deg)
+    solve_opts.berth_corridor_heading_rad = deg2rad(berth_cfg.corridor_heading_deg);
+else
+    solve_opts.berth_corridor_heading_rad = 0;
+end
+if isfield(berth_cfg, 'corridor_half_width_m') && ~isempty(berth_cfg.corridor_half_width_m)
+    solve_opts.berth_corridor_half_width_m = berth_cfg.corridor_half_width_m;
+else
+    solve_opts.berth_corridor_half_width_m = inf;
+end
+if isfield(berth_cfg, 'corridor_along_min_m') && ~isempty(berth_cfg.corridor_along_min_m)
+    solve_opts.berth_corridor_along_min_m = berth_cfg.corridor_along_min_m;
+else
+    solve_opts.berth_corridor_along_min_m = -inf;
+end
+if isfield(berth_cfg, 'corridor_along_max_m') && ~isempty(berth_cfg.corridor_along_max_m)
+    solve_opts.berth_corridor_along_max_m = berth_cfg.corridor_along_max_m;
+else
+    solve_opts.berth_corridor_along_max_m = inf;
 end
 
-if berth_mode_active
-    solve_opts.goal_heading_enable = true;
-    solve_opts.goal_heading_rad = deg2rad(berth_cfg.heading_deg);
-    solve_opts.terminal_goal_pos_weight = 220.0;
-    solve_opts.terminal_goal_heading_weight = 140.0;
-    solve_opts.terminal_stop_u_weight = 120.0;
-    solve_opts.terminal_stop_v_weight = 80.0;
-    solve_opts.terminal_stop_r_weight = 80.0;
+solve_opts.R_rate_scale_obs  = 1.0;
+solve_opts.map_barrier_weight = sched_cfg.map_barrier_w_base;
+solve_opts.u_min_forward      = nmpc_cfg.u_min_forward;
 
-    solve_opts.enable_terminal_pose = true;
-    solve_opts.term_pose_eps_xy_m = berth_cfg.pose_eps_xy_m;
-    solve_opts.term_pose_eps_psi_rad = deg2rad(berth_cfg.pose_eps_psi_deg);
-    solve_opts.term_vel_max_u_mps = berth_cfg.vel_max_u_mps;
-    solve_opts.term_vel_max_v_mps = berth_cfg.vel_max_v_mps;
-    solve_opts.term_vel_max_r_radps = berth_cfg.vel_max_r_radps;
-    solve_opts.term_pose_slack_max = berth_cfg.pose_slack_max;
+solve_opts.n3_max              = 0;
+solve_opts.max_azimuth_split   = azipod_sync_cfg.transit_alpha_split_rad;
+solve_opts.max_stern_cmd_split = azipod_sync_cfg.transit_stern_split_rpm;
 
-    solve_opts.enable_berth_corridor = berth_cfg.use_corridor;
-    solve_opts.berth_corridor_origin_xy = berth_cfg.corridor_origin_xy(:);
-    solve_opts.berth_corridor_heading_rad = deg2rad(berth_cfg.corridor_heading_deg);
-    solve_opts.berth_corridor_half_width_m = berth_cfg.corridor_half_width_m;
-    solve_opts.berth_corridor_along_min_m = berth_cfg.corridor_along_min_m;
-    solve_opts.berth_corridor_along_max_m = berth_cfg.corridor_along_max_m;
+solve_opts.map_soft_margin_m = sched_cfg.map_soft_margin_m;
 
-    solve_opts.n3_max = berth_cfg.n3_max;
-    solve_opts.max_azimuth_split = berth_cfg.max_azimuth_split_rad;
-    solve_opts.max_stern_cmd_split = berth_cfg.max_stern_cmd_split_rpm;
-    desired_u_min_forward = berth_cfg.u_min_final_mps;
+% CONTINUOUS GEOMETRY-AWARE SCHEDULER
+U_now = sqrt(x(1)^2 + x(2)^2);
+U_ship_world = [cos(x(6))*x(1) - sin(x(6))*x(2); sin(x(6))*x(1) + cos(x(6))*x(2)];
+d_to_active_end = norm(x(4:5) - wp_end_xy);
 
-elseif on_final_waypoint
-    solve_opts.terminal_goal_pos_weight = terminal_goal_cfg.pos_weight;
-    solve_opts.terminal_goal_heading_weight = terminal_goal_cfg.heading_weight * double(goal_heading_enable);
-    solve_opts.terminal_stop_u_weight = terminal_goal_cfg.stop_u_weight;
-    solve_opts.terminal_stop_v_weight = terminal_goal_cfg.stop_v_weight;
-    solve_opts.terminal_stop_r_weight = terminal_goal_cfg.stop_r_weight;
-    solve_opts.enable_terminal_pose = true;
-    solve_opts.term_pose_eps_xy_m = terminal_goal_cfg.term_pose_eps_xy_m;
-    if goal_heading_enable
-        solve_opts.term_pose_eps_psi_rad = deg2rad(terminal_goal_cfg.term_pose_eps_psi_deg);
-    else
-        solve_opts.term_pose_eps_psi_rad = pi;
-    end
-    solve_opts.term_vel_max_u_mps = terminal_goal_cfg.term_vel_max_u_mps;
-    solve_opts.term_vel_max_v_mps = terminal_goal_cfg.term_vel_max_v_mps;
-    solve_opts.term_vel_max_r_radps = terminal_goal_cfg.term_vel_max_r_radps;
-    solve_opts.term_pose_slack_max = terminal_goal_cfg.term_pose_slack_max;
-    solve_opts.enable_berth_corridor = false;
-    solve_opts.n3_max = nmpc.n_bow_max;
-    solve_opts.max_azimuth_split = azipod_sync_cfg.final_alpha_split_rad;
-    solve_opts.max_stern_cmd_split = azipod_sync_cfg.final_stern_split_rpm;
-    desired_u_min_forward = u_min_final_reverse_mps;
 
+% --- 1) Clearance-aware tightness ------------------------------------
+d_edge_now = inf;
+if enable_map_obstacles && ~isempty(map_edge_set)
+    d_edge_now = nearestDistanceToMapEdges(x(4:5), map_edge_set);
+end
+lambda_clearance = revRamp01(d_edge_now, sched_cfg.clearance_lo_m, sched_cfg.clearance_hi_m);
+lambda_channel   = revRamp01(2.0*d_edge_now, sched_cfg.channel_width_lo_m, sched_cfg.channel_width_hi_m);
+lambda_tight = max(lambda_clearance, lambda_channel);
+
+% --- 2) Stopping-distance awareness ----------------------------------
+a_eff = max(0.05, sched_cfg.brake_eff_mps2);
+d_stop = U_now^2 / (2 * a_eff) + sched_cfg.stop_margin_m;
+d_stop_log(i) = d_stop;
+d_free_candidates = []; d_free_candidates(end+1) = max(0, d_to_active_end);
+if berth_cfg.enabled
+    d_entry = distanceToBerthCorridorEntry(x(4:5), berth_cfg);
+    d_endcorr = distanceToBerthCorridorEnd(x(4:5), berth_cfg);
+    if isfinite(d_entry),   d_free_candidates(end+1) = max(0, d_entry);   end
+    if isfinite(d_endcorr), d_free_candidates(end+1) = max(0, d_endcorr); end
+end
+if isfinite(d_edge_now), d_free_candidates(end+1) = max(0, d_edge_now); end
+d_free_ref = min(d_free_candidates);
+lambda_stop = revRamp01(d_free_ref - d_stop, 0, sched_cfg.stop_buffer_m);
+
+% --- 3) Turn severity awareness --------------------------------------
+turn_next_deg = getNextTurnAngleDeg(waypoints, seg_start_idx);
+lambda_turn_angle = ramp01(turn_next_deg, sched_cfg.turn_angle_lo_deg, sched_cfg.turn_angle_hi_deg);
+lambda_turn_dist  = revRamp01(d_to_active_end, sched_cfg.turn_dist_near_m, sched_cfg.turn_dist_far_m);
+lambda_turn = lambda_turn_angle * lambda_turn_dist;
+
+% --- 4) Continuous berth activation ----------------------------------
+if berth_cfg.enabled
+    d_berth = norm(x(4:5) - berth_cfg.target_xy(:));
+    lambda_berth = revRamp01(d_berth, sched_cfg.berth_d_full_m, sched_cfg.berth_d_activate_m);
 else
-    if d_to_active_end < route_follow_cfg.transit_goal_dist_near_m
+    lambda_berth = 0;
+end
+
+% --- 5) Dynamic Obstacle TTC / Yield / Return Lambdas ----------------
+lambda_ttc   = 0;
+lambda_yield = 0;
+lambda_return= 0;
+small_eps = 1e-6;
+
+if enable_dynamic_obstacles && ~isempty(obs_dyn)
+    for j = 1:length(obs_dyn)
+        r      = obs_dyn(j).position(:) - x(4:5);
+        v_obs  = obs_dyn(j).speed * [cos(obs_dyn(j).heading); sin(obs_dyn(j).heading)];
+        v_rel  = v_obs - U_ship_world;
+        d_rel  = norm(r) + eps;
+        d_dot  = (r' * v_rel) / d_rel;
+        v_close= max(0, -d_dot);
+        
+        % CPA
+        v_rel_sq = max(v_rel'*v_rel, eps);
+        t_cpa    = max(0, -(r'*v_rel) / v_rel_sq);
+        d_cpa    = norm(r + t_cpa * v_rel);
+        
+        % Sector filter (cosine of relative bearing)
+        cos_beta = (r'*[cos(x(6)); sin(x(6))]) / d_rel;
+        lam_sec  = sat01((cos_beta - sched_cfg.cos_beta_max) / (1 - sched_cfg.cos_beta_max + eps));
+        
+        % Base TTC activation (exact math from prompt)
+        l_ttc = sat01((sched_cfg.T_cpa_far - t_cpa)/(sched_cfg.T_cpa_far - sched_cfg.T_cpa_near + eps)) * ...
+                sat01((sched_cfg.d_cpa_th - d_cpa)/(sched_cfg.d_cpa_th + eps)) * ...
+                sat01(v_close / (sched_cfg.v_close_ref + eps));
+        
+        lambda_ttc   = max(lambda_ttc, l_ttc * lam_sec);
+        lambda_yield = max(lambda_yield, l_ttc * lam_sec * sat01((-d_dot) / (sched_cfg.d_dot_ref + eps)));
+        l_return = sat01((sched_cfg.d_cpa_th - d_cpa) / (sched_cfg.d_cpa_th + small_eps)) * sat01(d_dot / (sched_cfg.d_dot_ref + small_eps));
+        lambda_return = max(lambda_return, l_return * lam_sec);
+
+    end
+end
+
+
+% --- 6) Master caution blend -----------------------------------------
+lambda_total = max([lambda_tight, lambda_stop, lambda_turn, lambda_berth, lambda_yield]);
+
+% APPLY CONTINUOUS SCHEDULING TO NMPC SOLVE OPTIONS
+% Speed shaping (geom + dynamic yield)
+U_cap_tight = lerp(sched_cfg.u_cruise_mps, sched_cfg.u_tight_mps, lambda_tight);
+U_cap_stop  = lerp(sched_cfg.u_cruise_mps, sched_cfg.u_tight_mps, lambda_stop);
+U_cap_turn  = lerp(sched_cfg.u_cruise_mps, max(1.2, sched_cfg.u_tight_mps), lambda_turn);
+U_cap_berth = lerp(sched_cfg.u_cruise_mps, sched_cfg.u_berth_mps, lambda_berth);
+U_cap_dyn   = lerp(sched_cfg.u_cruise_mps, sched_cfg.u_yield, lambda_yield);
+solve_opts.soft_speed_cap_mps = min([U_cap_tight, U_cap_stop, U_cap_turn, U_cap_berth, U_cap_dyn]);
+solve_opts.soft_speed_cap_weight = lerp(sched_cfg.soft_speed_weight_far, sched_cfg.soft_speed_weight_near, lambda_total);
+
+% Along-track reward scheduling (yield reduces progress urgency)
+solve_opts.path_along_weight = lerp(path_cost_cfg.W_along, sched_cfg.w_along_min, lambda_yield);
+
+% Tube & XTE scheduling (return tightens path after CPA)
+geom_caution = max([lambda_tight, lambda_turn, lambda_berth]);
+lambda_path_return = max(geom_caution, lambda_return);
+
+solve_opts.path_tube_half_width_m = ...
+    lerp(sched_cfg.tube_far_m, sched_cfg.tube_near_m, lambda_path_return);
+
+solve_opts.path_xte_weight = ...
+    lerp(sched_cfg.xte_weight_far, sched_cfg.xte_weight_near, lambda_path_return);
+
+solve_opts.path_heading_weight = max([ ...
+    0.35 * lambda_turn  * sched_cfg.heading_weight_turn, ...
+    0.10 * lambda_berth * sched_cfg.heading_weight_berth, ...
+    lambda_return       * sched_cfg.heading_weight_return]);
+
+
+% ROUTE-ORDER RESTORE / GATE TIGHTENING
+if lambda_berth < 0.05
+    if d_to_active_end <= route_follow_cfg.transit_goal_dist_near_m
         transit_goal_w = route_follow_cfg.transit_goal_pos_weight_near;
-    elseif d_to_active_end < route_follow_cfg.transit_goal_dist_mid_m
+    elseif d_to_active_end <= route_follow_cfg.transit_goal_dist_mid_m
         transit_goal_w = route_follow_cfg.transit_goal_pos_weight_mid;
     else
         transit_goal_w = route_follow_cfg.transit_goal_pos_weight_far;
     end
 
-    if turn_angle_deg >= route_follow_cfg.sharp_turn_deg
-        transit_goal_w = route_follow_cfg.sharp_turn_goal_weight_gain * transit_goal_w;
-    end
-    if berth_preview_active
-        transit_goal_w = berth_cfg.preview_goal_weight_gain * transit_goal_w;
-    end
+    near_gate_lam = revRamp01(d_to_active_end, 40, route_follow_cfg.tighten_near_gate_dist_m);
 
-    solve_opts.enable_terminal_pose = false;
-    solve_opts.enable_berth_corridor = false;
-    solve_opts.terminal_goal_pos_weight = transit_goal_w;
-    solve_opts.terminal_goal_heading_weight = 0.0;
-    solve_opts.terminal_stop_u_weight = 0.0;
-    solve_opts.terminal_stop_v_weight = 0.0;
-    solve_opts.terminal_stop_r_weight = 0.0;
+    solve_opts.path_tube_half_width_m = min( ...
+        solve_opts.path_tube_half_width_m, ...
+        lerp(path_cost_cfg.W_tube_m, route_follow_cfg.tighten_tube_m, near_gate_lam));
 
-    if berth_preview_active
-        solve_opts.goal_heading_enable = true;
-        solve_opts.goal_heading_rad = deg2rad(berth_cfg.heading_deg);
-        solve_opts.terminal_goal_heading_weight = berth_cfg.preview_heading_weight;
-    elseif (turn_angle_deg >= route_follow_cfg.sharp_turn_deg) && ...
-           (d_to_active_end <= route_follow_cfg.sharp_turn_heading_enable_dist_m)
-        solve_opts.goal_heading_enable = true;
-        solve_opts.goal_heading_rad = chi_seg;
-        solve_opts.terminal_goal_heading_weight = route_follow_cfg.sharp_turn_heading_weight;
+    solve_opts.path_xte_weight = max( ...
+        solve_opts.path_xte_weight, ...
+        lerp(path_cost_cfg.W_xte_heavy, route_follow_cfg.tighten_xte_weight, near_gate_lam));
+
+    solve_opts.terminal_goal_pos_weight = max( ...
+        solve_opts.terminal_goal_pos_weight, transit_goal_w);
+
+    if turn_next_deg >= route_follow_cfg.sharp_turn_deg
+        sharp_turn_lam = revRamp01(d_to_active_end, 40, route_follow_cfg.sharp_turn_heading_enable_dist_m);
+
+        solve_opts.path_heading_weight = max( ...
+            solve_opts.path_heading_weight, ...
+            sharp_turn_lam * route_follow_cfg.sharp_turn_heading_weight);
+
+        solve_opts.terminal_goal_pos_weight = max( ...
+            solve_opts.terminal_goal_pos_weight, ...
+            transit_goal_w * lerp(1.0, route_follow_cfg.sharp_turn_goal_weight_gain, sharp_turn_lam));
     end
+end
 
+% Surge lower bound scheduling (yield allows near-stop)
+desired_u_min_forward = lerp(sched_cfg.u_min_forward_far, sched_cfg.u_yield, lambda_yield);
+solve_opts.u_min_forward = desired_u_min_forward;
+
+% Heading & stop scheduling (bert   h/turn vs return)
+solve_opts.terminal_goal_heading_weight = max(lambda_turn * sched_cfg.heading_weight_turn, ...
+    lambda_berth * sched_cfg.heading_weight_berth) + lambda_return * 15.0;
+
+if lambda_berth >= max(0.20, lambda_turn)
+    solve_opts.goal_heading_enable = true; solve_opts.goal_heading_rad = deg2rad(berth_cfg.heading_deg);
+elseif lambda_turn > 0.05 || lambda_return > 0.1
+    solve_opts.goal_heading_enable = true; solve_opts.goal_heading_rad = chi_seg;
+else
+    solve_opts.goal_heading_enable = false;
+end
+
+solve_opts.terminal_goal_pos_weight = lerp(sched_cfg.term_pos_weight_far, sched_cfg.term_pos_weight_berth, lambda_berth);
+solve_opts.terminal_stop_u_weight = lerp(sched_cfg.stop_u_weight_far, sched_cfg.stop_u_weight_berth, lambda_berth);
+solve_opts.terminal_stop_v_weight = lerp(0.0, sched_cfg.stop_v_weight_berth, lambda_berth);
+solve_opts.terminal_stop_r_weight = lerp(0.0, sched_cfg.stop_r_weight_berth, lambda_berth);
+
+% EARLY BERTH PREVIEW
+if berth_preview_active && ~berth_mode_active
+    solve_opts.goal_heading_enable = true;
+    solve_opts.goal_heading_rad = deg2rad(berth_cfg.heading_deg);
+
+    solve_opts.terminal_goal_heading_weight = max( ...
+        solve_opts.terminal_goal_heading_weight, ...
+        berth_cfg.preview_heading_weight);
+
+    solve_opts.terminal_goal_pos_weight = max( ...
+        solve_opts.terminal_goal_pos_weight, ...
+        berth_cfg.preview_goal_weight_gain * solve_opts.terminal_goal_pos_weight);
+end
+
+% Terminal envelope
+if berth_cfg.enabled && (lambda_berth > 0.05)
+    solve_opts.enable_terminal_pose = true;
+    solve_opts.term_pose_eps_xy_m = lerp(sched_cfg.term_xy_far_m, sched_cfg.term_xy_near_m, lambda_berth);
+    solve_opts.term_pose_eps_psi_rad = lerp(sched_cfg.term_psi_far_rad, sched_cfg.term_psi_near_rad, lambda_berth);
+    solve_opts.term_vel_max_u_mps = lerp(sched_cfg.term_u_far_mps, sched_cfg.term_u_near_mps, lambda_berth);
+    solve_opts.term_vel_max_v_mps = lerp(sched_cfg.term_v_far_mps, sched_cfg.term_v_near_mps, lambda_berth);
+    solve_opts.term_vel_max_r_radps = lerp(sched_cfg.term_r_far_radps, sched_cfg.term_r_near_radps, lambda_berth);
+    solve_opts.term_pose_slack_max = lerp(2.0, berth_cfg.pose_slack_max, lambda_berth);
+end
+
+% Map corridor & relevance
+if berth_cfg.enabled && berth_cfg.use_corridor && (lambda_berth > 0.10)
+    solve_opts.enable_berth_corridor = true;
+    solve_opts.berth_corridor_origin_xy = berth_cfg.corridor_origin_xy(:);
+    solve_opts.berth_corridor_heading_rad = deg2rad(berth_cfg.corridor_heading_deg);
+    solve_opts.berth_corridor_half_width_m = lerp(sched_cfg.corridor_half_width_far_m, sched_cfg.corridor_half_width_near_m, lambda_berth);
+    solve_opts.berth_corridor_along_min_m = berth_cfg.corridor_along_min_m;
+    solve_opts.berth_corridor_along_max_m = berth_cfg.corridor_along_max_m;
+end
+
+% Smoothness scaling (yield penalizes jerky avoidance arcs)
+solve_opts.R_rate_scale_obs = 1.0 + lambda_yield * (sched_cfg.R_rate_scale_yield - 1.0);
+
+% Soft map barrier weight (tight + return phases)
+solve_opts.map_barrier_weight = sched_cfg.map_barrier_w_base + ...
+    max(lambda_tight, lambda_return) * (sched_cfg.map_barrier_w_near - sched_cfg.map_barrier_w_base);
+
+% Hard structural limits only
+if berth_mode_active
+    solve_opts.n3_max = berth_cfg.n3_max;
+    solve_opts.max_azimuth_split = berth_cfg.max_azimuth_split_rad;
+    solve_opts.max_stern_cmd_split = berth_cfg.max_stern_cmd_split_rpm;
+    desired_u_min_forward = min(desired_u_min_forward, berth_cfg.u_min_final_mps);
+else
     solve_opts.n3_max = 0;
     solve_opts.max_azimuth_split = azipod_sync_cfg.transit_alpha_split_rad;
     solve_opts.max_stern_cmd_split = azipod_sync_cfg.transit_stern_split_rpm;
-    desired_u_min_forward = u_min_forward;
 end
+
+solve_opts.u_min_forward = desired_u_min_forward;
+
+if on_final_waypoint, solve_opts.enable_terminal_pose = true; end
+
+% Update logs
+lambda_tight_log(i) = lambda_tight; lambda_stop_log(i) = lambda_stop;
+lambda_turn_log(i)  = lambda_turn;  lambda_berth_log(i)= lambda_berth;
+lambda_total_log(i) = lambda_total; lambda_yield_log(i)= lambda_yield;
+lambda_return_log(i)= lambda_return; lambda_ttc_log(i)  = lambda_ttc;
+u_cap_log(i)        = solve_opts.soft_speed_cap_mps; d_edge_log(i) = d_edge_now;
 az_split_limit_log(i) = solve_opts.max_azimuth_split;
 stern_split_limit_log(i) = solve_opts.max_stern_cmd_split;
 ref_time_log(i) = toc(t_seg);
@@ -803,6 +1100,18 @@ t_sim    = (0:steps) * dt;
 X_pred_hist = X_pred_hist(1:steps);
 step_time_log   = step_time_log(1:steps);
 guide_time_log  = guide_time_log(1:steps);
+obs_time_log = obs_time_log(1:steps);
+lambda_tight_log = lambda_tight_log(1:steps);
+lambda_stop_log  = lambda_stop_log(1:steps);
+lambda_turn_log  = lambda_turn_log(1:steps);
+lambda_berth_log = lambda_berth_log(1:steps);
+lambda_yield_log = lambda_yield_log(1:steps);
+lambda_return_log= lambda_return_log(1:steps);
+lambda_ttc_log   = lambda_ttc_log(1:steps);
+lambda_total_log = lambda_total_log(1:steps);
+u_cap_log        = u_cap_log(1:steps);
+d_edge_log       = d_edge_log(1:steps);
+d_stop_log       = d_stop_log(1:steps);
 obs_time_log    = obs_time_log(1:steps);
 ref_time_log    = ref_time_log(1:steps);
 solve_call_log  = solve_call_log(1:steps);
@@ -1589,11 +1898,17 @@ end
 
 
 function obs_dyn = dynamicToCircleObstacles(dynamic_obstacles, radius_guard_m)
-% Convert active dynamic obstacle states to NMPC-compatible circle obstacles
-    obs_dyn = struct('position', {}, 'radius', {});
+% Convert active dynamic obstacle states to NMPC-compatible circle obstacles.
+% Carries speed & heading for scheduler/container use.
+
+    obs_dyn = struct('position', {}, 'radius', {}, 'speed', {}, 'heading', {});
+
     if isempty(dynamic_obstacles)
         return;
     end
+
+    dynamic_obstacles = dynamic_obstacles(:).';   % force row orientation
+
     if nargin < 2 || isempty(radius_guard_m)
         radius_guard_m = 0;
     end
@@ -1601,15 +1916,35 @@ function obs_dyn = dynamicToCircleObstacles(dynamic_obstacles, radius_guard_m)
     out_idx = 0;
     for k = 1:length(dynamic_obstacles)
         is_enabled = isfield(dynamic_obstacles(k), 'enabled') && dynamic_obstacles(k).enabled;
-        is_active = isfield(dynamic_obstacles(k), 'active') && dynamic_obstacles(k).active;
+        is_active  = isfield(dynamic_obstacles(k), 'active')  && dynamic_obstacles(k).active;
         if ~(is_enabled && is_active)
             continue;
         end
+
+        if isfield(dynamic_obstacles(k), 'moving') && ~dynamic_obstacles(k).moving
+            continue;
+        end
+
         out_idx = out_idx + 1;
-        obs_dyn(out_idx).position = dynamic_obstacles(k).position(1:2);
-        obs_dyn(out_idx).radius = dynamic_obstacles(k).radius + radius_guard_m;
+
+        pos_k = dynamic_obstacles(k).position(1:2);
+        obs_dyn(out_idx).position = pos_k(:);
+        obs_dyn(out_idx).radius   = dynamic_obstacles(k).radius + radius_guard_m;
+
+        if isfield(dynamic_obstacles(k), 'speed') && ~isempty(dynamic_obstacles(k).speed)
+            obs_dyn(out_idx).speed = dynamic_obstacles(k).speed;
+        else
+            obs_dyn(out_idx).speed = 0;
+        end
+
+        if isfield(dynamic_obstacles(k), 'heading') && ~isempty(dynamic_obstacles(k).heading)
+            obs_dyn(out_idx).heading = dynamic_obstacles(k).heading;
+        else
+            obs_dyn(out_idx).heading = 0;
+        end
     end
 end
+
 
 
 
@@ -2108,7 +2443,7 @@ function obs_struct = normalizeStaticObstacles(obs_in)
     end
 
     if isstruct(obs_in)
-        obs_struct = obs_in;
+        obs_struct = obs_in(:).';
         return;
     end
 
@@ -2127,4 +2462,83 @@ function obs_struct = normalizeStaticObstacles(obs_in)
     end
 
     error('static_obstacles must be either N-by-3 numeric or struct array.');
+end
+
+
+
+function y = sat01(x)
+    y = max(0, min(1, x));
+end
+
+function y = ramp01(x, x0, x1)
+    if x1 <= x0, y = double(x >= x1);
+    else, y = sat01((x - x0) / (x1 - x0)); end
+end
+
+function y = revRamp01(x, x_lo, x_hi)
+    if x_hi <= x_lo, y = double(x <= x_lo);
+    else, y = sat01((x_hi - x) / (x_hi - x_lo)); end
+end
+
+function y = lerp(a, b, lam)
+    y = (1 - lam) * a + lam * b;
+end
+
+function ang_deg = wrapTo180Deg(ang_deg)
+    ang_deg = mod(ang_deg + 180, 360) - 180;
+end
+
+function d = distanceToBerthCorridorEnd(pos_xy, berth_cfg)
+    if ~isfield(berth_cfg, 'corridor_origin_xy') || isempty(berth_cfg.corridor_origin_xy)
+        d = inf; return; end
+    p = pos_xy(:) - berth_cfg.corridor_origin_xy(:);
+    psi = deg2rad(berth_cfg.corridor_heading_deg); t_hat = [cos(psi); sin(psi)];
+    d = berth_cfg.corridor_along_max_m - dot(p, t_hat);
+end
+
+function d = distanceToBerthCorridorEntry(pos_xy, berth_cfg)
+    if ~isfield(berth_cfg, 'corridor_origin_xy') || isempty(berth_cfg.corridor_origin_xy)
+        d = inf; return; end
+    p = pos_xy(:) - berth_cfg.corridor_origin_xy(:);
+    psi = deg2rad(berth_cfg.corridor_heading_deg); t_hat = [cos(psi); sin(psi)];
+    d = dot(p, t_hat) - berth_cfg.corridor_along_min_m;
+end
+
+function turn_deg = getNextTurnAngleDeg(waypoints, seg_start_idx)
+    n_wps = size(waypoints,1);
+    if seg_start_idx < 1 || seg_start_idx+2 > n_wps, turn_deg = 0; return; end
+    v1 = waypoints(seg_start_idx+1,:)' - waypoints(seg_start_idx,:)';
+    v2 = waypoints(seg_start_idx+2,:)' - waypoints(seg_start_idx+1,:)';
+    if norm(v1)<1e-9 || norm(v2)<1e-9, turn_deg = 0; return; end
+    turn_deg = abs(wrapTo180Deg(rad2deg(atan2(v2(2),v2(1)) - atan2(v1(2),v1(1)))));
+end
+
+function obs_out = normalizeObstacleSchema(obs_in)
+% Force common obstacle schema and row orientation before concatenation.
+    obs_out = struct('position', {}, 'radius', {}, 'speed', {}, 'heading', {});
+    if isempty(obs_in)
+        return;
+    end
+
+    obs_in = obs_in(:).';   % always row-shaped
+    n = numel(obs_in);
+
+    obs_out = repmat(struct('position', [0;0], 'radius', 0, ...
+                            'speed', 0, 'heading', 0), 1, n);
+
+    for k = 1:n
+        if ~isfield(obs_in(k), 'position') || ~isfield(obs_in(k), 'radius')
+            error('Obstacle schema must contain at least position and radius.');
+        end
+
+        obs_out(k).position = obs_in(k).position(:);
+        obs_out(k).radius   = obs_in(k).radius;
+
+        if isfield(obs_in(k), 'speed') && ~isempty(obs_in(k).speed)
+            obs_out(k).speed = obs_in(k).speed;
+        end
+        if isfield(obs_in(k), 'heading') && ~isempty(obs_in(k).heading)
+            obs_out(k).heading = obs_in(k).heading;
+        end
+    end
 end

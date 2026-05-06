@@ -600,7 +600,7 @@ Together, they move the method from "safe waypoint tracking" toward a more rigor
 
 ## Pre-May / Post-May implementation history and rationale (referring to "revolution" branch)
 
-Note: the following is a consolidated, English translation of development notes and observations. It explains why many outer-loop heuristics were first added and why the project subsequently consolidated behavior into a cleaner NMPC-centric formulation.
+Note: the following is a consolidated, English translation of development notes and observations. It explains why many outer-loop heuristics were first added and why the project subsequently consolidated behavior into a cleaner NMPC-centric formulation. Early versions relied on heuristic outer guidance to shape heading and speed references.This improved behavior, but it blurred the responsibility split between guidance and control. The final architecture moved most motion generation into the NMPC, leaving only waypoint progression and mode selection outside. This exposed missing elements in the MPC formulation, especially for intermediate waypoint commitment and final berthing geometry. These were then addressed with a waypoint handoff manager, terminal endpoint attraction, and a dedicated berthing mode.
 
 What I verified (summary)
 
@@ -632,11 +632,9 @@ Why this migration was done (computational trade-off)
 
 - Moving decisions into NMPC increased compute time substantially. During development pre-computation and outer heuristics were considered to reduce runtime; however those external fixes often conflicted with each other and were only optimal for narrow test cases. Iterative tests showed the heuristics primarily signalled which costs/constraints the NMPC formulation lacked. Consequently the decision was to formulate those behaviors (more fully) inside NMPC and accept the increased solver cost while applying solver-level optimizations (warm starts, bounded obstacle slots, relaxed tolerances).
 
-Opinion about the change (short)
+- Core components were preserved. The one-by-one fixes were not wasted; they diagnosed requirements. The key change is where the intelligence lives: less in `run_nmpc`, more inside the NMPC problem (costs, constraints, terminal conditions).
 
-- Yes — mostly yes. Core components were preserved. The one-by-one fixes were not wasted; they diagnosed requirements. The key change is where the intelligence lives: less in `run_nmpc`, more inside the NMPC problem (costs, constraints, terminal conditions).
-
-What stayed good and was kept in spirit
+What stayed good and was kept in spirit:
 
 - Ship model and actuator physics
 - Obstacle handling and map / half-plane safety
@@ -681,5 +679,372 @@ What you can see in the current implementation
 
 - A pure line+tube NMPC pipeline: segment selection, tube cost, soft cruise cap, terminal cost, hull-aware collision handling, CBF obstacle constraints, and diagnostics for slack/phase/success. Solver warm-starting and bounded obstacle slots are in place to mitigate the increased solve time.
 
-End of translated notes.
 
+## lambda update 05-05
+
+\documentclass[11pt]{article}
+\usepackage{amsmath, amssymb, geometry, hyperref, booktabs}
+\geometry{margin=1in}
+\title{NMPC Continuous Geometry-Aware Scheduler \\ \large Update Notes \& Thesis Reference}
+\author{Thesis Project}
+\date{\today}
+\begin{document}
+\maketitle
+
+\section*{1. Overview}
+Replaced discrete mode-switching logic (\texttt{if berth\_mode\_active / elseif on\_final\_waypoint}) with a \textbf{continuous caution scheduling layer} that smoothly adapts NMPC costs, bounds, and constraints based on real-time geometry, clearance, and berth proximity. The NMPC container remains \textbf{completely unchanged}; all adaptation occurs in \texttt{run\_nmpc.m} before the solver call.
+
+\section*{2. Core Concept: Continuous Activation Scalars}
+Four independent scalars $\lambda \in [0,1]$ are computed at each control iteration:
+\begin{itemize}
+    \item $\lambda_{\text{tight}}$: Map clearance \& channel-width awareness
+    \item $\lambda_{\text{stop}}$: Kinematic stopping-margin awareness
+    \item $\lambda_{\text{turn}}$: Upcoming route curvature severity
+    \item $\lambda_{\text{berth}}$: Proximity to final docking zone
+\end{itemize}
+Combined via a max-blend (default) or weighted sum:
+\[
+\lambda_{\text{total}} = \max\!\big(\lambda_{\text{tight}},\; \lambda_{\text{stop}},\; \lambda_{\text{turn}},\; \lambda_{\text{berth}}\big)
+\]
+
+\section*{3. Mathematical Formulations}
+\subsection*{Helper Functions}
+\[
+\text{sat}_{01}(x) = \max\!\big(0, \min(1, x)\big), \quad
+\text{ramp}_{01}(x; x_0, x_1) = \text{sat}_{01}\!\left(\frac{x - x_0}{x_1 - x_0}\right)
+\]
+\[
+\text{revRamp}_{01}(x; x_{\text{lo}}, x_{\text{hi}}) = \text{sat}_{01}\!\left(\frac{x_{\text{hi}} - x}{x_{\text{hi}} - x_{\text{lo}}}\right)
+\]
+\textit{Note:} \texttt{revRamp01} returns $1$ when $x \leq x_{\text{lo}}$, and $0$ when $x \geq x_{\text{hi}}$.
+
+\subsection*{Clearance / Tightness}
+\[
+d_{\text{edge}} = \min_{e \in \mathcal{E}} \text{dist}(\mathbf{p}, e), \quad
+\lambda_{\text{tight}} = \max\!\Big(\text{revRamp}_{01}(d_{\text{edge}}; d_{\text{lo}}, d_{\text{hi}}),\;
+\text{revRamp}_{01}(2d_{\text{edge}}; w_{\text{lo}}, w_{\text{hi}})\Big)
+\]
+
+\subsection*{Stopping-Distance Awareness}
+\[
+d_{\text{stop}} = \frac{U^2}{2 a_{\text{brake, eff}}} + d_{\text{margin}}, \quad
+d_{\text{free}} = \min\!\big(d_{\text{seg\_end}}, d_{\text{berth\_entry}}, d_{\text{corridor\_end}}, d_{\text{edge}}\big)
+\]
+\[
+\lambda_{\text{stop}} = \text{revRamp}_{01}\!\big(d_{\text{free}} - d_{\text{stop}};\; 0,\; d_{\text{buffer}}\big)
+\]
+\textit{Interpretation:} $\lambda_{\text{stop}} \to 1$ when available path length $\leq$ required braking distance.
+
+\subsection*{Turn Severity}
+\[
+\lambda_{\text{turn}} = \text{ramp}_{01}(\theta_{\text{next}}; \theta_{\text{lo}}, \theta_{\text{hi}}) \cdot 
+\text{revRamp}_{01}(d_{\text{to\_end}}; d_{\text{near}}, d_{\text{far}})
+\]
+
+\subsection*{Berth Activation}
+\[
+\lambda_{\text{berth}} = \text{revRamp}_{01}(d_{\text{berth}};\; d_{\text{full}},\; d_{\text{activate}})
+\]
+
+\section*{4. Parameter Scheduling}
+All NMPC tuneables are linearly interpolated: $P(\lambda) = (1-\lambda)P_{\text{far}} + \lambda P_{\text{near}}$.
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Parameter} & \textbf{Range} & \textbf{Governing $\lambda$} \\
+\midrule
+Soft Speed Cap ($U_{\text{cap}}$) & $[U_{\text{berth}},\; U_{\text{cruise}}]$ & $\min(U^{\text{tight}}, U^{\text{stop}}, U^{\text{turn}}, U^{\text{berth}})$ \\
+Speed Cost Weight & $[0.03,\; 0.70]$ & $\lambda_{\text{total}}$ \\
+Forward Lower Bound ($u_{\min}$) & $[0.02,\; 0.30]$ m/s & $\lambda_{\text{total}}$ \\
+Path Tube Half-Width & $[10,\; 20]$ m & $\max(\lambda_{\text{tight}}, \lambda_{\text{turn}}, \lambda_{\text{berth}})$ \\
+XTE Weight & $[12,\; 18]$ & $\max(\lambda_{\text{tight}}, \lambda_{\text{turn}}, \lambda_{\text{berth}})$ \\
+Terminal Heading Weight & $[0,\; 140]$ & $\max(\lambda_{\text{turn}}W_{\text{turn}}, \lambda_{\text{berth}}W_{\text{berth}})$ \\
+Terminal Stop Weights ($u,v,r$) & $[0,\; 120/80/80]$ & $\lambda_{\text{berth}}$ \\
+Berth Corridor Width & $[12,\; 22]$ m & $\lambda_{\text{berth}}$ \\
+\bottomrule
+\end{tabular}
+\caption{Continuous scheduling ranges used in \texttt{solve\_opts}.}
+\end{table}
+
+\section*{5. Architecture Changes}
+\begin{itemize}
+    \item \texttt{NMPC\_Container\_final.m}: \textbf{Zero changes}. Already accepts runtime \texttt{solve\_opts}.
+    \item \texttt{run\_nmpc.m}: 
+    \begin{itemize}
+        \item Added \texttt{sched\_cfg} configuration block.
+        \item Replaced rigid \texttt{if/elseif} mode block with continuous scheduler \textbf{before} \texttt{nmpc.solve()}.
+        \item Retained only \textit{hard structural differences} (actuator limits, reverse permission, final waypoint flag).
+        \item Added helper functions: \texttt{sat01}, \texttt{ramp01}, \texttt{revRamp01}, \texttt{lerp}, geometry utilities.
+        \item Added logging arrays for $\lambda$ trajectories, $U_{\text{cap}}$, $d_{\text{edge}}$, $d_{\text{stop}}$.
+    \end{itemize}
+\end{itemize}
+
+\section*{6. Thesis Contributions \& Plotting Notes}
+\begin{itemize}
+    \item \textbf{No State Machine:} Behavior emerges from continuous optimization, not hand-coded modes.
+    \item \textbf{Stopping-Margin Awareness:} Vessel slows kinematically when $d_{\text{stop}} \approx d_{\text{free}}$, not by arbitrary distance thresholds.
+    \item \textbf{Berth as a Funnel:} Terminal pose, speed, and heading constraints tighten gradually over a spatial band.
+    \item \textbf{Recommended Plots:} Overlay $\lambda_{\text{total}}$, $U_{\text{cap}}$, and $x_1$ (surge) vs. time. Show how $\lambda_{\text{stop}}$ rises before a sharp turn or narrow channel, causing predictive deceleration.
+    \item \textbf{Tuning:} Adjust \texttt{sched\_cfg} thresholds to match vessel dynamics \& harbor geometry. The structure is robust to moderate parameter shifts.
+\end{itemize}
+\end{document}
+
+## and the other big update of 05-05
+
+\documentclass[11pt]{article}
+\usepackage{amsmath, amssymb, geometry, hyperref, booktabs, algorithm, algorithmic}
+\geometry{margin=1in}
+\title{NMPC Dynamic Obstacle Avoidance with TTC-Based Yielding \\ \large Continuous Activation Scheduling Update}
+\author{Thesis Project}
+\date{\today}
+\begin{document}
+\maketitle
+
+\section*{1. Overview}
+Extended the continuous geometry-aware scheduler to handle \textbf{dynamic obstacle interactions} without discrete mode switching. The key innovation is a \textbf{TTC (Time-to-Collision) and CPA (Closest Point of Approach)} based activation system that makes the vessel:
+\begin{itemize}
+    \item \textbf{Yield naturally} by slowing down when approaching conflicts
+    \item \textbf{Avoid early sidestepping} by reducing progress reward during yield
+    \item \textbf{Return smoothly} to the route after passing the obstacle
+    \item \textbf{Maintain smooth control} by increasing rate penalties during avoidance
+\end{itemize}
+All behavior emerges from continuous cost shaping—no procedural "avoidance mode" or state machine.
+
+\section*{2. Core Mathematical Formulations}
+
+\subsection*{2.1 Relative Motion Quantities}
+For each dynamic obstacle $j$:
+\begin{align}
+    \mathbf{r} &= \mathbf{p}_{\text{obs}}^{(j)} - \mathbf{p}_{\text{ship}} \quad &\text{(relative position)} \\
+    \mathbf{v}_{\text{rel}} &= \mathbf{v}_{\text{obs}}^{(j)} - \mathbf{v}_{\text{ship}} \quad &\text{(relative velocity)} \\
+    d_{\text{rel}} &= \|\mathbf{r}\| + \epsilon \quad &\text{(separation distance)} \\
+    \dot{d}_{\text{rel}} &= \frac{\mathbf{r}^\top \mathbf{v}_{\text{rel}}}{d_{\text{rel}}} \quad &\text{(separation rate)} \\
+    v_{\text{close}} &= \max(0, -\dot{d}_{\text{rel}}) \quad &\text{(closing speed)}
+\end{align}
+
+\subsection*{2.2 CPA (Closest Point of Approach) Calculations}
+\begin{align}
+    t_{\text{CPA}} &= \max\left(0, -\frac{\mathbf{r}^\top \mathbf{v}_{\text{rel}}}{\|\mathbf{v}_{\text{rel}}\|^2 + \epsilon}\right) \\
+    d_{\text{CPA}} &= \|\mathbf{r} + t_{\text{CPA}} \mathbf{v}_{\text{rel}}\|
+\end{align}
+where $t_{\text{CPA}}$ is time to closest approach and $d_{\text{CPA}}$ is predicted separation at CPA.
+
+\subsection*{2.3 Forward Sector Filter}
+Only obstacles in the forward interaction cone influence avoidance:
+\begin{align}
+    \cos\beta &= \frac{\mathbf{r}^\top \mathbf{h}_{\text{ship}}}{d_{\text{rel}}}, \quad \mathbf{h}_{\text{ship}} = [\cos\psi; \sin\psi] \\
+    \lambda_{\text{sector}} &= \text{sat}_{01}\left(\frac{\cos\beta - \cos\beta_{\text{max}}}{1 - \cos\beta_{\text{max}} + \epsilon}\right)
+\end{align}
+Default: $\beta_{\text{max}} = 120^\circ$ (forward $240^\circ$ sector).
+
+\subsection*{2.4 Base TTC Activation}
+\begin{align}
+    \lambda_{\text{ttc}}^{(j)} &= \underbrace{\text{sat}_{01}\left(\frac{T_{\text{far}} - t_{\text{CPA}}}{T_{\text{far}} - T_{\text{near}} + \epsilon}\right)}_{\text{TTC urgency}} \times \nonumber \\
+    &\quad \underbrace{\text{sat}_{01}\left(\frac{d_{\text{CPA,th}} - d_{\text{CPA}}}{d_{\text{CPA,th}} + \epsilon}\right)}_{\text{poor miss distance}} \times \nonumber \\
+    &\quad \underbrace{\text{sat}_{01}\left(\frac{v_{\text{close}}}{v_{\text{close,ref}} + \epsilon}\right)}_{\text{closing motion}} \times \lambda_{\text{sector}}
+\end{align}
+Default parameters:
+\begin{itemize}
+    \item $T_{\text{far}} = 20$\,s, $T_{\text{near}} = 5$\,s
+    \item $d_{\text{CPA,th}} = 60$\,m
+    \item $v_{\text{close,ref}} = 3.0$\,m/s
+\end{itemize}
+
+\subsection*{2.5 Yield and Return Activations}
+\textbf{Yield phase} (approaching obstacle, separation decreasing):
+\begin{equation}
+    \lambda_{\text{yield}} = \max_j \left[ \lambda_{\text{ttc}}^{(j)} \cdot \text{sat}_{01}\left(\frac{-\dot{d}_{\text{rel}}^{(j)}}{\dot{d}_{\text{ref}} + \epsilon}\right) \right]
+\end{equation}
+
+\textbf{Return phase} (post-CPA, separation increasing):
+\begin{equation}
+    \lambda_{\text{return}} = \max_j \left[ \lambda_{\text{ttc}}^{(j)} \cdot \text{sat}_{01}\left(\frac{\dot{d}_{\text{rel}}^{(j)}}{\dot{d}_{\text{ref}} + \epsilon}\right) \right]
+\end{equation}
+
+Default: $\dot{d}_{\text{ref}} = 2.0$\,m/s.
+
+\subsection*{2.6 Master Caution Variable}
+\begin{equation}
+    \lambda_{\text{total}} = \max\left(\lambda_{\text{tight}}, \lambda_{\text{stop}}, \lambda_{\text{turn}}, \lambda_{\text{berth}}, \lambda_{\text{yield}}\right)
+\end{equation}
+Dynamic obstacle yield now \textbf{dominates} when conflict is urgent.
+
+\section*{3. Parameter Scheduling for Dynamic Obstacles}
+
+\subsection*{3.1 Speed Cap Shaping}
+\begin{align}
+    U_{\text{cap}}^{\text{dyn}} &= (1 - \lambda_{\text{yield}}) U_{\text{cruise}} + \lambda_{\text{yield}} U_{\text{yield}} \\
+    U_{\text{cap}} &= \min\left(U_{\text{cap}}^{\text{geom}}, U_{\text{cap}}^{\text{dyn}}\right)
+\end{align}
+where $U_{\text{yield}} = 0.02$\,m/s (near-stop/crawl).
+
+\subsection*{3.2 Progress Reward Reduction}
+\begin{equation}
+    w_{\text{along}} = (1 - \lambda_{\text{yield}}) w_{\text{along}}^{\text{nom}} + \lambda_{\text{yield}} w_{\text{along}}^{\text{min}}
+\end{equation}
+Default: $w_{\text{along}}^{\text{min}} = 0.10$ (vs $w_{\text{along}}^{\text{nom}} = 1.2$).
+
+\textbf{Effect:} During yield, the optimizer no longer insists on "keep making progress"—slowing down becomes cheaper than sidestepping.
+
+\subsection*{3.3 Surge Lower Bound Relaxation}
+\begin{equation}
+    u_{\min}^{\text{eff}} = (1 - \lambda_{\text{yield}}) u_{\min}^{\text{nom}} + \lambda_{\text{yield}} u_{\min}^{\text{yield}}
+\end{equation}
+Default: $u_{\min}^{\text{yield}} = 0.02$\,m/s (allows near-stop).
+
+\subsection*{3.4 Control Smoothness Scaling}
+\begin{align}
+    R_{\Delta}^{\text{scale}} &= 1.0 + \lambda_{\text{yield}} (R_{\Delta}^{\text{yield}} - 1.0) \\
+    J_{\text{rate}} &= R_{\Delta}^{\text{scale}} \sum_{k} \Delta \mathbf{u}_k^\top \mathbf{R}_{\text{rate}} \Delta \mathbf{u}_k
+\end{align}
+Default: $R_{\Delta}^{\text{yield}} = 3.5$.
+
+\textbf{Effect:} During yield, sudden azimuth/thrust changes become expensive—prevents jerky "swerve now" behavior.
+
+\subsection*{3.5 Route Recapture After CPA}
+When $\lambda_{\text{return}} > 0$:
+\begin{align}
+    w_{\text{xte}} &= w_{\text{xte}}^{\text{geom}} + \lambda_{\text{return}} \Delta w_{\text{xte}}^{\text{ret}} \\
+    W_{\text{tube}} &= (1 - \lambda_{\text{return}}) W_{\text{tube}}^{\text{avoid}} + \lambda_{\text{return}} W_{\text{tube}}^{\text{tight}} \\
+    w_{\psi} &= w_{\psi}^{\text{turn/berth}} + \lambda_{\text{return}} \Delta w_{\psi}^{\text{ret}}
+\end{align}
+Defaults: $\Delta w_{\text{xte}}^{\text{ret}} = 18.0$, $\Delta w_{\psi}^{\text{ret}} = 15.0$.
+
+\textbf{Effect:} After passing the obstacle, the route becomes "magnetic" again—pulls vessel back instead of continuing the detour arc.
+
+\subsection*{3.6 Soft Map Barrier Weight}
+\begin{equation}
+    w_{\text{map}} = w_{\text{map}}^{\text{base}} + \max(\lambda_{\text{tight}}, \lambda_{\text{return}}) \Delta w_{\text{map}}
+\end{equation}
+Default: $\Delta w_{\text{map}} = 18.0$.
+
+\textbf{Effect:} Prevents the optimizer from seeing lateral escape to open water as "cheap"—encourages staying within the navigable corridor.
+
+\section*{4. Architecture Changes}
+
+\subsection*{4.1 Container Modifications (\texttt{NMPC\_Container\_final.m})}
+\begin{itemize}
+    \item Added parameters: \texttt{P\_map\_barrier\_w}, \texttt{P\_R\_rate\_scale}
+    \item Modified stage cost loop to include:
+    \begin{align*}
+        J &\leftarrow J + \texttt{P\_R\_rate\_scale} \cdot \sum \Delta \mathbf{u}^\top \mathbf{R}_{\text{rate}} \Delta \mathbf{u} \\
+        J &\leftarrow J + \texttt{P\_map\_barrier\_w} \cdot \sum_k \Phi_{\text{map}}(\mathbf{p}_k)
+    \end{align*}
+    where $\Phi_{\text{map}}$ is a soft barrier penalty for proximity to map boundaries.
+    \item Passed new parameters via \texttt{solve\_opts}: \texttt{R\_rate\_scale\_obs}, \texttt{map\_barrier\_weight}
+\end{itemize}
+
+\subsection*{4.2 Run Script Modifications (\texttt{run\_nmpc.m})}
+\begin{enumerate}
+    \item \textbf{Added scheduler config} for dynamic obstacles:
+    \begin{verbatim}
+    sched_cfg.T_cpa_far, sched_cfg.T_cpa_near
+    sched_cfg.d_cpa_th, sched_cfg.v_close_ref
+    sched_cfg.cos_beta_max (sector filter)
+    sched_cfg.u_yield, sched_cfg.w_along_min
+    sched_cfg.R_rate_scale_yield
+    sched_cfg.map_barrier_w_near
+    \end{verbatim}
+    
+    \item \textbf{Replaced lambda block} to compute:
+    \begin{verbatim}
+    lambda_ttc, lambda_yield, lambda_return
+    (in addition to existing tight/stop/turn/berth)
+    \end{verbatim}
+    
+    \item \textbf{Extended scheduling logic} to apply:
+    \begin{itemize}
+        \item Dynamic speed cap: $U_{\text{cap}}^{\text{dyn}}$
+        \item Progress weight: $w_{\text{along}}(\lambda_{\text{yield}})$
+        \item Control rate scaling: $R_{\Delta}^{\text{scale}}(\lambda_{\text{yield}})$
+        \item Map barrier weight: $w_{\text{map}}(\lambda_{\text{return}})$
+        \item XTE/tube/heading recapture: $(\lambda_{\text{return}})$
+    \end{itemize}
+    
+    \item \textbf{Added logging arrays}:
+    \begin{verbatim}
+    lambda_yield_log, lambda_return_log, lambda_ttc_log
+    \end{verbatim}
+\end{enumerate}
+
+\section*{5. Key Behavioral Improvements}
+
+\subsection*{5.1 Before (Distance-Only Avoidance)}
+\begin{itemize}
+    \item Obstacle at 300\,m $\rightarrow$ immediate lateral sidestep
+    \item Vessel maintains high speed during avoidance
+    \item After passing, vessel continues detour arc
+    \item No natural "yield" behavior
+\end{itemize}
+
+\subsection*{5.2 After (TTC-Based Yielding)}
+\begin{itemize}
+    \item Obstacle far but non-urgent $\rightarrow$ minimal reaction
+    \item TTC enters critical window $\rightarrow$ speed drops smoothly
+    \item Progress reward relaxes $\rightarrow$ waiting becomes cheaper than swerving
+    \item Control smoothness increases $\rightarrow$ no jerky maneuvers
+    \item After CPA ($\dot{d}_{\text{rel}} > 0$) $\rightarrow$ route recapture activates
+    \item Vessel returns to nominal path instead of continuing detour
+\end{itemize}
+
+\section*{6. Thesis Contributions}
+
+\begin{enumerate}
+    \item \textbf{TTC-aware collision avoidance} without discrete modes—behavior emerges from continuous cost shaping based on predicted interaction quality (CPA, closing rate, TTC).
+    
+    \item \textbf{Yield-before-sidestep principle}—by reducing progress reward and allowing near-stop during $\lambda_{\text{yield}}$, the optimizer naturally prefers "slow down and let obstacle pass" over "maintain speed and swerve early."
+    
+    \item \textbf{Automatic route recapture}—$\lambda_{\text{return}}$ activates when separation increases, tightening the path tube and increasing XTE/heading penalties to pull vessel back to route.
+    
+    \item \textbf{Smooth control during conflicts}—increased rate penalties ($R_{\Delta}^{\text{scale}} = 3.5\times$) prevent aggressive azimuth/thrust changes during yield, producing calm, deliberate maneuvers.
+    
+    \item \textbf{Map confinement via soft barriers}—prevents optimizer from exploiting "open water escape" by penalizing proximity to map boundaries during tight/return phases.
+    
+    \item \textbf{Sector-based relevance filtering}—only obstacles in forward $240^\circ$ cone influence avoidance, eliminating spurious reactions to distant/receding contacts.
+\end{enumerate}
+
+\section*{7. Recommended Thesis Plots}
+
+\begin{itemize}
+    \item \textbf{Lambda trajectories:} Overlay $\lambda_{\text{ttc}}$, $\lambda_{\text{yield}}$, $\lambda_{\text{return}}$ vs. time to show smooth activation/deactivation.
+    
+    \item \textbf{Speed profile:} Show $U_{\text{cap}}^{\text{dyn}}$ dropping during yield, then recovering.
+    
+    \item \textbf{CPA evolution:} Plot $d_{\text{CPA}}$ and $t_{\text{CPA}}$ over time to demonstrate predictive awareness.
+    
+    \item \textbf{Control smoothness:} Compare azimuth rate $\dot{\alpha}$ with/without $R_{\Delta}^{\text{scale}}$ scaling.
+    
+    \item \textbf{Route recapture:} Show XTE decreasing after CPA as $\lambda_{\text{return}}$ rises.
+\end{itemize}
+
+\section*{8. Tuning Guidelines}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Parameter} & \textbf{Effect of Increasing} & \textbf{Recommended Range} \\
+\midrule
+$T_{\text{far}}$ & Earlier activation, more conservative & 15--30\,s \\
+$d_{\text{CPA,th}}$ & Stricter miss distance requirement & 40--100\,m \\
+$U_{\text{yield}}$ & Minimum speed during yield & 0.0--0.5\,m/s \\
+$R_{\Delta}^{\text{yield}}$ & Smoother (less jerky) avoidance & 2.0--5.0 \\
+$\dot{d}_{\text{ref}}$ & Faster yield$\rightarrow$return transition & 1.5--3.0\,m/s \\
+$\Delta w_{\text{xte}}^{\text{ret}}$ & Stronger route recapture pull & 10--25 \\
+\bottomrule
+\end{tabular}
+\caption{Tuning parameters for dynamic obstacle avoidance.}
+\end{table}
+
+\section*{9. Summary}
+This update transforms dynamic obstacle avoidance from a \textbf{reactive, distance-based sidestepping} behavior into a \textbf{predictive, TTC-aware yielding} strategy. The vessel now:
+\begin{itemize}
+    \item Slows down \textit{before} conflicts become urgent
+    \item Prefers waiting over swerving
+    \item Maintains smooth, calm control during avoidance
+    \item Automatically returns to route after passing
+\end{itemize}
+All without a single discrete mode switch—pure continuous optimization driven by geometry, relative motion, and predicted interaction quality.
+
+\end{document}

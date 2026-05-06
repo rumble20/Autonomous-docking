@@ -92,7 +92,7 @@ dynamicObsHistory = cfgGet(cfg, 'dynamicObsHistory', []);
 dynamicObsRadius = cfgGet(cfg, 'dynamicObsRadius', 20);
 hullCfg = cfgGet(cfg, 'hullCfg', []);
 flipShipImageVertical = cfgGet(cfg, 'flipShipImageVertical', false);
-shipImageScale = cfgGet(cfg, 'shipImageScale', 1.45);
+shipImageScale = cfgGet(cfg, 'shipImageScale', 1.5);
 showHullHitbox = cfgGet(cfg, 'showHullHitbox', false);
 recordVideo = cfgGet(cfg, 'recordVideo', false);
 recordGif = cfgGet(cfg, 'recordGif', false);
@@ -365,8 +365,8 @@ else
 end
 
 % Display-only scaling for the ship icon (does not alter collision hitbox geometry).
-shipImgHalfLen = shipHalfLen;
-shipImgHalfBeam = shipHalfBeam;
+shipImgHalfLen = 0.5*shipHalfLen;
+shipImgHalfBeam = 0.5*shipHalfBeam;
 if useImage
     shipImageScale = max(0.5, shipImageScale);
     shipImgHalfLen = shipHalfLen * shipImageScale;
@@ -390,12 +390,7 @@ else
         'EdgeColor', 'w', 'LineWidth', 1.2, 'HandleVisibility', 'off');
 end
 
-% Small bow-direction arrow (always visible, independent of icon details)
-bowArrowLen = max(10, 0.45 * (2 * shipHalfLen));
-hBow = quiver(ax, cx0, cy0, bowArrowLen*sin(psi0), bowArrowLen*cos(psi0), 0, ...
-    'Color', [1.0 0.95 0.10], 'LineWidth', 2.4, 'MaxHeadSize', 2.2, ...
-    'HandleVisibility', 'off');
-uistack(hBow, 'top');
+% Bow-direction arrow removed to reduce visual clutter
 
 % --- Live trail line ------------------------------------------------------
 hTrail = plot(ax, yPath(1), xPath(1), '-', ...
@@ -413,7 +408,6 @@ if showHullHitbox && ~isempty(hullCfg) && isstruct(hullCfg) && isfield(hullCfg, 
                       'FaceAlpha', 0.04, 'EdgeColor', [1.0 0.62 0.18], ...
                       'LineWidth', 2.0, 'LineStyle', '--', 'HandleVisibility', 'off');
     uistack(hHullRect, 'top');
-    uistack(hBow, 'top');
 end
 
 % --- Thruster arrows (optional) ------------------------------------------
@@ -454,7 +448,7 @@ if haveThrusters
             'HandleVisibility', 'off');
     end
     uistack(hThrusters, 'top');
-    uistack(hBow, 'top');
+
 end
 
 % --- Time stamp -----------------------------------------------------------
@@ -565,9 +559,6 @@ for k = 1:length(idx)
         [tx, ty] = shipTriangle(cx, cy, 2 * shipHalfBeam, psi(i));
         set(hShip, 'XData', tx, 'YData', ty);
     end
-
-    set(hBow, 'XData', cx, 'YData', cy, ...
-        'UData', bowArrowLen*sin(psi(i)), 'VData', bowArrowLen*cos(psi(i)));
 
     % Update hull footprint rectangle
     if ~isempty(hHullRect) && isvalid(hHullRect)
@@ -695,9 +686,6 @@ for k = 1:length(idx)
             end
             if exist('hShip', 'var') && isvalid(hShip)
                 uistack(hShip, 'top');
-            end
-            if exist('hBow', 'var') && isvalid(hBow)
-                uistack(hBow, 'top');
             end
             if ~isempty(hHullRect) && isvalid(hHullRect)
                 uistack(hHullRect, 'top');
