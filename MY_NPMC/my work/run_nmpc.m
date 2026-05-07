@@ -18,29 +18,46 @@ fprintf('═══════════════════════�
 
 % Waypoints: rows = [x, y].
 % No heading is stored in the waypoint list anymore.
-waypoints = [-3000, -2600; -2800, -2700; -2600, -2700; -2350, -2650; -2200, -2650; -1940, -2450];
+waypoints = [-2600, -2700; -2350, -2650; -2200, -2650; -1940, -2450];
 
 % BERTHING MODE ==========================================================
 % This block fully replaces the old waypoint third-column final heading.
 % Use it to tell the ship how to approach and park at the final target.
 berth_cfg = struct();
-berth_cfg.enabled = false;                 % true = use precise berthing mode
-berth_cfg.target_xy = [-1940; -2450];     % final parking position [x; y]
+berth_cfg.enabled = true;                 % true = use precise berthing mode
+berth_cfg.target_xy = [waypoints(end, 1); waypoints(end, 2)];     % final parking position [x; y]
 berth_cfg.heading_deg = 30;                % desired final ship heading
 berth_cfg.prepare_last_n_segments = 3;    % start preparing on last route segments
-berth_cfg.activate_dist_m = 260;          % force berth mode when this close to berth target
+berth_cfg.activate_dist_m = 400;          % force berth mode when this close to berth target
 berth_cfg.preview_heading_weight = 18.0;  % mild early heading preparation before full berth mode
 berth_cfg.preview_goal_weight_gain = 1.35;
 berth_cfg.capture_radius_m = 12;          % hard completion radius in berth mode
 berth_cfg.capture_speed_mps = 0.35;       % completion speed in berth mode
 
-% Final approach corridor (optional but recommended for parking style)
+% Final approach corridor (dependent on berthing target and heading)
+% ===== Derive corridor from waypoints and berthing config =====
+last_wp = waypoints(end, :)';             % final waypoint [x; y]
+if size(waypoints, 1) > 1
+    second_last_wp = waypoints(end-1, :)';  % approach reference point
+    approach_vec = last_wp - second_last_wp;
+    approach_dist = norm(approach_vec);
+    if approach_dist > eps
+        approach_unit = approach_vec / approach_dist;
+    else
+        approach_unit = [1; 0];  % fallback if waypoints are identical
+    end
+else
+    approach_unit = [1; 0];  % default approach direction if only one waypoint
+end
+
+% Corridor starts from a point ahead of last waypoint along approach vector
+corridor_approach_dist_m = 300;  % distance to start corridor from target
+berth_cfg.corridor_origin_xy = last_wp + approach_unit * corridor_approach_dist_m;
+berth_cfg.corridor_heading_deg = berth_cfg.heading_deg;  % inherit berthing heading
 berth_cfg.use_corridor = true;
-berth_cfg.corridor_origin_xy = [-2210; -2600];
-berth_cfg.corridor_heading_deg = 0;
 berth_cfg.corridor_half_width_m = 12;
-berth_cfg.corridor_along_min_m = -220;
-berth_cfg.corridor_along_max_m = 25;
+berth_cfg.corridor_along_min_m = -corridor_approach_dist_m;  % from corridor origin to target
+berth_cfg.corridor_along_max_m = 25;  % small overshoot tolerance
 
 % Tight final pose / speed envelope
 berth_cfg.pose_eps_xy_m = [4; 4];
@@ -93,10 +110,12 @@ dynamic_obs_boundary_policy = 'wrap';     % wrap | bounce | hold
 % Dynamic latent awareness (optional planning-only envelopes).
 dynamic_latent_awareness = struct();
 dynamic_latent_awareness.enabled = true;
-dynamic_latent_awareness.n_saamples = 4;
-dynamic_latent_awareness.dt_s = 2.0;
-dynamic_latent_awareness.inflate_radius_m = 8.0;
-dynamic_latent_awareness.sample_radius_gain = 0.15;
+dynamic_latent_awareness.horizon_s = 8.0;          % e.g. 4 samples * 2 s
+dynamic_latent_awareness.n_samples = 4;
+dynamic_latent_awareness.radius_scale = 1.15;
+dynamic_latent_awareness.awareness_distance_m = inf;
+dynamic_latent_awareness.only_when_not_moving = false;
+
 
 % Simulation.
 T_final = 1000;
@@ -495,68 +514,68 @@ u_prev_ship = x(1);
 %% MAIN SIMULATION LOOP ===================================================
 for i = 1:length(t)
     t_step = tic;
-% 1) Update active segment only, then define segment / berth references
-t_seg = tic;
-wp_idx = updateWaypointIndexManaged(x, waypoints, wp_idx, R_accept);
+    % 1) Update active segment only, then define segment / berth references
+    t_seg = tic;
+    wp_idx = updateWaypointIndexManaged(x, waypoints, wp_idx, R_accept);
 
-xte = computeXTE(x, waypoints, wp_idx);
-n_wps = size(waypoints, 1);
-last_seg_idx = max(1, n_wps - 1);
+    xte = computeXTE(x, waypoints, wp_idx);
+    n_wps = size(waypoints, 1);
+    last_seg_idx = max(1, n_wps - 1);
 
-seg_start_idx = min(max(1, wp_idx), last_seg_idx);
-seg_end_idx   = min(seg_start_idx + 1, n_wps);
+    seg_start_idx = min(max(1, wp_idx), last_seg_idx);
+    seg_end_idx   = min(seg_start_idx + 1, n_wps);
 
-wp_start_xy_route = waypoints(seg_start_idx, 1:2)';
-wp_end_xy_route   = waypoints(seg_end_idx,   1:2)';
+    wp_start_xy_route = waypoints(seg_start_idx, 1:2)';
+    wp_end_xy_route   = waypoints(seg_end_idx,   1:2)';
 
-wp_start_xy = wp_start_xy_route;
-wp_end_xy   = wp_end_xy_route;
+    wp_start_xy = wp_start_xy_route;
+    wp_end_xy   = wp_end_xy_route;
 
-seg_vec_route = wp_end_xy_route - wp_start_xy_route;
-if norm(seg_vec_route) > 1e-9
-    chi_seg = atan2(seg_vec_route(2), seg_vec_route(1));
-else
-    chi_seg = x(6);
-end
-
-on_final_waypoint = (seg_end_idx == n_wps);
-d_to_berth = inf;
-berth_preview_active = false;
-berth_mode_active = false;
-
-goal_heading_enable = false;
-goal_heading_rad = chi_seg;
-chi_ctrl = chi_seg;
-
-if berth_cfg.enabled
-    d_to_berth = norm(x(4:5) - berth_cfg.target_xy(:));
-    preview_first_seg = max(1, last_seg_idx - max(1, berth_cfg.prepare_last_n_segments) + 1);
-    berth_preview_active = (seg_start_idx >= preview_first_seg) || (d_to_berth <= 1.35 * berth_cfg.activate_dist_m);
-    berth_mode_active = on_final_waypoint || (d_to_berth <= berth_cfg.activate_dist_m);
-
-    if berth_preview_active
-        goal_heading_enable = true;
-        goal_heading_rad = deg2rad(berth_cfg.heading_deg);
+    seg_vec_route = wp_end_xy_route - wp_start_xy_route;
+    if norm(seg_vec_route) > 1e-9
+        chi_seg = atan2(seg_vec_route(2), seg_vec_route(1));
+    else
+        chi_seg = x(6);
     end
 
-    if berth_mode_active
-        wp_end_xy = berth_cfg.target_xy(:);
-        goal_heading_enable = true;
-        goal_heading_rad = deg2rad(berth_cfg.heading_deg);
-        if berth_cfg.use_corridor
-            chi_ctrl = deg2rad(berth_cfg.corridor_heading_deg);
-        else
-            chi_ctrl = goal_heading_rad;
+    on_final_waypoint = (seg_end_idx == n_wps);
+    d_to_berth = inf;
+    berth_preview_active = false;
+    berth_mode_active = false;
+
+    goal_heading_enable = false;
+    goal_heading_rad = chi_seg;
+    chi_ctrl = chi_seg;
+
+    if berth_cfg.enabled
+        d_to_berth = norm(x(4:5) - berth_cfg.target_xy(:));
+        preview_first_seg = max(1, last_seg_idx - max(1, berth_cfg.prepare_last_n_segments) + 1);
+        berth_preview_active = (seg_start_idx >= preview_first_seg) || (d_to_berth <= 1.35 * berth_cfg.activate_dist_m);
+        berth_mode_active = on_final_waypoint || (d_to_berth <= berth_cfg.activate_dist_m);
+
+        if berth_preview_active
+            goal_heading_enable = true;
+            goal_heading_rad = deg2rad(berth_cfg.heading_deg);
+        end
+
+        if berth_mode_active
+            wp_end_xy = berth_cfg.target_xy(:);
+            goal_heading_enable = true;
+            goal_heading_rad = deg2rad(berth_cfg.heading_deg);
+            if berth_cfg.use_corridor
+                chi_ctrl = deg2rad(berth_cfg.corridor_heading_deg);
+            else
+                chi_ctrl = goal_heading_rad;
+            end
         end
     end
-end
 
-path_ref = struct();
-path_ref.wp_start = wp_start_xy;
-path_ref.wp_end = wp_end_xy;
-path_ref.goal_heading_rad = goal_heading_rad;
-path_ref.goal_heading_enable = goal_heading_enable;
-guide_time_log(i) = toc(t_seg);
+    path_ref = struct();
+    path_ref.wp_start = wp_start_xy;
+    path_ref.wp_end = wp_end_xy;
+    path_ref.goal_heading_rad = goal_heading_rad;
+    path_ref.goal_heading_enable = goal_heading_enable;
+    guide_time_log(i) = toc(t_seg);
 
     % 2) Dynamic obstacle propagation
     if enable_dynamic_obstacles && ~isempty(dynamic_obstacles)
@@ -615,359 +634,402 @@ guide_time_log(i) = toc(t_seg);
         obs_pack_drift_log(i) = computeDynamicPackagingDrift(dynamic_obstacles, obs_local);
     end
 
-obs_time_log(i) = toc(t_seg);
+    obs_time_log(i) = toc(t_seg);
 
-% 4) Solve options: segment cost + tube cost + endpoint pull + optional berth mode
-t_seg = tic;
-solve_opts = struct();
+    % 4) Solve options: segment cost + tube cost + endpoint pull + optional berth mode
+    t_seg = tic;
+    solve_opts = struct();
 
-solve_opts.state_weights_diag = diag(nmpc_cfg.Q);
-solve_opts.input_weights_diag = diag(nmpc_cfg.R);
-solve_opts.rate_weights_diag  = diag(nmpc_cfg.R_rate);
+    solve_opts.state_weights_diag = diag(nmpc_cfg.Q);
+    solve_opts.input_weights_diag = diag(nmpc_cfg.R);
+    solve_opts.rate_weights_diag  = diag(nmpc_cfg.R_rate);
 
-solve_opts.stage_state_cost_scale         = 1.0;
-solve_opts.stage_input_tracking_scale     = 1.0;
-solve_opts.terminal_cost_scale            = 1.0;
-solve_opts.terminal_actuator_cost_scale   = 1.0;
-solve_opts.terminal_forward_cost_scale    = 1.0;
+    solve_opts.stage_state_cost_scale         = 1.0;
+    solve_opts.stage_input_tracking_scale     = 1.0;
+    solve_opts.terminal_cost_scale            = 1.0;
+    solve_opts.terminal_actuator_cost_scale   = 1.0;
+    solve_opts.terminal_forward_cost_scale    = 1.0;
 
-solve_opts.collision_clearance_m = hull_cfg.nmpc_clearance_m;
-solve_opts.path_xte_weight       = path_cost_cfg.W_xte_heavy;
-solve_opts.path_along_weight     = path_cost_cfg.W_along;
-solve_opts.path_tube_half_width_m= path_cost_cfg.W_tube_m;
-solve_opts.soft_speed_cap_weight = path_cost_cfg.soft_speed_cap_weight;
-solve_opts.soft_speed_cap_mps    = path_cost_cfg.soft_speed_cap_mps;
+    solve_opts.collision_clearance_m = hull_cfg.nmpc_clearance_m;
+    solve_opts.path_xte_weight       = path_cost_cfg.W_xte_heavy;
+    solve_opts.path_along_weight     = path_cost_cfg.W_along;
+    solve_opts.path_tube_half_width_m= path_cost_cfg.W_tube_m;
+    solve_opts.soft_speed_cap_weight = path_cost_cfg.soft_speed_cap_weight;
+    solve_opts.soft_speed_cap_mps    = path_cost_cfg.soft_speed_cap_mps;
 
-solve_opts.goal_heading_enable = goal_heading_enable;
-solve_opts.goal_heading_rad    = goal_heading_rad;
-solve_opts.is_final_waypoint   = on_final_waypoint;
+    solve_opts.goal_heading_enable = goal_heading_enable;
+    solve_opts.goal_heading_rad    = goal_heading_rad;
+    solve_opts.is_final_waypoint   = on_final_waypoint;
 
-solve_opts.enable_soft_obstacles = soft_obstacle_cfg.enabled;
-solve_opts.soft_obs_max_m        = soft_obstacle_cfg.max_slack_m;
-solve_opts.map_halfplanes        = map_halfplanes;
+    solve_opts.enable_soft_obstacles = soft_obstacle_cfg.enabled;
+    solve_opts.soft_obs_max_m        = soft_obstacle_cfg.max_slack_m;
+    solve_opts.map_halfplanes        = map_halfplanes;
 
-% Safe defaults for optional scheduled fields
-solve_opts.terminal_goal_pos_weight     = terminal_goal_cfg.pos_weight;
-solve_opts.terminal_goal_heading_weight = terminal_goal_cfg.heading_weight;
-solve_opts.terminal_stop_u_weight       = terminal_goal_cfg.stop_u_weight;
-solve_opts.terminal_stop_v_weight       = terminal_goal_cfg.stop_v_weight;
-solve_opts.terminal_stop_r_weight       = terminal_goal_cfg.stop_r_weight;
+    % Safe defaults for optional scheduled fields
+    solve_opts.terminal_goal_pos_weight     = terminal_goal_cfg.pos_weight;
+    solve_opts.terminal_goal_heading_weight = terminal_goal_cfg.heading_weight;
+    solve_opts.terminal_stop_u_weight       = terminal_goal_cfg.stop_u_weight;
+    solve_opts.terminal_stop_v_weight       = terminal_goal_cfg.stop_v_weight;
+    solve_opts.terminal_stop_r_weight       = terminal_goal_cfg.stop_r_weight;
 
-solve_opts.enable_terminal_pose   = false;
-solve_opts.term_pose_eps_xy_m     = terminal_goal_cfg.term_pose_eps_xy_m(:);
-solve_opts.term_pose_eps_psi_rad  = deg2rad(terminal_goal_cfg.term_pose_eps_psi_deg);
-solve_opts.term_vel_max_u_mps     = terminal_goal_cfg.term_vel_max_u_mps;
-solve_opts.term_vel_max_v_mps     = terminal_goal_cfg.term_vel_max_v_mps;
-solve_opts.term_vel_max_r_radps   = terminal_goal_cfg.term_vel_max_r_radps;
-solve_opts.term_pose_slack_max    = terminal_goal_cfg.term_pose_slack_max;
+    solve_opts.enable_terminal_pose   = false;
+    solve_opts.term_pose_eps_xy_m     = terminal_goal_cfg.term_pose_eps_xy_m(:);
+    solve_opts.term_pose_eps_psi_rad  = deg2rad(terminal_goal_cfg.term_pose_eps_psi_deg);
+    solve_opts.term_vel_max_u_mps     = terminal_goal_cfg.term_vel_max_u_mps;
+    solve_opts.term_vel_max_v_mps     = terminal_goal_cfg.term_vel_max_v_mps;
+    solve_opts.term_vel_max_r_radps   = terminal_goal_cfg.term_vel_max_r_radps;
+    solve_opts.term_pose_slack_max    = terminal_goal_cfg.term_pose_slack_max;
 
-solve_opts.enable_berth_corridor = false;
-if isfield(berth_cfg, 'corridor_origin_xy') && ~isempty(berth_cfg.corridor_origin_xy)
-    solve_opts.berth_corridor_origin_xy = berth_cfg.corridor_origin_xy(:);
-else
-    solve_opts.berth_corridor_origin_xy = [0; 0];
-end
-if isfield(berth_cfg, 'corridor_heading_deg') && ~isempty(berth_cfg.corridor_heading_deg)
-    solve_opts.berth_corridor_heading_rad = deg2rad(berth_cfg.corridor_heading_deg);
-else
-    solve_opts.berth_corridor_heading_rad = 0;
-end
-if isfield(berth_cfg, 'corridor_half_width_m') && ~isempty(berth_cfg.corridor_half_width_m)
-    solve_opts.berth_corridor_half_width_m = berth_cfg.corridor_half_width_m;
-else
-    solve_opts.berth_corridor_half_width_m = inf;
-end
-if isfield(berth_cfg, 'corridor_along_min_m') && ~isempty(berth_cfg.corridor_along_min_m)
-    solve_opts.berth_corridor_along_min_m = berth_cfg.corridor_along_min_m;
-else
-    solve_opts.berth_corridor_along_min_m = -inf;
-end
-if isfield(berth_cfg, 'corridor_along_max_m') && ~isempty(berth_cfg.corridor_along_max_m)
-    solve_opts.berth_corridor_along_max_m = berth_cfg.corridor_along_max_m;
-else
-    solve_opts.berth_corridor_along_max_m = inf;
-end
-
-solve_opts.R_rate_scale_obs  = 1.0;
-solve_opts.map_barrier_weight = sched_cfg.map_barrier_w_base;
-solve_opts.u_min_forward      = nmpc_cfg.u_min_forward;
-
-solve_opts.n3_max              = 0;
-solve_opts.max_azimuth_split   = azipod_sync_cfg.transit_alpha_split_rad;
-solve_opts.max_stern_cmd_split = azipod_sync_cfg.transit_stern_split_rpm;
-
-solve_opts.map_soft_margin_m = sched_cfg.map_soft_margin_m;
-
-% CONTINUOUS GEOMETRY-AWARE SCHEDULER
-U_now = sqrt(x(1)^2 + x(2)^2);
-U_ship_world = [cos(x(6))*x(1) - sin(x(6))*x(2); sin(x(6))*x(1) + cos(x(6))*x(2)];
-d_to_active_end = norm(x(4:5) - wp_end_xy);
-
-
-% --- 1) Clearance-aware tightness ------------------------------------
-d_edge_now = inf;
-if enable_map_obstacles && ~isempty(map_edge_set)
-    d_edge_now = nearestDistanceToMapEdges(x(4:5), map_edge_set);
-end
-lambda_clearance = revRamp01(d_edge_now, sched_cfg.clearance_lo_m, sched_cfg.clearance_hi_m);
-lambda_channel   = revRamp01(2.0*d_edge_now, sched_cfg.channel_width_lo_m, sched_cfg.channel_width_hi_m);
-lambda_tight = max(lambda_clearance, lambda_channel);
-
-% --- 2) Stopping-distance awareness ----------------------------------
-a_eff = max(0.05, sched_cfg.brake_eff_mps2);
-d_stop = U_now^2 / (2 * a_eff) + sched_cfg.stop_margin_m;
-d_stop_log(i) = d_stop;
-d_free_candidates = []; d_free_candidates(end+1) = max(0, d_to_active_end);
-if berth_cfg.enabled
-    d_entry = distanceToBerthCorridorEntry(x(4:5), berth_cfg);
-    d_endcorr = distanceToBerthCorridorEnd(x(4:5), berth_cfg);
-    if isfinite(d_entry),   d_free_candidates(end+1) = max(0, d_entry);   end
-    if isfinite(d_endcorr), d_free_candidates(end+1) = max(0, d_endcorr); end
-end
-if isfinite(d_edge_now), d_free_candidates(end+1) = max(0, d_edge_now); end
-d_free_ref = min(d_free_candidates);
-lambda_stop = revRamp01(d_free_ref - d_stop, 0, sched_cfg.stop_buffer_m);
-
-% --- 3) Turn severity awareness --------------------------------------
-turn_next_deg = getNextTurnAngleDeg(waypoints, seg_start_idx);
-lambda_turn_angle = ramp01(turn_next_deg, sched_cfg.turn_angle_lo_deg, sched_cfg.turn_angle_hi_deg);
-lambda_turn_dist  = revRamp01(d_to_active_end, sched_cfg.turn_dist_near_m, sched_cfg.turn_dist_far_m);
-lambda_turn = lambda_turn_angle * lambda_turn_dist;
-
-% --- 4) Continuous berth activation ----------------------------------
-if berth_cfg.enabled
-    d_berth = norm(x(4:5) - berth_cfg.target_xy(:));
-    lambda_berth = revRamp01(d_berth, sched_cfg.berth_d_full_m, sched_cfg.berth_d_activate_m);
-else
-    lambda_berth = 0;
-end
-
-% --- 5) Dynamic Obstacle TTC / Yield / Return Lambdas ----------------
-lambda_ttc   = 0;
-lambda_yield = 0;
-lambda_return= 0;
-small_eps = 1e-6;
-
-if enable_dynamic_obstacles && ~isempty(obs_dyn)
-    for j = 1:length(obs_dyn)
-        r      = obs_dyn(j).position(:) - x(4:5);
-        v_obs  = obs_dyn(j).speed * [cos(obs_dyn(j).heading); sin(obs_dyn(j).heading)];
-        v_rel  = v_obs - U_ship_world;
-        d_rel  = norm(r) + eps;
-        d_dot  = (r' * v_rel) / d_rel;
-        v_close= max(0, -d_dot);
-        
-        % CPA
-        v_rel_sq = max(v_rel'*v_rel, eps);
-        t_cpa    = max(0, -(r'*v_rel) / v_rel_sq);
-        d_cpa    = norm(r + t_cpa * v_rel);
-        
-        % Sector filter (cosine of relative bearing)
-        cos_beta = (r'*[cos(x(6)); sin(x(6))]) / d_rel;
-        lam_sec  = sat01((cos_beta - sched_cfg.cos_beta_max) / (1 - sched_cfg.cos_beta_max + eps));
-        
-        % Base TTC activation (exact math from prompt)
-        l_ttc = sat01((sched_cfg.T_cpa_far - t_cpa)/(sched_cfg.T_cpa_far - sched_cfg.T_cpa_near + eps)) * ...
-                sat01((sched_cfg.d_cpa_th - d_cpa)/(sched_cfg.d_cpa_th + eps)) * ...
-                sat01(v_close / (sched_cfg.v_close_ref + eps));
-        
-        lambda_ttc   = max(lambda_ttc, l_ttc * lam_sec);
-        lambda_yield = max(lambda_yield, l_ttc * lam_sec * sat01((-d_dot) / (sched_cfg.d_dot_ref + eps)));
-        l_return = sat01((sched_cfg.d_cpa_th - d_cpa) / (sched_cfg.d_cpa_th + small_eps)) * sat01(d_dot / (sched_cfg.d_dot_ref + small_eps));
-        lambda_return = max(lambda_return, l_return * lam_sec);
-
-    end
-end
-
-
-% --- 6) Master caution blend -----------------------------------------
-lambda_total = max([lambda_tight, lambda_stop, lambda_turn, lambda_berth, lambda_yield]);
-
-% APPLY CONTINUOUS SCHEDULING TO NMPC SOLVE OPTIONS
-% Speed shaping (geom + dynamic yield)
-U_cap_tight = lerp(sched_cfg.u_cruise_mps, sched_cfg.u_tight_mps, lambda_tight);
-U_cap_stop  = lerp(sched_cfg.u_cruise_mps, sched_cfg.u_tight_mps, lambda_stop);
-U_cap_turn  = lerp(sched_cfg.u_cruise_mps, max(1.2, sched_cfg.u_tight_mps), lambda_turn);
-U_cap_berth = lerp(sched_cfg.u_cruise_mps, sched_cfg.u_berth_mps, lambda_berth);
-U_cap_dyn   = lerp(sched_cfg.u_cruise_mps, sched_cfg.u_yield, lambda_yield);
-solve_opts.soft_speed_cap_mps = min([U_cap_tight, U_cap_stop, U_cap_turn, U_cap_berth, U_cap_dyn]);
-solve_opts.soft_speed_cap_weight = lerp(sched_cfg.soft_speed_weight_far, sched_cfg.soft_speed_weight_near, lambda_total);
-
-% Along-track reward scheduling (yield reduces progress urgency)
-solve_opts.path_along_weight = lerp(path_cost_cfg.W_along, sched_cfg.w_along_min, lambda_yield);
-
-% Tube & XTE scheduling (return tightens path after CPA)
-geom_caution = max([lambda_tight, lambda_turn, lambda_berth]);
-lambda_path_return = max(geom_caution, lambda_return);
-
-solve_opts.path_tube_half_width_m = ...
-    lerp(sched_cfg.tube_far_m, sched_cfg.tube_near_m, lambda_path_return);
-
-solve_opts.path_xte_weight = ...
-    lerp(sched_cfg.xte_weight_far, sched_cfg.xte_weight_near, lambda_path_return);
-
-solve_opts.path_heading_weight = max([ ...
-    0.35 * lambda_turn  * sched_cfg.heading_weight_turn, ...
-    0.10 * lambda_berth * sched_cfg.heading_weight_berth, ...
-    lambda_return       * sched_cfg.heading_weight_return]);
-
-
-% ROUTE-ORDER RESTORE / GATE TIGHTENING
-if lambda_berth < 0.05 && lambda_yield < 0.10 && lambda_return < 0.15
-    if d_to_active_end <= route_follow_cfg.transit_goal_dist_near_m
-        transit_goal_w = route_follow_cfg.transit_goal_pos_weight_near;
-    elseif d_to_active_end <= route_follow_cfg.transit_goal_dist_mid_m
-        transit_goal_w = route_follow_cfg.transit_goal_pos_weight_mid;
+    solve_opts.enable_berth_corridor = false;
+    if isfield(berth_cfg, 'corridor_origin_xy') && ~isempty(berth_cfg.corridor_origin_xy)
+        solve_opts.berth_corridor_origin_xy = berth_cfg.corridor_origin_xy(:);
     else
-        transit_goal_w = route_follow_cfg.transit_goal_pos_weight_far;
+        solve_opts.berth_corridor_origin_xy = [0; 0];
+    end
+    if isfield(berth_cfg, 'corridor_heading_deg') && ~isempty(berth_cfg.corridor_heading_deg)
+        solve_opts.berth_corridor_heading_rad = deg2rad(berth_cfg.corridor_heading_deg);
+    else
+        solve_opts.berth_corridor_heading_rad = 0;
+    end
+    if isfield(berth_cfg, 'corridor_half_width_m') && ~isempty(berth_cfg.corridor_half_width_m)
+        solve_opts.berth_corridor_half_width_m = berth_cfg.corridor_half_width_m;
+    else
+        solve_opts.berth_corridor_half_width_m = inf;
+    end
+    if isfield(berth_cfg, 'corridor_along_min_m') && ~isempty(berth_cfg.corridor_along_min_m)
+        solve_opts.berth_corridor_along_min_m = berth_cfg.corridor_along_min_m;
+    else
+        solve_opts.berth_corridor_along_min_m = -inf;
+    end
+    if isfield(berth_cfg, 'corridor_along_max_m') && ~isempty(berth_cfg.corridor_along_max_m)
+        solve_opts.berth_corridor_along_max_m = berth_cfg.corridor_along_max_m;
+    else
+        solve_opts.berth_corridor_along_max_m = inf;
     end
 
-    near_gate_lam = revRamp01(d_to_active_end, 40, route_follow_cfg.tighten_near_gate_dist_m);
 
+    solve_opts.R_rate_scale_obs  = 1.0;
+    solve_opts.map_barrier_weight = sched_cfg.map_barrier_w_base;
+    solve_opts.u_min_forward      = nmpc_cfg.u_min_forward;
+
+    solve_opts.n3_max              = 0;
+    solve_opts.max_azimuth_split   = azipod_sync_cfg.transit_alpha_split_rad;
+    solve_opts.max_stern_cmd_split = azipod_sync_cfg.transit_stern_split_rpm;
+
+    solve_opts.map_soft_margin_m = sched_cfg.map_soft_margin_m;
+
+    % CONTINUOUS GEOMETRY-AWARE SCHEDULER
+    U_now = sqrt(x(1)^2 + x(2)^2);
+    U_ship_world = [cos(x(6))*x(1) - sin(x(6))*x(2); sin(x(6))*x(1) + cos(x(6))*x(2)];
+    d_to_active_end = norm(x(4:5) - wp_end_xy);
+
+
+    % --- 1) Clearance-aware tightness ------------------------------------
+    d_edge_now = inf;
+    if enable_map_obstacles && ~isempty(map_edge_set)
+        d_edge_now = nearestDistanceToMapEdges(x(4:5), map_edge_set);
+    end
+    lambda_clearance = revRamp01(d_edge_now, sched_cfg.clearance_lo_m, sched_cfg.clearance_hi_m);
+    lambda_channel   = revRamp01(2.0*d_edge_now, sched_cfg.channel_width_lo_m, sched_cfg.channel_width_hi_m);
+    lambda_tight = max(lambda_clearance, lambda_channel);
+
+    % --- 2) Stopping-distance awareness ----------------------------------
+    a_eff = max(0.05, sched_cfg.brake_eff_mps2);
+    d_stop = U_now^2 / (2 * a_eff) + sched_cfg.stop_margin_m;
+    d_stop_log(i) = d_stop;
+    d_free_candidates = []; d_free_candidates(end+1) = max(0, d_to_active_end);
+    if berth_cfg.enabled
+        d_entry = distanceToBerthCorridorEntry(x(4:5), berth_cfg);
+        d_endcorr = distanceToBerthCorridorEnd(x(4:5), berth_cfg);
+        if isfinite(d_entry),   d_free_candidates(end+1) = max(0, d_entry);   end
+        if isfinite(d_endcorr), d_free_candidates(end+1) = max(0, d_endcorr); end
+    end
+    if isfinite(d_edge_now), d_free_candidates(end+1) = max(0, d_edge_now); end
+    d_free_ref = min(d_free_candidates);
+    lambda_stop = revRamp01(d_free_ref - d_stop, 0, sched_cfg.stop_buffer_m);
+
+    % --- 3) Turn severity awareness --------------------------------------
+    turn_next_deg = getNextTurnAngleDeg(waypoints, seg_start_idx);
+    lambda_turn_angle = ramp01(turn_next_deg, sched_cfg.turn_angle_lo_deg, sched_cfg.turn_angle_hi_deg);
+    lambda_turn_dist  = revRamp01(d_to_active_end, sched_cfg.turn_dist_near_m, sched_cfg.turn_dist_far_m);
+    lambda_turn = lambda_turn_angle * lambda_turn_dist;
+
+    % --- 4) Continuous berth activation ----------------------------------
+    if berth_cfg.enabled
+        d_berth = norm(x(4:5) - berth_cfg.target_xy(:));
+        lambda_berth = revRamp01(d_berth, sched_cfg.berth_d_full_m, sched_cfg.berth_d_activate_m);
+    else
+        lambda_berth = 0;
+    end
+
+    % Preview strictness: starts on the last N segments or by berth distance,
+    % but ramps smoothly rather than only adding mild heading prep.
+    lambda_berth_preview = 0;
+    if berth_cfg.enabled && berth_preview_active
+        d_preview_on = 1.8 * berth_cfg.activate_dist_m;
+        d_preview_full = 0.9 * berth_cfg.activate_dist_m;
+        lambda_berth_preview = revRamp01(d_to_berth, d_preview_full, d_preview_on);
+    end
+
+    % Unified berth preparation intensity
+    lambda_berth_strict = max(lambda_berth, 0.75 * lambda_berth_preview);
+
+
+    % --- 5) Dynamic Obstacle TTC / Yield / Return Lambdas ----------------
+    lambda_ttc   = 0;
+    lambda_yield = 0;
+    lambda_return= 0;
+    small_eps = 1e-6;
+
+    if enable_dynamic_obstacles && ~isempty(obs_dyn)
+        for j = 1:length(obs_dyn)
+            r      = obs_dyn(j).position(:) - x(4:5);
+            v_obs  = obs_dyn(j).speed * [cos(obs_dyn(j).heading); sin(obs_dyn(j).heading)];
+            v_rel  = v_obs - U_ship_world;
+            d_rel  = norm(r) + eps;
+            d_dot  = (r' * v_rel) / d_rel;
+            v_close= max(0, -d_dot);
+            
+            % CPA
+            v_rel_sq = max(v_rel'*v_rel, eps);
+            t_cpa    = max(0, -(r'*v_rel) / v_rel_sq);
+            d_cpa    = norm(r + t_cpa * v_rel);
+            
+            % Sector filter (cosine of relative bearing)
+            cos_beta = (r'*[cos(x(6)); sin(x(6))]) / d_rel;
+            lam_sec  = sat01((cos_beta - sched_cfg.cos_beta_max) / (1 - sched_cfg.cos_beta_max + eps));
+            
+            % Base TTC activation (exact math from prompt)
+            l_ttc = sat01((sched_cfg.T_cpa_far - t_cpa)/(sched_cfg.T_cpa_far - sched_cfg.T_cpa_near + eps)) * ...
+                    sat01((sched_cfg.d_cpa_th - d_cpa)/(sched_cfg.d_cpa_th + eps)) * ...
+                    sat01(v_close / (sched_cfg.v_close_ref + eps));
+            
+            lambda_ttc   = max(lambda_ttc, l_ttc * lam_sec);
+            lambda_yield = max(lambda_yield, l_ttc * lam_sec * sat01((-d_dot) / (sched_cfg.d_dot_ref + eps)));
+            l_return = sat01((sched_cfg.d_cpa_th - d_cpa) / (sched_cfg.d_cpa_th + small_eps)) * sat01(d_dot / (sched_cfg.d_dot_ref + small_eps));
+            lambda_return = max(lambda_return, l_return * lam_sec);
+
+        end
+    end
+
+
+    % --- 6) Master caution blend -----------------------------------------
+    lambda_total = max([lambda_tight, lambda_stop, lambda_turn, lambda_berth, lambda_yield]);
+
+    % APPLY CONTINUOUS SCHEDULING TO NMPC SOLVE OPTIONS
+    % Speed shaping (geom + dynamic yield)
+    U_cap_tight = lerp(sched_cfg.u_cruise_mps, sched_cfg.u_tight_mps, lambda_tight);
+    U_cap_stop  = lerp(sched_cfg.u_cruise_mps, sched_cfg.u_tight_mps, lambda_stop);
+    U_cap_turn  = lerp(sched_cfg.u_cruise_mps, max(1.2, sched_cfg.u_tight_mps), lambda_turn);
+    U_cap_berth = lerp(sched_cfg.u_cruise_mps, sched_cfg.u_berth_mps, lambda_berth_strict);
+    U_cap_dyn   = lerp(sched_cfg.u_cruise_mps, sched_cfg.u_yield, lambda_yield);
+    solve_opts.soft_speed_cap_mps = min([U_cap_tight, U_cap_stop, U_cap_turn, U_cap_berth, U_cap_dyn]);
+    solve_opts.soft_speed_cap_weight = lerp(sched_cfg.soft_speed_weight_far, sched_cfg.soft_speed_weight_near, lambda_total);
+
+    % Along-track reward scheduling (yield reduces progress urgency)
+    solve_opts.path_along_weight = lerp(path_cost_cfg.W_along, sched_cfg.w_along_min, lambda_yield);
+
+    % Tube & XTE scheduling (return tightens path after CPA)
+    geom_caution = max([lambda_tight, lambda_turn, lambda_berth]);
+    lambda_path_return = max(geom_caution, lambda_return);
+
+    solve_opts.path_tube_half_width_m = ...
+        lerp(sched_cfg.tube_far_m, sched_cfg.tube_near_m, lambda_path_return);
+
+    solve_opts.path_xte_weight = ...
+        lerp(sched_cfg.xte_weight_far, sched_cfg.xte_weight_near, lambda_path_return);
+
+    solve_opts.path_heading_weight = max([ ...
+        0.35 * lambda_turn  * sched_cfg.heading_weight_turn, ...
+        0.10 * lambda_berth * sched_cfg.heading_weight_berth, ...
+        lambda_return       * sched_cfg.heading_weight_return]);
+
+    
+    % Early berth strictness: tighten line tracking already during preview
     solve_opts.path_tube_half_width_m = min( ...
         solve_opts.path_tube_half_width_m, ...
-        lerp(path_cost_cfg.W_tube_m, route_follow_cfg.tighten_tube_m, near_gate_lam));
+        lerp(path_cost_cfg.W_tube_m, 6.0, lambda_berth_strict));
 
     solve_opts.path_xte_weight = max( ...
         solve_opts.path_xte_weight, ...
-        lerp(path_cost_cfg.W_xte_heavy, route_follow_cfg.tighten_xte_weight, near_gate_lam));
+        lerp(path_cost_cfg.W_xte_heavy, 36.0, lambda_berth_strict));
+
+    solve_opts.path_heading_weight = max( ...
+        solve_opts.path_heading_weight, ...
+        lerp(6.0, 40.0, lambda_berth_strict));
+
+
+    % ROUTE-ORDER RESTORE / GATE TIGHTENING
+    if lambda_yield < 0.10 && lambda_return < 0.15
+        if d_to_active_end <= route_follow_cfg.transit_goal_dist_near_m
+            transit_goal_w = route_follow_cfg.transit_goal_pos_weight_near;
+        elseif d_to_active_end <= route_follow_cfg.transit_goal_dist_mid_m
+            transit_goal_w = route_follow_cfg.transit_goal_pos_weight_mid;
+        else
+            transit_goal_w = route_follow_cfg.transit_goal_pos_weight_far;
+        end
+
+        near_gate_lam = revRamp01(d_to_active_end, 40, route_follow_cfg.tighten_near_gate_dist_m);
+
+        solve_opts.path_tube_half_width_m = min( ...
+            solve_opts.path_tube_half_width_m, ...
+            lerp(path_cost_cfg.W_tube_m, route_follow_cfg.tighten_tube_m, near_gate_lam));
+
+        solve_opts.path_xte_weight = max( ...
+            solve_opts.path_xte_weight, ...
+            lerp(path_cost_cfg.W_xte_heavy, route_follow_cfg.tighten_xte_weight, near_gate_lam));
+
+        solve_opts.terminal_goal_pos_weight = max( ...
+            solve_opts.terminal_goal_pos_weight, transit_goal_w);
+
+        if turn_next_deg >= route_follow_cfg.sharp_turn_deg
+            sharp_turn_lam = revRamp01(d_to_active_end, 40, route_follow_cfg.sharp_turn_heading_enable_dist_m);
+
+            solve_opts.path_heading_weight = max( ...
+                solve_opts.path_heading_weight, ...
+                sharp_turn_lam * route_follow_cfg.sharp_turn_heading_weight);
+
+            solve_opts.terminal_goal_pos_weight = max( ...
+                solve_opts.terminal_goal_pos_weight, ...
+                transit_goal_w * lerp(1.0, route_follow_cfg.sharp_turn_goal_weight_gain, sharp_turn_lam));
+        end
+    end
+
+    % Surge lower bound scheduling (yield allows near-stop)
+    desired_u_min_forward = lerp(sched_cfg.u_min_forward_far, sched_cfg.u_yield, lambda_yield);
+    solve_opts.u_min_forward = desired_u_min_forward;
+
+    % Heading & stop scheduling (bert   h/turn vs return)
+    solve_opts.terminal_goal_heading_weight = max( ...
+        lambda_turn * sched_cfg.heading_weight_turn, ...
+        lambda_berth_strict * sched_cfg.heading_weight_berth) + ...
+        lambda_return * 15.0;
+
+    if lambda_berth_strict >= max(0.20, lambda_turn)
+        solve_opts.goal_heading_enable = true; solve_opts.goal_heading_rad = deg2rad(berth_cfg.heading_deg);
+    elseif lambda_turn > 0.05 || lambda_return > 0.1
+        solve_opts.goal_heading_enable = true; solve_opts.goal_heading_rad = chi_seg;
+    elseif on_final_waypoint
+        solve_opts.goal_heading_enable = true; solve_opts.goal_heading_rad = chi_seg;
+    else
+        solve_opts.goal_heading_enable = false;
+    end
 
     solve_opts.terminal_goal_pos_weight = max( ...
-        solve_opts.terminal_goal_pos_weight, transit_goal_w);
+        solve_opts.terminal_goal_pos_weight, ...
+        lerp(sched_cfg.term_pos_weight_far, sched_cfg.term_pos_weight_berth, lambda_berth_strict));
+    solve_opts.terminal_stop_u_weight = lerp(sched_cfg.stop_u_weight_far, sched_cfg.stop_u_weight_berth, lambda_berth_strict);
+    solve_opts.terminal_stop_v_weight = lerp(0.0, sched_cfg.stop_v_weight_berth, lambda_berth_strict);
+    solve_opts.terminal_stop_r_weight = lerp(0.0, sched_cfg.stop_r_weight_berth, lambda_berth_strict);
 
-    if turn_next_deg >= route_follow_cfg.sharp_turn_deg
-        sharp_turn_lam = revRamp01(d_to_active_end, 40, route_follow_cfg.sharp_turn_heading_enable_dist_m);
+    % EARLY BERTH PREVIEW
+    if berth_preview_active && ~berth_mode_active
+        solve_opts.goal_heading_enable = true;
+        solve_opts.goal_heading_rad = deg2rad(berth_cfg.heading_deg);
 
-        solve_opts.path_heading_weight = max( ...
-            solve_opts.path_heading_weight, ...
-            sharp_turn_lam * route_follow_cfg.sharp_turn_heading_weight);
+        solve_opts.terminal_goal_heading_weight = max( ...
+            solve_opts.terminal_goal_heading_weight, ...
+            berth_cfg.preview_heading_weight);
 
         solve_opts.terminal_goal_pos_weight = max( ...
             solve_opts.terminal_goal_pos_weight, ...
-            transit_goal_w * lerp(1.0, route_follow_cfg.sharp_turn_goal_weight_gain, sharp_turn_lam));
+            berth_cfg.preview_goal_weight_gain * solve_opts.terminal_goal_pos_weight);
     end
-end
 
-% Surge lower bound scheduling (yield allows near-stop)
-desired_u_min_forward = lerp(sched_cfg.u_min_forward_far, sched_cfg.u_yield, lambda_yield);
-solve_opts.u_min_forward = desired_u_min_forward;
+    % Terminal envelope
+    if berth_cfg.enabled && (lambda_berth_strict > 0.10)
+        solve_opts.enable_terminal_pose = true;
+        solve_opts.term_pose_eps_xy_m = lerp(sched_cfg.term_xy_far_m, sched_cfg.term_xy_near_m, lambda_berth_strict);
+        solve_opts.term_pose_eps_psi_rad = lerp(sched_cfg.term_psi_far_rad, sched_cfg.term_psi_near_rad, lambda_berth_strict);
+        solve_opts.term_vel_max_u_mps = lerp(sched_cfg.term_u_far_mps, sched_cfg.term_u_near_mps, lambda_berth_strict);
+        solve_opts.term_vel_max_v_mps = lerp(sched_cfg.term_v_far_mps, sched_cfg.term_v_near_mps, lambda_berth_strict);
+        solve_opts.term_vel_max_r_radps = lerp(sched_cfg.term_r_far_radps, sched_cfg.term_r_near_radps, lambda_berth_strict);
+        solve_opts.term_pose_slack_max = lerp(2.0, berth_cfg.pose_slack_max, lambda_berth_strict);
+    end
 
-% Heading & stop scheduling (bert   h/turn vs return)
-solve_opts.terminal_goal_heading_weight = max(lambda_turn * sched_cfg.heading_weight_turn, ...
-    lambda_berth * sched_cfg.heading_weight_berth) + lambda_return * 15.0;
+    % Map corridor & relevance
+    if berth_cfg.enabled && berth_cfg.use_corridor && (lambda_berth_strict > 0.15)
+        solve_opts.enable_berth_corridor = true;
+        solve_opts.berth_corridor_origin_xy = berth_cfg.corridor_origin_xy(:);
+        solve_opts.berth_corridor_heading_rad = deg2rad(berth_cfg.corridor_heading_deg);
+        solve_opts.berth_corridor_half_width_m = lerp(sched_cfg.corridor_half_width_far_m, sched_cfg.corridor_half_width_near_m, lambda_berth_strict);
+        solve_opts.berth_corridor_along_min_m = berth_cfg.corridor_along_min_m;
+        solve_opts.berth_corridor_along_max_m = berth_cfg.corridor_along_max_m;
+    end
 
-if lambda_berth >= max(0.20, lambda_turn)
-    solve_opts.goal_heading_enable = true; solve_opts.goal_heading_rad = deg2rad(berth_cfg.heading_deg);
-elseif lambda_turn > 0.05 || lambda_return > 0.1
-    solve_opts.goal_heading_enable = true; solve_opts.goal_heading_rad = chi_seg;
-elseif on_final_waypoint
-    solve_opts.goal_heading_enable = true; solve_opts.goal_heading_rad = chi_seg;
-else
-    solve_opts.goal_heading_enable = false;
-end
+    % Smoothness scaling (yield penalizes jerky avoidance arcs)
+    solve_opts.R_rate_scale_obs = 1.0 + lambda_yield * (sched_cfg.R_rate_scale_yield - 1.0);
 
-solve_opts.terminal_goal_pos_weight = max( ...
-    solve_opts.terminal_goal_pos_weight, ...
-    lerp(sched_cfg.term_pos_weight_far, sched_cfg.term_pos_weight_berth, lambda_berth));
-solve_opts.terminal_stop_u_weight = lerp(sched_cfg.stop_u_weight_far, sched_cfg.stop_u_weight_berth, lambda_berth);
-solve_opts.terminal_stop_v_weight = lerp(0.0, sched_cfg.stop_v_weight_berth, lambda_berth);
-solve_opts.terminal_stop_r_weight = lerp(0.0, sched_cfg.stop_r_weight_berth, lambda_berth);
+    % Soft map barrier weight (tight + return phases)
+    solve_opts.map_barrier_weight = sched_cfg.map_barrier_w_base + ...
+        max(lambda_tight, lambda_return) * (sched_cfg.map_barrier_w_near - sched_cfg.map_barrier_w_base);
 
-% EARLY BERTH PREVIEW
-if berth_preview_active && ~berth_mode_active
-    solve_opts.goal_heading_enable = true;
-    solve_opts.goal_heading_rad = deg2rad(berth_cfg.heading_deg);
+    % Hard structural limits only
+    if berth_mode_active
+        solve_opts.n3_max = berth_cfg.n3_max;
+        solve_opts.max_azimuth_split = berth_cfg.max_azimuth_split_rad;
+        solve_opts.max_stern_cmd_split = berth_cfg.max_stern_cmd_split_rpm;
+        desired_u_min_forward = min(desired_u_min_forward, berth_cfg.u_min_final_mps);
+    else
+        solve_opts.n3_max = 0;
+        solve_opts.max_azimuth_split = azipod_sync_cfg.transit_alpha_split_rad;
+        solve_opts.max_stern_cmd_split = azipod_sync_cfg.transit_stern_split_rpm;
+    end
 
-    solve_opts.terminal_goal_heading_weight = max( ...
-        solve_opts.terminal_goal_heading_weight, ...
-        berth_cfg.preview_heading_weight);
+    solve_opts.u_min_forward = desired_u_min_forward;
 
-    solve_opts.terminal_goal_pos_weight = max( ...
-        solve_opts.terminal_goal_pos_weight, ...
-        berth_cfg.preview_goal_weight_gain * solve_opts.terminal_goal_pos_weight);
-end
+    % Early terminal-line recapture during berth preview/final approach
+    if berth_cfg.enabled && berth_preview_active
+        solve_opts.terminal_line_xte_weight = max( ...
+            getOr(solve_opts, 'terminal_line_xte_weight', 0), ...
+            lerp(60.0, 240.0, lambda_berth_strict));
 
-% Terminal envelope
-if berth_cfg.enabled && (lambda_berth > 0.05)
-    solve_opts.enable_terminal_pose = true;
-    solve_opts.term_pose_eps_xy_m = lerp(sched_cfg.term_xy_far_m, sched_cfg.term_xy_near_m, lambda_berth);
-    solve_opts.term_pose_eps_psi_rad = lerp(sched_cfg.term_psi_far_rad, sched_cfg.term_psi_near_rad, lambda_berth);
-    solve_opts.term_vel_max_u_mps = lerp(sched_cfg.term_u_far_mps, sched_cfg.term_u_near_mps, lambda_berth);
-    solve_opts.term_vel_max_v_mps = lerp(sched_cfg.term_v_far_mps, sched_cfg.term_v_near_mps, lambda_berth);
-    solve_opts.term_vel_max_r_radps = lerp(sched_cfg.term_r_far_radps, sched_cfg.term_r_near_radps, lambda_berth);
-    solve_opts.term_pose_slack_max = lerp(2.0, berth_cfg.pose_slack_max, lambda_berth);
-end
-
-% Map corridor & relevance
-if berth_cfg.enabled && berth_cfg.use_corridor && (lambda_berth > 0.10)
-    solve_opts.enable_berth_corridor = true;
-    solve_opts.berth_corridor_origin_xy = berth_cfg.corridor_origin_xy(:);
-    solve_opts.berth_corridor_heading_rad = deg2rad(berth_cfg.corridor_heading_deg);
-    solve_opts.berth_corridor_half_width_m = lerp(sched_cfg.corridor_half_width_far_m, sched_cfg.corridor_half_width_near_m, lambda_berth);
-    solve_opts.berth_corridor_along_min_m = berth_cfg.corridor_along_min_m;
-    solve_opts.berth_corridor_along_max_m = berth_cfg.corridor_along_max_m;
-end
-
-% Smoothness scaling (yield penalizes jerky avoidance arcs)
-solve_opts.R_rate_scale_obs = 1.0 + lambda_yield * (sched_cfg.R_rate_scale_yield - 1.0);
-
-% Soft map barrier weight (tight + return phases)
-solve_opts.map_barrier_weight = sched_cfg.map_barrier_w_base + ...
-    max(lambda_tight, lambda_return) * (sched_cfg.map_barrier_w_near - sched_cfg.map_barrier_w_base);
-
-% Hard structural limits only
-if berth_mode_active
-    solve_opts.n3_max = berth_cfg.n3_max;
-    solve_opts.max_azimuth_split = berth_cfg.max_azimuth_split_rad;
-    solve_opts.max_stern_cmd_split = berth_cfg.max_stern_cmd_split_rpm;
-    desired_u_min_forward = min(desired_u_min_forward, berth_cfg.u_min_final_mps);
-else
-    solve_opts.n3_max = 0;
-    solve_opts.max_azimuth_split = azipod_sync_cfg.transit_alpha_split_rad;
-    solve_opts.max_stern_cmd_split = azipod_sync_cfg.transit_stern_split_rpm;
-end
-
-solve_opts.u_min_forward = desired_u_min_forward;
-
-if on_final_waypoint, solve_opts.enable_terminal_pose = true; end
-
-if on_final_waypoint
-    lambda_gate_final = revRamp01(d_to_active_end, 25, 160);
-    lambda_terminal_conn = max([lambda_gate_final, lambda_return, 0.5*lambda_tight]);
-
-    % Never drop heading guidance on final segment
-    solve_opts.goal_heading_enable = true;
-    solve_opts.goal_heading_rad = chi_seg;
-
-    % Tighten line adherence near the terminal segment
-    solve_opts.terminal_line_xte_weight = lerp(70.0, 260.0, lambda_terminal_conn);
-    solve_opts.terminal_line_heading_weight = lerp(25.0, 110.0, lambda_terminal_conn);
-
-    % Also tighten stage path tracking near the gate
-    solve_opts.path_xte_weight = max( ...
-        solve_opts.path_xte_weight, ...
-        lerp(16.0, 34.0, lambda_gate_final));
-
-    solve_opts.path_tube_half_width_m = min( ...
-        solve_opts.path_tube_half_width_m, ...
-        lerp(12.0, 7.0, lambda_gate_final));
-
-    % Keep endpoint attraction, but not alone
-    solve_opts.terminal_goal_pos_weight = max( ...
-        solve_opts.terminal_goal_pos_weight, ...
-        lerp(90.0, 180.0, lambda_gate_final));
-end
+        solve_opts.terminal_line_heading_weight = max( ...
+            getOr(solve_opts, 'terminal_line_heading_weight', 0), ...
+            lerp(20.0, 90.0, lambda_berth_strict));
+    end
 
 
-% Update logs
-lambda_tight_log(i) = lambda_tight; lambda_stop_log(i) = lambda_stop;
-lambda_turn_log(i)  = lambda_turn;  lambda_berth_log(i)= lambda_berth;
-lambda_total_log(i) = lambda_total; lambda_yield_log(i)= lambda_yield;
-lambda_return_log(i)= lambda_return; lambda_ttc_log(i)  = lambda_ttc;
-u_cap_log(i)        = solve_opts.soft_speed_cap_mps; d_edge_log(i) = d_edge_now;
-az_split_limit_log(i) = solve_opts.max_azimuth_split;
-stern_split_limit_log(i) = solve_opts.max_stern_cmd_split;
-ref_time_log(i) = toc(t_seg);
+    if on_final_waypoint, solve_opts.enable_terminal_pose = true; end
+
+    if on_final_waypoint
+        lambda_gate_final = revRamp01(d_to_active_end, 25, 160);
+        lambda_terminal_conn = max([lambda_gate_final, lambda_return, 0.5*lambda_tight]);
+
+        solve_opts.goal_heading_enable = true;
+        if berth_mode_active
+            solve_opts.goal_heading_rad = deg2rad(berth_cfg.heading_deg);
+        else
+            solve_opts.goal_heading_rad = chi_seg;
+        end
+
+        solve_opts.terminal_line_xte_weight = lerp(70.0, 260.0, lambda_terminal_conn);
+        solve_opts.terminal_line_heading_weight = lerp(25.0, 110.0, lambda_terminal_conn);
+
+        solve_opts.path_xte_weight = max( ...
+            solve_opts.path_xte_weight, ...
+            lerp(16.0, 34.0, lambda_gate_final));
+
+        solve_opts.path_tube_half_width_m = min( ...
+            solve_opts.path_tube_half_width_m, ...
+            lerp(12.0, 7.0, lambda_gate_final));
+
+        solve_opts.terminal_goal_pos_weight = max( ...
+            solve_opts.terminal_goal_pos_weight, ...
+            lerp(90.0, 180.0, lambda_gate_final));
+    end
+
+              
+
+    % Update logs
+    lambda_tight_log(i) = lambda_tight; lambda_stop_log(i) = lambda_stop;
+    lambda_turn_log(i)  = lambda_turn;  lambda_berth_log(i)= lambda_berth;
+    lambda_total_log(i) = lambda_total; lambda_yield_log(i)= lambda_yield;
+    lambda_return_log(i)= lambda_return; lambda_ttc_log(i)  = lambda_ttc;
+    u_cap_log(i)        = solve_opts.soft_speed_cap_mps; d_edge_log(i) = d_edge_now;
+    az_split_limit_log(i) = solve_opts.max_azimuth_split;
+    stern_split_limit_log(i) = solve_opts.max_stern_cmd_split;
+    ref_time_log(i) = toc(t_seg);
 
     % 5) Solve NMPC
     t_seg = tic;
@@ -1030,7 +1092,9 @@ ref_time_log(i) = toc(t_seg);
             d_nearest_obs = min(d_nearest_obs, norm(x(4:5) - obs_local(j).position));
         end
         mode_str = 'TRANSIT';
+        if berth_preview_active, mode_str = 'BERTH_PREVIEW'; end
         if on_final_waypoint, mode_str = 'FINAL'; end
+        if berth_mode_active, mode_str = 'BERTH'; end
         fprintf(['  [t=%5.1f] mode=%s pos=(%7.1f,%6.1f) psi=%+6.1fdeg wp=%d xte=%+.1fm ', ...
                  'obs_d=%.0fm comp=%.1fms RT=%.2f obs=%d\n'], ...
             t(i), mode_str, x(4), x(5), rad2deg(x(6)), wp_idx, xte, d_nearest_obs, ...
@@ -1235,9 +1299,103 @@ if output_gen_error
     fprintf('  Output generation had errors, but simulation completed.\n');
 end
 
+%% PLOTTING
+
+figure(1); clf;
+
+subplot(3,3,1);
+plotMapBackground(map);
+hold on;
+plot(traj(5,:), traj(4,:), 'g-', 'LineWidth', 2);
+plot(waypoints(:,2), waypoints(:,1), 'r*-', 'MarkerSize', 12, 'LineWidth', 1);
+theta_circ = linspace(0, 2*pi, 50);
+for j = 1:length(static_obstacles)
+    fill(static_obstacles(j).position(2) + static_obstacles(j).radius*cos(theta_circ), ...
+         static_obstacles(j).position(1) + static_obstacles(j).radius*sin(theta_circ), ...
+         'r', 'FaceAlpha', 0.3, 'EdgeColor', 'r', 'LineWidth', 2);
+end
+if ~isempty(dynamic_obstacles)
+    dyn_cols = lines(max(1, size(dyn_obs_hist,1)));
+    for j = 1:size(dyn_obs_hist,1)
+        hx = squeeze(dyn_obs_hist(j,2,1:steps+1));
+        hy = squeeze(dyn_obs_hist(j,1,1:steps+1));
+        valid = isfinite(hx) & isfinite(hy);
+        if nnz(valid) >= 2
+            plot(hx(valid), hy(valid), '--', 'Color', dyn_cols(j,:), 'LineWidth', 1.2, ...
+                'HandleVisibility', 'off');
+        end
+        if any(valid)
+            last_idx = find(valid, 1, 'last');
+            fill(hx(last_idx) + dynamic_obs_radius_m*cos(theta_circ), ...
+                 hy(last_idx) + dynamic_obs_radius_m*sin(theta_circ), ...
+                 dyn_cols(j,:), 'FaceAlpha', 0.12, 'EdgeColor', dyn_cols(j,:), ...
+                 'LineWidth', 1.3, 'HandleVisibility', 'off');
+        end
+    end
+end
+plot(traj(5,1), traj(4,1), 'go', 'MarkerSize', 10, 'MarkerFaceColor', 'g');
+plot(traj(5,end), traj(4,end), 'bs', 'MarkerSize', 10, 'MarkerFaceColor', 'b');
+xlabel('East / y [m]'); ylabel('North / x [m]'); 
+title('Ship Trajectory'); grid on; axis equal;
+
+subplot(3,3,2);
+t_ctrl = (0:size(ctrl,2)-1)*dt;
+plot(t_ctrl, rad2deg(ctrl(1,:)), 'b-', 'LineWidth', 1.5); hold on;
+plot(t_ctrl, rad2deg(ctrl(2,:)), 'r--', 'LineWidth', 1.5);
+xlabel('Time [s]'); ylabel('Azimuth [deg]');
+title('Azimuth Angles'); grid on;
+legend('\alpha_1 (port stern)', '\alpha_2 (starboard stern)', 'Location', 'best');
+
+subplot(3,3,3);
+plot(t_ctrl, ctrl(3,:), 'b-', 'LineWidth', 1.5); hold on;
+plot(t_ctrl, ctrl(4,:), 'r--', 'LineWidth', 1.5);
+plot(t_ctrl, ctrl(5,:), 'g-', 'LineWidth', 1.5);
+xlabel('Time [s]'); ylabel('Commanded rpm');
+title('Shaft Speed Commands'); grid on;
+legend('n_{1,c}', 'n_{2,c}', 'n_{3,c}', 'Location', 'best');
+
+subplot(3,3,4);
+plot(t_sim, traj(7,:), 'b-', 'LineWidth', 1.5); hold on;
+plot(t_sim, traj(8,:), 'r--', 'LineWidth', 1.5);
+plot(t_sim, traj(9,:), 'g-', 'LineWidth', 1.5);
+xlabel('Time [s]'); ylabel('Actual rpm');
+title('Actual Shaft Speeds'); grid on;
+legend('n_1', 'n_2', 'n_3', 'Location', 'best');
+
+subplot(3,3,5);
+t_xte = (0:length(xte_log)-1)*dt;
+plot(t_xte, xte_log, 'b-', 'LineWidth', 1.5);
+yline(0, 'k--');
+xlabel('Time [s]'); ylabel('XTE [m]'); title('Cross-track Error'); grid on;
+
+subplot(3,3,6);
+plot(t_sim, traj(1,:), 'b-', 'LineWidth', 1.5);
+xlabel('Time [s]'); ylabel('Speed [m/s]');
+title('Surge Velocity'); grid on;
+
+subplot(3,3,7);
+plot(t_xte, rad2deg(heading_err_log), 'm-', 'LineWidth', 1.5); hold on;
+yline(0, 'k--');
+xlabel('Time [s]'); ylabel('\psi_{ref}-\psi [deg]');
+title('Heading Error vs Time'); grid on;
+
+subplot(3,3,8);
+yyaxis left;
+plot(t_ctrl, rad2deg(ctrl(1,:)), 'b-', 'LineWidth', 1.2); hold on;
+plot(t_ctrl, rad2deg(ctrl(2,:)), 'r--', 'LineWidth', 1.2);
+ylabel('Rudder cmd [deg]');
+yyaxis right;
+plot(t_ctrl, ctrl(3,:), 'c-', 'LineWidth', 1.0);
+plot(t_ctrl, ctrl(4,:), 'g--', 'LineWidth', 1.0);
+plot(t_ctrl, ctrl(5,:), 'k-', 'LineWidth', 1.0);
+ylabel('Thrust cmd [rpm]');
+xlabel('Time [s]');
+title('Commanded Rudder / Thrust vs Time'); grid on;
+legend('\alpha_1', '\alpha_2', 'n_{1,c}', 'n_{2,c}', 'n_{3,c}', 'Location', 'best');
+
+sgtitle('NMPC Harbor Navigation — Unified Test');
+
 %% LOCAL FUNCTIONS ========================================================
-
-
 
 function wp_idx = updateWaypointIndexManaged(x, wp, wp_idx, R_accept)
 % Robust waypoint progression.
@@ -2557,6 +2715,18 @@ function obs_out = normalizeObstacleSchema(obs_in)
         end
         if isfield(obs_in(k), 'heading') && ~isempty(obs_in(k).heading)
             obs_out(k).heading = obs_in(k).heading;
+        end
+    end
+end
+
+function plotMapBackground(map)
+    if isempty(map), return; end
+    hold on;
+    if isfield(map, 'polygons')
+        for kk = 1:length(map.polygons)
+            patch(map.polygons(kk).Y, map.polygons(kk).X, 'k', ...
+                'FaceColor', [0.9 0.2 0.2], 'FaceAlpha', 0.1, ...
+                'EdgeColor', 'r', 'LineWidth', 1.5);
         end
     end
 end

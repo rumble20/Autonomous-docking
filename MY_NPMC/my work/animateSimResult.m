@@ -92,7 +92,7 @@ dynamicObsHistory = cfgGet(cfg, 'dynamicObsHistory', []);
 dynamicObsRadius = cfgGet(cfg, 'dynamicObsRadius', 20);
 hullCfg = cfgGet(cfg, 'hullCfg', []);
 flipShipImageVertical = cfgGet(cfg, 'flipShipImageVertical', false);
-shipImageScale = cfgGet(cfg, 'shipImageScale', 1.8);
+shipImageScale = cfgGet(cfg, 'shipImageScale', 1.2);
 showHullHitbox = cfgGet(cfg, 'showHullHitbox', false);
 recordVideo = cfgGet(cfg, 'recordVideo', false);
 recordGif = cfgGet(cfg, 'recordGif', false);
@@ -365,12 +365,29 @@ else
 end
 
 % Display-only scaling for the ship icon (does not alter collision hitbox geometry).
+% Preserve original image aspect ratio: use image's effective dimensions ratio,
+% not the hull's dimensions ratio.
 shipImgHalfLen = shipHalfLen;
 shipImgHalfBeam = shipHalfBeam;
 if useImage
     shipImageScale = max(0.5, shipImageScale);
-    shipImgHalfLen = shipHalfLen * shipImageScale;
-    shipImgHalfBeam = shipHalfBeam * shipImageScale;
+    
+    % Preserve image aspect ratio
+    imgAspectRatio = shipEffWidthPx / shipEffHeightPx;  % width/height from image
+    hullAspectRatio = (2 * shipHalfLen) / (2 * shipHalfBeam);  % length/beam from hull
+    
+    % Scale based on the longer dimension of the hull, adjusted for image AR
+    if imgAspectRatio > hullAspectRatio
+        % Image is wider relative to height than hull is long relative to width
+        % Scale to preserve hull length, adjust beam
+        shipImgHalfLen = shipHalfLen * shipImageScale;
+        shipImgHalfBeam = shipImgHalfLen / imgAspectRatio;
+    else
+        % Image is narrower relative to height, or aspect ratios are similar
+        % Scale to preserve hull beam, adjust length
+        shipImgHalfBeam = shipHalfBeam * shipImageScale;
+        shipImgHalfLen = shipImgHalfBeam * imgAspectRatio;
+    end
 end
 
 if useImage
