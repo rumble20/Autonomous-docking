@@ -365,28 +365,32 @@ else
 end
 
 % Display-only scaling for the ship icon (does not alter collision hitbox geometry).
-% Preserve original image aspect ratio: use image's effective dimensions ratio,
-% not the hull's dimensions ratio.
+% Aim: make the icon at least as large as the hull (scaled by `shipImageScale`),
+% while preserving the original image aspect ratio so the icon is not distorted.
 shipImgHalfLen = shipHalfLen;
 shipImgHalfBeam = shipHalfBeam;
 if useImage
     shipImageScale = max(0.5, shipImageScale);
-    
-    % Preserve image aspect ratio
-    imgAspectRatio = shipEffWidthPx / shipEffHeightPx;  % width/height from image
-    hullAspectRatio = (2 * shipHalfLen) / (2 * shipHalfBeam);  % length/beam from hull
-    
-    % Scale based on the longer dimension of the hull, adjusted for image AR
-    if imgAspectRatio > hullAspectRatio
-        % Image is wider relative to height than hull is long relative to width
-        % Scale to preserve hull length, adjust beam
-        shipImgHalfLen = shipHalfLen * shipImageScale;
-        shipImgHalfBeam = shipImgHalfLen / imgAspectRatio;
+
+    % Image aspect: width (cols) corresponds to beam, height (rows) to length
+    imgAspect = max(1e-6, shipEffWidthPx) / max(1e-6, shipEffHeightPx); % beam/length
+
+    % Required half-dimensions from hull (apply desired display scale)
+    reqHalfBeam = shipHalfBeam * shipImageScale;
+    reqHalfLen  = shipHalfLen  * shipImageScale;
+
+    % If we scale image so its beam equals required beam, the implied length
+    % (from image aspect) is: impliedLen = reqHalfBeam / imgAspect.
+    % Choose the scaling that ensures BOTH dimensions cover the required hull dims.
+    impliedLen_from_beam = reqHalfBeam / imgAspect;
+    if impliedLen_from_beam >= reqHalfLen
+        % Beam-driven scaling covers required length as well -> use it
+        shipImgHalfBeam = reqHalfBeam;
+        shipImgHalfLen  = impliedLen_from_beam;
     else
-        % Image is narrower relative to height, or aspect ratios are similar
-        % Scale to preserve hull beam, adjust length
-        shipImgHalfBeam = shipHalfBeam * shipImageScale;
-        shipImgHalfLen = shipImgHalfBeam * imgAspectRatio;
+        % Beam-driven scaling too short in length -> use length-driven scaling
+        shipImgHalfLen  = reqHalfLen;
+        shipImgHalfBeam = shipImgHalfLen * imgAspect;
     end
 end
 

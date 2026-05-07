@@ -18,7 +18,23 @@ fprintf('═══════════════════════�
 
 % Waypoints: rows = [x, y].
 % No heading is stored in the waypoint list anymore.
-waypoints = [-2600, -2700; -2350, -2650; -2200, -2650; -1940, -2450];
+waypoints = [-3800, -1500; -3400, -1300; -3200, -1350; -3000, -1400; -2600, -1800; -2400, -2100; -2000, -2050];
+
+% Static obstacles: N-by-3 [x y radius] or struct array.
+static_obstacles = [];
+
+% Dynamic obstacles.
+dynamic_obs_positions_xy = [-3400, -1600; -2400, -2400];
+dynamic_obs_headings_deg = [30; 90];
+dynamic_obs_speeds_mps   = [3; 3];
+enable_dynamic_obstacles = true;
+dynamic_obs_radius_m     = 25;
+dynamic_obs_speed_mps    = 5;
+dynamic_obs_nmpc_guard_m = 0;
+dynamic_obs_start_mode   = 'proximity';   % immediate | proximity
+dynamic_obs_trigger_distance_m = 300;
+dynamic_obs_boundary_margin = 200;
+dynamic_obs_boundary_policy = 'wrap';     % wrap | hold
 
 % BERTHING MODE ==========================================================
 % This block fully replaces the old waypoint third-column final heading.
@@ -91,22 +107,6 @@ route_follow_cfg.sharp_turn_heading_enable_dist_m = 160;
 % Cruise-speed suggestion for the NMPC soft speed cost.
 cruise_speed_mps = 5.0;
 
-% Static obstacles: N-by-3 [x y radius] or struct array.
-static_obstacles = [];
-
-% Dynamic obstacles.
-dynamic_obs_positions_xy = [-2300, -2800; -2300, -3000];
-dynamic_obs_headings_deg = [180; 90];
-dynamic_obs_speeds_mps   = [3; 3];
-enable_dynamic_obstacles = true;
-dynamic_obs_radius_m     = 25;
-dynamic_obs_speed_mps    = 5;
-dynamic_obs_nmpc_guard_m = 0;
-dynamic_obs_start_mode   = 'proximity';   % immediate | proximity
-dynamic_obs_trigger_distance_m = 300;
-dynamic_obs_boundary_margin = 200;
-dynamic_obs_boundary_policy = 'wrap';     % wrap | bounce | hold
-
 % Dynamic latent awareness (optional planning-only envelopes).
 dynamic_latent_awareness = struct();
 dynamic_latent_awareness.enabled = true;
@@ -118,7 +118,7 @@ dynamic_latent_awareness.only_when_not_moving = false;
 
 
 % Simulation.
-T_final = 1000;
+T_final = 500;
 R_accept = 90;
 R_accept_final = 10;
 R_accept_final_soft = 50;
@@ -175,9 +175,9 @@ u_min_forward = 0.1;
 % Tube-MPC path cost.
 path_cost_cfg = struct();
 path_cost_cfg.W_xte_heavy = 12.0;
-path_cost_cfg.W_along = 1.2;
+path_cost_cfg.W_along = 0.15;
 path_cost_cfg.W_tube_m = 20.0;
-path_cost_cfg.soft_speed_cap_weight = 0.05;
+path_cost_cfg.soft_speed_cap_weight = 0.25;
 path_cost_cfg.soft_speed_cap_mps = cruise_speed_mps;
 
 % Final waypoint terminal cost.
@@ -297,7 +297,7 @@ sched_cfg.v_close_ref   = 3.0;     % m/s: closing rate reference
 sched_cfg.cos_beta_max  = cos(deg2rad(120)); % 120deg forward sector
 sched_cfg.d_dot_ref     = 2.0;     % m/s: separation rate threshold
 sched_cfg.u_yield       = 1;    % m/s: crawl speed during yield
-sched_cfg.w_along_min   = 0.35;    % minimal progress reward
+sched_cfg.w_along_min   = 0.05;    % minimal progress reward
 sched_cfg.R_rate_scale_yield = 2;% control smoothness multiplier
 sched_cfg.map_barrier_w_base = 0.0;
 sched_cfg.map_barrier_w_near = 18.0;
@@ -588,7 +588,7 @@ for i = 1:length(t)
     end
     if ~isempty(dynamic_obstacles)
         for jj = 1:length(dynamic_obstacles)
-            dyn_obs_hist(jj, :, i) = dynamic_obstacles(jj).position(1:2)';
+            dyn_obs_hist(jj, :, i+1) = dynamic_obstacles(jj).position(1:2)';
         end
     end
 
@@ -666,11 +666,11 @@ for i = 1:length(t)
     solve_opts.map_halfplanes        = map_halfplanes;
 
     % Safe defaults for optional scheduled fields
-    solve_opts.terminal_goal_pos_weight     = terminal_goal_cfg.pos_weight;
-    solve_opts.terminal_goal_heading_weight = terminal_goal_cfg.heading_weight;
-    solve_opts.terminal_stop_u_weight       = terminal_goal_cfg.stop_u_weight;
-    solve_opts.terminal_stop_v_weight       = terminal_goal_cfg.stop_v_weight;
-    solve_opts.terminal_stop_r_weight       = terminal_goal_cfg.stop_r_weight;
+    solve_opts.terminal_goal_pos_weight     = 0.0;
+    solve_opts.terminal_goal_heading_weight = 0.0;
+    solve_opts.terminal_stop_u_weight       = 0.0;
+    solve_opts.terminal_stop_v_weight       = 0.0;
+    solve_opts.terminal_stop_r_weight       = 0.0;
 
     solve_opts.enable_terminal_pose   = false;
     solve_opts.term_pose_eps_xy_m     = terminal_goal_cfg.term_pose_eps_xy_m(:);
@@ -859,44 +859,8 @@ for i = 1:length(t)
         lerp(6.0, 40.0, lambda_berth_strict));
 
 
-    % ROUTE-ORDER RESTORE / GATE TIGHTENING
-    if lambda_yield < 0.10 && lambda_return < 0.15
-        if d_to_active_end <= route_follow_cfg.transit_goal_dist_near_m
-            transit_goal_w = route_follow_cfg.transit_goal_pos_weight_near;
-        elseif d_to_active_end <= route_follow_cfg.transit_goal_dist_mid_m
-            transit_goal_w = route_follow_cfg.transit_goal_pos_weight_mid;
-        else
-            transit_goal_w = route_follow_cfg.transit_goal_pos_weight_far;
-        end
-
-        near_gate_lam = revRamp01(d_to_active_end, 40, route_follow_cfg.tighten_near_gate_dist_m);
-
-        solve_opts.path_tube_half_width_m = min( ...
-            solve_opts.path_tube_half_width_m, ...
-            lerp(path_cost_cfg.W_tube_m, route_follow_cfg.tighten_tube_m, near_gate_lam));
-
-        solve_opts.path_xte_weight = max( ...
-            solve_opts.path_xte_weight, ...
-            lerp(path_cost_cfg.W_xte_heavy, route_follow_cfg.tighten_xte_weight, near_gate_lam));
-
-        solve_opts.terminal_goal_pos_weight = max( ...
-            solve_opts.terminal_goal_pos_weight, transit_goal_w);
-
-        if turn_next_deg >= route_follow_cfg.sharp_turn_deg
-            sharp_turn_lam = revRamp01(d_to_active_end, 40, route_follow_cfg.sharp_turn_heading_enable_dist_m);
-
-            solve_opts.path_heading_weight = max( ...
-                solve_opts.path_heading_weight, ...
-                sharp_turn_lam * route_follow_cfg.sharp_turn_heading_weight);
-
-            solve_opts.terminal_goal_pos_weight = max( ...
-                solve_opts.terminal_goal_pos_weight, ...
-                transit_goal_w * lerp(1.0, route_follow_cfg.sharp_turn_goal_weight_gain, sharp_turn_lam));
-        end
-    end
-
     % Surge lower bound scheduling (yield allows near-stop)
-    desired_u_min_forward = lerp(sched_cfg.u_min_forward_far, sched_cfg.u_yield, lambda_yield);
+    desired_u_min_forward = lerp(sched_cfg.u_min_forward_far, sched_cfg.u_min_forward_near, lambda_yield);
     solve_opts.u_min_forward = desired_u_min_forward;
 
     % Heading & stop scheduling (bert   h/turn vs return)
@@ -1443,11 +1407,16 @@ function wp_idx = updateWaypointIndexManaged(x, wp, wp_idx, R_accept)
         sharp_turn = (turn_angle_deg >= 28);
         approaching_final = (wp_idx >= n_wps - 2);
 
-        if sharp_turn || approaching_final
+        if sharp_turn
             advance_now = ...
-                (d_to_waypoint <= max(30, 0.45 * R_accept)) && ...
-                (proj >= 0.85) && ...
-                (xte_seg <= max(30, 0.70 * R_accept));
+                (d_to_waypoint <= max(20, 0.28 * R_accept)) && ...
+                (proj >= 0.97) && ...
+                (xte_seg <= max(20, 0.45 * R_accept));
+        elseif approaching_final
+            advance_now = ...
+                (d_to_waypoint <= max(25, 0.35 * R_accept)) && ...
+                (proj >= 0.93) && ...
+                (xte_seg <= max(25, 0.55 * R_accept));
         else
             near_gate = (d_to_waypoint <= max(45, 0.80 * R_accept));
             passed_gate = (proj >= 1.00) && (xte_seg <= max(55, 0.90 * R_accept));

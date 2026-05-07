@@ -1,4 +1,0 @@
-{Operation terminated by user during internal.matlab.datatoolsservices.WSBUtil.getWorkspaceDisplay (line 34)
-} 
-{Operation terminated by user during internal.matlab.desktop_workspacebrowser.DesktopWSBDataModel.setNumVariables (line 76)
-} 
