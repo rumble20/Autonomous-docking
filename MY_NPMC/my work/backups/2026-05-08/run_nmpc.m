@@ -24,9 +24,9 @@ waypoints = [-3800, -1500; -3400, -1300; -3200, -1350; -3000, -1400; -2600, -180
 static_obstacles = [];
 
 % Dynamic obstacles.
-dynamic_obs_positions_xy = [-2400, -2400];
-dynamic_obs_headings_deg = [90];
-dynamic_obs_speeds_mps   = [3;3];
+dynamic_obs_positions_xy = [-3400, -1600; -2400, -2400];
+dynamic_obs_headings_deg = [30; 90];
+dynamic_obs_speeds_mps   = [3; 3];
 enable_dynamic_obstacles = true;
 dynamic_obs_radius_m     = 25;
 dynamic_obs_speed_mps    = 5;
@@ -128,6 +128,23 @@ n1_cruise = 100;
 n2_cruise = 100;
 n3_cruise = 0;
 
+% Optional environment overrides for regression / shorter sweeps.
+env_tfinal = str2double(getenv('NMPC_TFINAL'));
+if isfinite(env_tfinal) && env_tfinal > 0
+    T_final = env_tfinal;
+end
+env_dyn = getenv('NMPC_ENABLE_DYNAMIC_OBS');
+if ~isempty(env_dyn)
+    enable_dynamic_obstacles = logical(str2double(env_dyn));
+end
+env_tight = getenv('NMPC_ENABLE_TIGHT_CORRIDOR_MODE');
+if ~isempty(env_tight) && logical(str2double(env_tight))
+    route_follow_cfg.tighten_near_gate_dist_m = 120;
+    route_follow_cfg.tighten_tube_m = 10;
+    route_follow_cfg.tighten_xte_weight = 24.0;
+    route_follow_cfg.sharp_turn_heading_weight = 12.0;
+end
+
 % Hull footprint.
 hull_nominal_length_m = 175;
 hull_nominal_beam_m   = 25.4;
@@ -175,8 +192,8 @@ u_min_forward = 0.1;
 % Tube-MPC path cost.
 path_cost_cfg = struct();
 path_cost_cfg.W_xte_heavy = 12.0;
-path_cost_cfg.W_along = 3.0;
-path_cost_cfg.W_tube_m = 40.0;
+path_cost_cfg.W_along = 0.15;
+path_cost_cfg.W_tube_m = 20.0;
 path_cost_cfg.soft_speed_cap_weight = 0.25;
 path_cost_cfg.soft_speed_cap_mps = cruise_speed_mps;
 
@@ -253,7 +270,7 @@ sched_cfg.tube_far_m  = path_cost_cfg.W_tube_m;
 sched_cfg.tube_near_m = 10.0;
 
 sched_cfg.heading_weight_far   = 0.0;
-sched_cfg.heading_weight_turn  = 0;
+sched_cfg.heading_weight_turn  = 12.0;
 sched_cfg.heading_weight_berth = 140.0;
 sched_cfg.heading_weight_return = 35.0;
 
@@ -729,7 +746,7 @@ solve_opts.enable_soft_obstacles = soft_obstacle_cfg.enabled;
     % CONTINUOUS GEOMETRY-AWARE SCHEDULER
     U_now = sqrt(x(1)^2 + x(2)^2);
     U_ship_world = [cos(x(6))*x(1) - sin(x(6))*x(2); sin(x(6))*x(1) + cos(x(6))*x(2)];
-    d_to_active_end = norm(x(4:5) - wp_end_xy);
+d_to_active_end = norm(x(4:5) - wp_end_xy);
 
 
     % --- 1) Clearance-aware tightness ------------------------------------
@@ -831,7 +848,7 @@ solve_opts.enable_soft_obstacles = soft_obstacle_cfg.enabled;
     U_cap_turn  = lerp(sched_cfg.u_cruise_mps, max(1.2, sched_cfg.u_tight_mps), lambda_turn);
     U_cap_berth = lerp(sched_cfg.u_cruise_mps, sched_cfg.u_berth_mps, lambda_berth_strict);
     U_cap_dyn   = lerp(sched_cfg.u_cruise_mps, sched_cfg.u_yield, lambda_yield);
-    solve_opts.soft_speed_cap_mps = min([U_cap_tight, U_cap_stop, U_cap_berth, U_cap_dyn]);
+    solve_opts.soft_speed_cap_mps = min([U_cap_tight, U_cap_stop, U_cap_turn, U_cap_berth, U_cap_dyn]);
     solve_opts.soft_speed_cap_weight = lerp(sched_cfg.soft_speed_weight_far, sched_cfg.soft_speed_weight_near, lambda_total);
 
     % Along-track reward scheduling (yield reduces progress urgency)
@@ -840,7 +857,6 @@ solve_opts.enable_soft_obstacles = soft_obstacle_cfg.enabled;
     % Tube & XTE scheduling (return tightens path after CPA)
     geom_caution = max([lambda_tight, lambda_turn, lambda_berth]);
     lambda_path_return = max(geom_caution, lambda_return);
-    lambda_recover = ramp01(abs(xte), 18, 70) * max(0.0, 1.0 - max([lambda_tight, lambda_turn, lambda_berth, lambda_yield]));
 
     solve_opts.path_tube_half_width_m = ...
         lerp(sched_cfg.tube_far_m, sched_cfg.tube_near_m, lambda_path_return);
@@ -852,30 +868,6 @@ solve_opts.enable_soft_obstacles = soft_obstacle_cfg.enabled;
         0.35 * lambda_turn  * sched_cfg.heading_weight_turn, ...
         0.10 * lambda_berth * sched_cfg.heading_weight_berth, ...
         lambda_return       * sched_cfg.heading_weight_return]);
-
-    % Recovery recapture: once obstacle pressure is gone, force the ship back
-    % onto the segment instead of letting large lateral error linger.
-    if lambda_recover > 0
-        solve_opts.path_tube_half_width_m = min(solve_opts.path_tube_half_width_m, ...
-            lerp(sched_cfg.tube_far_m, max(8.0, 0.75 * sched_cfg.tube_near_m), lambda_recover));
-        solve_opts.path_xte_weight = max(solve_opts.path_xte_weight, ...
-            lerp(sched_cfg.xte_weight_far, 60.0, lambda_recover));
-        solve_opts.path_heading_weight = max(solve_opts.path_heading_weight, ...
-            lerp(6.0, 24.0, lambda_recover));
-        solve_opts.terminal_goal_heading_weight = max(solve_opts.terminal_goal_heading_weight, ...
-            lerp(10.0, 40.0, lambda_recover));
-        solve_opts.soft_obs_max_m = min(solve_opts.soft_obs_max_m, ...
-            lerp(soft_obstacle_cfg.max_slack_m, max(1.5, 0.35 * soft_obstacle_cfg.max_slack_m), lambda_recover));
-        if ~berth_preview_active && ~berth_mode_active
-            goal_heading_enable = true;
-            goal_heading_rad = chi_seg;
-            desired_goal_heading = chi_seg;
-            desired_goal_enable = true;
-            goal_heading_smooth = chi_seg;
-            goal_heading_target = chi_seg;
-            goal_smooth_count = 0;
-        end
-    end
 
     
     % Early berth strictness: tighten line tracking already during preview
@@ -1499,12 +1491,12 @@ function wp_idx = updateWaypointIndexManaged(x, wp, wp_idx, R_accept)
             % Relaxed thresholds for sharp turns to avoid last-moment handoff
             advance_now = ...
                 (d_to_waypoint <= max(35, 0.50 * R_accept)) && ...
-                (proj >= 0.7) && ...
+                (proj >= 0.92) && ...
                 (xte_seg <= max(35, 0.60 * R_accept));
         elseif approaching_final
             advance_now = ...
                 (d_to_waypoint <= max(25, 0.35 * R_accept)) && ...
-                (proj >= 0.7) && ...
+                (proj >= 0.93) && ...
                 (xte_seg <= max(25, 0.55 * R_accept));
         else
             near_gate = (d_to_waypoint <= max(45, 0.80 * R_accept));
