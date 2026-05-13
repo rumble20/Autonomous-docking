@@ -2,8 +2,7 @@ classdef HarborAnimHelper < handle
     % HarborAnimHelper  Minimal map-drawing helper for animateSimResult
     %
     % animateSimResult calls harbor.plotMap() if available.
-    % This tiny class wraps a map struct so the animation works
-    % without the full HarborObstacles class.
+    % Wraps a map struct so the animation works without the full HarborObstacles class.
     %
     % Usage:
     %   h = HarborAnimHelper(map_struct);

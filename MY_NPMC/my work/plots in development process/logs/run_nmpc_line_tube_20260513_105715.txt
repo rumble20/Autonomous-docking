@@ -1,0 +1,9 @@
+{Operation terminated by user during internal.matlab.datatoolsservices.WSBUtil.getWorkspaceDisplay (line 32)
+} 
+{Operation terminated by user during internal.matlab.datatoolsservices.WSBUtil.getWorkspaceDisplay (line 34)
+
+
+In internal.matlab.datatoolsservices.WSBUtil.getWorkspaceDisplay (line 34)
+                    if evalin("debug", "exist('" + varNames(idx) + "', 'var');") == 0
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+} 

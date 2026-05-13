@@ -1,7 +1,6 @@
 function [xdot, U] = container(x, ui)
 % Simplified 6-DOF container ship model with twin stern azipods + bow tunnel thruster
-% Based on Son & Nomoto (1982) with roll dynamics removed
-% Compatible with MATLAB and GNU Octave (www.octave.org)
+% Based on Son & Nomoto (1982) with roll dynamics removed and updated for a more modern container ship configuration.
 %
 % [xdot, U] = container(x, ui) returns the speed U in m/s and the 
 % time derivative of the state vector: x = [ u v r x y psi n1 n2 n3 ]'
@@ -28,6 +27,8 @@ function [xdot, U] = container(x, ui)
 % Reference: Son & Nomoto (1982). On the Coupled Motion of Steering and 
 %            Rolling of a High Speed Container Ship, Naval Architect of 
 %            Ocean Engineering 20:73-83.
+%
+%            Fossen (2011). Handbook of Marine Craft Hydrodynamics and Motion Control, Wiley.
 %
 % Author: Riccardo Legnini
 % Modified for twin-stern + bow thruster configuration (2026-04-14)

@@ -72,7 +72,7 @@ classdef NMPC_Container_final < handle
         path_along_weight_default = 1.2
         path_tube_half_width_default = 20.0
         path_heading_weight_default = 0.0
-        soft_speed_cap_weight_default = 0.20
+        soft_speed_cap_weight_default = 0.40
         soft_speed_cap_default_mps = 5.0
         terminal_goal_pos_weight_default = 120.0
         terminal_goal_heading_weight_default = 50.0
@@ -152,7 +152,7 @@ classdef NMPC_Container_final < handle
             obj.path_xte_weight_default = getOr(cfg, 'path_xte_weight_default', 12.0);
             obj.path_along_weight_default = getOr(cfg, 'path_along_weight_default', 1.2);
             obj.path_tube_half_width_default = getOr(cfg, 'path_tube_half_width_default', 20.0);
-            obj.soft_speed_cap_weight_default = getOr(cfg, 'soft_speed_cap_weight_default', 0.20);
+            obj.soft_speed_cap_weight_default = getOr(cfg, 'soft_speed_cap_weight_default', 0.40);
             obj.soft_speed_cap_default_mps = getOr(cfg, 'soft_speed_cap_default_mps', 5.0);
             obj.terminal_goal_pos_weight_default = getOr(cfg, 'terminal_goal_pos_weight_default', 120.0);
             obj.terminal_goal_heading_weight_default = getOr(cfg, 'terminal_goal_heading_weight_default', 50.0);
