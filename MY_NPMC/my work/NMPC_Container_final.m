@@ -74,6 +74,8 @@ classdef NMPC_Container_final < handle
         path_heading_weight_default = 0.0
         soft_speed_cap_weight_default = 0.40
         soft_speed_cap_default_mps = 5.0
+        soft_speed_floor_weight_default = 0.0
+        soft_speed_floor_default_mps = 0.0
         terminal_goal_pos_weight_default = 120.0
         terminal_goal_heading_weight_default = 50.0
         terminal_stop_u_weight_default = 40.0
@@ -154,6 +156,8 @@ classdef NMPC_Container_final < handle
             obj.path_tube_half_width_default = getOr(cfg, 'path_tube_half_width_default', 20.0);
             obj.soft_speed_cap_weight_default = getOr(cfg, 'soft_speed_cap_weight_default', 0.40);
             obj.soft_speed_cap_default_mps = getOr(cfg, 'soft_speed_cap_default_mps', 5.0);
+            obj.soft_speed_floor_weight_default = getOr(cfg, 'soft_speed_floor_weight_default', 0.0);
+            obj.soft_speed_floor_default_mps = getOr(cfg, 'soft_speed_floor_default_mps', 0.0);
             obj.terminal_goal_pos_weight_default = getOr(cfg, 'terminal_goal_pos_weight_default', 120.0);
             obj.terminal_goal_heading_weight_default = getOr(cfg, 'terminal_goal_heading_weight_default', 50.0);
             obj.terminal_stop_u_weight_default = getOr(cfg, 'terminal_stop_u_weight_default', 40.0);
@@ -235,6 +239,7 @@ classdef NMPC_Container_final < handle
             P_path_weights = SX.sym('P_path_weights', 4, 1); % [W_xte W_along W_tube W_soft_speed_cap]
             P_path_heading_weight = SX.sym('P_path_heading_weight', 1, 1);
             P_speed_ref = SX.sym('P_speed_ref', 1, 1);
+            P_speed_floor = SX.sym('P_speed_floor', 2, 1); % [weight; mps]
             P_terminal_path = SX.sym('P_terminal_path', 6, 1); % [W_goal_pos W_goal_heading is_final W_stop_u W_stop_v W_stop_r]
             P_uref     = SX.sym('P_uref', n_ctrl, N_h);
             P_n_obs_real = SX.sym('P_n_obs_real', 1, 1);
@@ -264,7 +269,7 @@ classdef NMPC_Container_final < handle
             P_gamma_hp = SX.sym('P_gamma_hp', 1, 1);
 
             P_all = vertcat(P_x0, P_wp_start, P_wp_end, P_goal_heading, P_goal_heading_enable, ...
-                            P_path_weights, P_path_heading_weight, P_speed_ref, P_terminal_path, ...
+                            P_path_weights, P_path_heading_weight, P_speed_ref, P_speed_floor, P_terminal_path, ...
                             P_uref(:), P_n_obs_real, P_obs_pos(:), P_obs_rad, P_obs_vel(:), ...
                             P_n_hp_real, P_hp_n(:), P_hp_b, ...
                             P_u_prev, P_max_brake_rate, ...
@@ -311,13 +316,15 @@ classdef NMPC_Container_final < handle
 
                 psi_err_k = atan2(sin(X(6,k) - psi_path_ref), cos(X(6,k) - psi_path_ref));
 
-                u_speed_err = X(1,k) - P_speed_ref;
+                u_over = fmax(0, X(1,k) - P_speed_ref);
+                u_under = fmax(0, P_speed_floor(2) - X(1,k));
 
                 path_cost = 0.15 * P_path_weights(1) * xte_inside^2 + ...
                             1.00 * P_path_weights(1) * xte_outside^2 + ...
                             P_path_weights(2) * dist_to_goal^2 + ...
                             P_path_heading_weight * psi_err_k^2 + ...
-                            P_path_weights(4) * u_speed_err^2;
+                            P_path_weights(4) * u_over^2 + ...
+                            P_speed_floor(1) * u_under^2;
 
 
                 reg_cost = P_q_state(2) * X(2,k)^2 + ...
@@ -841,6 +848,13 @@ classdef NMPC_Container_final < handle
             end
             soft_speed_cap_mps = max(0.0, soft_speed_cap_mps);
 
+            soft_speed_floor_weight = max(0.0, getOr(solve_opts, 'soft_speed_floor_weight', obj.soft_speed_floor_weight_default));
+            soft_speed_floor_mps = getOr(solve_opts, 'soft_speed_floor_mps', obj.soft_speed_floor_default_mps);
+            if isempty(soft_speed_floor_mps) || ~isfinite(soft_speed_floor_mps)
+                soft_speed_floor_mps = 0.0;
+            end
+            soft_speed_floor_mps = max(0.0, soft_speed_floor_mps);
+
             map_soft_margin = max(0.0, getOr(solve_opts, 'map_soft_margin_m', obj.map_soft_margin_default));
 
 
@@ -1003,6 +1017,7 @@ classdef NMPC_Container_final < handle
 
             p_val = [x0(:); wp_start_xy(:); wp_end_xy(:); goal_heading_rad; double(goal_heading_enable); ...
                 [path_xte_weight; path_along_weight; path_tube_half_width; soft_speed_cap_weight]; path_heading_weight; soft_speed_cap_mps; ...
+                [soft_speed_floor_weight; soft_speed_floor_mps]; ...
                 [terminal_goal_pos_weight; terminal_goal_heading_weight; double(is_final_waypoint); ...
                 terminal_stop_u_weight; terminal_stop_v_weight; terminal_stop_r_weight]; ...
                 u_ref(:); n_real; obs_pos(:); obs_rad(:); obs_vel(:); ...
@@ -1185,6 +1200,8 @@ classdef NMPC_Container_final < handle
                 info.path_along_weight = path_along_weight;
                 info.path_tube_half_width_m = path_tube_half_width;
                 info.soft_speed_cap_mps = soft_speed_cap_mps;
+                info.soft_speed_floor_mps = soft_speed_floor_mps;
+                info.soft_speed_floor_weight = soft_speed_floor_weight;
                 info.is_final_waypoint = is_final_waypoint;
                 info.gamma_cbf_obs = gamma_obs_local;
                 info.gamma_cbf_hp = gamma_hp_local;

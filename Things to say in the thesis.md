@@ -1073,3 +1073,23 @@ The autonomous path selection by the nmpc still make it sway a lot into directio
 So the cycle goes on and the perfect trade-off between making the dynamic ship follow rougly the waypoints and keeping the solution mostly an autonomous decision based optimal control problem is very difficult to achieve. 
 
 Honestly, you cannot fully escape some form of context-awareness for the transit-to-berth problem. Here's why: the cost landscape for open-water transit and for millimeter-precision berthing are fundamentally incompatible — if you maximize progress at sea, you overshoot the berth; if you apply berthing precision weights globally, the ship crawls. Something must bridge them.
+
+
+## Good simulation after the change, complex combination achieved of lambda parameters and limits on the guidance selected
+
+After the continuous lambda scheduling update, a long-run simulation finally stayed stable and collision-free, with speed, heading, and corridor adherence behaving as intended. This was the first run where the whole pipeline (geometry-aware scheduling + TTC yield logic + bounded guidance) felt coherent for an extended duration rather than only in short segments.
+
+The parameters are now configured as a nested, interacting set of scalars that all shape the same NMPC problem at the same time. The main geometric lambdas are computed every step: $\lambda_{\text{tight}}$ from map clearance and channel width, $\lambda_{\text{stop}}$ from stopping-distance margin, $\lambda_{\text{turn}}$ from upcoming curvature plus distance-to-end, and $\lambda_{\text{berth}}$ from berth proximity. These are merged into $\lambda_{\text{total}}$ (max blend) and then used to interpolate costs and bounds. On top of that, the dynamic-obstacle layer computes $\lambda_{\text{ttc}}$, then splits into $\lambda_{\text{yield}}$ and $\lambda_{\text{return}}$ based on whether the separation is shrinking or growing (CPA logic, closing rate, and forward sector filter). The blend is nested because the same control decision can be shaped by multiple lambdas at once: $U_{\text{cap}}$ is the min of geometric and dynamic caps, $u_{\min}$ is interpolated by $\lambda_{\text{total}}$ and relaxed by $\lambda_{\text{yield}}$, tube width and XTE weights are driven by max($\lambda_{\text{tight}},\lambda_{\text{turn}},\lambda_{\text{berth}}$), and map-barrier weight and rate-smoothing are increased by max($\lambda_{\text{tight}},\lambda_{\text{return}}$) and $\lambda_{\text{yield}}$ respectively. This is powerful but makes diagnosis hard: multiple scalars often rise together in tight geometry, so it becomes difficult to attribute a specific motion artifact to a single cause without instrumenting all lambdas and the resulting scheduled parameters.
+
+Even with the successful long run, I still think many remaining issues come from the guidance choice itself. The NMPC is now given enough authority and continuous tuning to behave well, but the guidance layer still defines the geometric reference and how segment transitions occur. If that reference is permissive, ambiguous, or switches too early, the optimizer can legitimately choose trajectories that appear to “wander” relative to the intended route. This makes the remaining instability feel less like a solver issue and more like a reference-definition problem.
+
+### Guidance now implemented and why
+
+The guidance layer is intentionally minimal and geometric. It does not plan a trajectory, it does not solve obstacle avoidance, and it does not impose a speed profile. Instead it only provides the information required for the NMPC to optimize locally:
+
+- Select the active segment between the current waypoint and the next.
+- Compute segment geometry (segment vector, length, unit tangent $t_{\hat{}}$, unit normal $n_{\hat{}}$).
+- Provide the desired segment heading and an optional terminal heading (with explicit precedence if a terminal heading is supplied).
+- Define the tube corridor width and pass the geometric quantities that allow the NMPC to compute along-track progress and cross-track error.
+
+The reason for keeping guidance this light is architectural: the NMPC is responsible for feasibility, obstacle avoidance, and actuation limits, so it must retain authority to deviate from the reference when safety or dynamics require it. A heavier guidance block would effectively reintroduce a state machine or a hidden trajectory generator, which conflicts with the thesis claim of unified optimization. The current guidance therefore acts only as a geometric anchor that keeps the NMPC solution aligned with the intended route while still allowing the optimizer to make physically feasible, constraint-respecting decisions.

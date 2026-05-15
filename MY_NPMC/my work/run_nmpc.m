@@ -18,7 +18,7 @@ fprintf('═══════════════════════�
 
 % Waypoints: rows = [x, y].
 % No heading is stored in the waypoint list anymore.
-waypoints = [-3800, -1500; -3400, -1300; -3200, -1350; -3000, -1400; -2600, -1800; -2400, -2100; -2000, -2050];
+waypoints = [-5400, -900; -5100, -800; -5000, -500; -4800, -200; -4650, -200];
 
 % Static obstacles: N-by-3 [x y radius] or struct array.
 static_obstacles = [];
@@ -27,7 +27,7 @@ static_obstacles = [];
 dynamic_obs_positions_xy = [-2400, -2400];
 dynamic_obs_headings_deg = [90];
 dynamic_obs_speeds_mps   = [3];
-enable_dynamic_obstacles = true;
+enable_dynamic_obstacles = false;
 dynamic_obs_radius_m     = 25;
 dynamic_obs_speed_mps    = 5;
 dynamic_obs_nmpc_guard_m = 0;
@@ -179,6 +179,8 @@ path_cost_cfg.W_along = 6.0;
 path_cost_cfg.W_tube_m = 40.0;
 path_cost_cfg.soft_speed_cap_weight = 4.0;
 path_cost_cfg.soft_speed_cap_mps = cruise_speed_mps;
+path_cost_cfg.soft_speed_floor_weight = 1.0;
+path_cost_cfg.soft_speed_floor_mps = max(0.0, cruise_speed_mps - 0.5);
 
 % Final waypoint terminal cost.
 terminal_goal_cfg = struct();
@@ -203,6 +205,7 @@ soft_obstacle_cfg.penalty_weight = 5e4;
 
 % Twin-stern synchrony.
 azipod_sync_cfg = struct();
+azipod_sync_cfg.enabled = false;
 azipod_sync_cfg.transit_alpha_split_rad = deg2rad(60);
 azipod_sync_cfg.transit_stern_split_rpm = 60;
 azipod_sync_cfg.final_alpha_split_rad   = deg2rad(20);
@@ -218,6 +221,9 @@ sched_cfg.u_berth_mps  = 0.45;                  % preferred speed near final ber
 
 sched_cfg.soft_speed_weight_far  = 0.08;
 sched_cfg.soft_speed_weight_near = 1.50;
+sched_cfg.soft_speed_floor_ratio = 0.90;
+sched_cfg.soft_speed_floor_weight_far = path_cost_cfg.soft_speed_floor_weight;
+sched_cfg.soft_speed_floor_weight_near = 0.10;
 
 % Forward lower bound scheduling
 sched_cfg.u_min_forward_far  = u_min_forward;
@@ -233,8 +239,8 @@ sched_cfg.channel_width_hi_m = 140;
 
 % Stopping-distance awareness
 sched_cfg.brake_eff_mps2 = 0.55;   % effective deceleration for caution logic
-sched_cfg.stop_margin_m  = 25;     % extra margin
-sched_cfg.stop_buffer_m  = 35;     % extra comparison slack
+sched_cfg.stop_margin_m  = 18;     % extra margin
+sched_cfg.stop_buffer_m  = 60;     % extra comparison slack
 
 % Turn severity awareness
 sched_cfg.turn_angle_lo_deg = 15;
@@ -257,6 +263,7 @@ sched_cfg.heading_weight_far   = 0.0;
 sched_cfg.heading_weight_turn  = 0;
 sched_cfg.heading_weight_berth = 140.0;
 sched_cfg.heading_weight_return = 35.0;
+sched_cfg.heading_weight_stop = 18.0;
 
 sched_cfg.stop_u_weight_far   = 0.0;
 sched_cfg.stop_u_weight_berth = 120.0;
@@ -346,6 +353,11 @@ plotMapBackground = @RunNmpcHelpers.plotMapBackground;
 static_obstacles = normalizeStaticObstacles(static_obstacles);
 berth_cfg = normalizeBerthCfg(berth_cfg, waypoints);
 repoRoot = pwd;
+run_dir = fileparts(which('run_nmpc'));
+if ~isempty(run_dir)
+    addpath(run_dir, '-begin');
+end
+
 
 if enable_terminal_log_recording
     if ~exist(terminal_log_output_dir, 'dir')
@@ -470,6 +482,8 @@ nmpc_cfg.path_along_weight_default = path_cost_cfg.W_along;
 nmpc_cfg.path_tube_half_width_default = path_cost_cfg.W_tube_m;
 nmpc_cfg.soft_speed_cap_default_mps = path_cost_cfg.soft_speed_cap_mps;
 nmpc_cfg.soft_speed_cap_weight_default = path_cost_cfg.soft_speed_cap_weight;
+nmpc_cfg.soft_speed_floor_default_mps = path_cost_cfg.soft_speed_floor_mps;
+nmpc_cfg.soft_speed_floor_weight_default = path_cost_cfg.soft_speed_floor_weight;
 nmpc_cfg.terminal_goal_pos_weight_default = terminal_goal_cfg.pos_weight;
 nmpc_cfg.terminal_goal_heading_weight_default = terminal_goal_cfg.heading_weight;
 nmpc_cfg.terminal_stop_u_weight_default = terminal_goal_cfg.stop_u_weight;
@@ -525,6 +539,12 @@ soft_slack_sum_log = nan(1, length(t));
 terminal_pose_slack_max_log = nan(1, length(t));
 az_split_limit_log = nan(1, length(t));
 stern_split_limit_log = nan(1, length(t));
+path_heading_weight_log = nan(1, length(t));
+terminal_heading_weight_log = nan(1, length(t));
+goal_heading_enable_log = nan(1, length(t));
+goal_heading_rad_log = nan(1, length(t));
+map_barrier_weight_log = nan(1, length(t));
+u_min_forward_log = nan(1, length(t));
 % Lambda scheduler logs
 lambda_tight_log = nan(1, length(t));
 lambda_stop_log  = nan(1, length(t));
@@ -596,12 +616,13 @@ desired_goal_enable = false;
 if berth_cfg.enabled
     d_to_berth = norm(x(4:5) - berth_cfg.target_xy(:));
     preview_first_seg = max(1, last_seg_idx - max(1, berth_cfg.prepare_last_n_segments) + 1);
-    berth_preview_active = (seg_start_idx >= preview_first_seg) || (d_to_berth <= 1.35 * berth_cfg.activate_dist_m);
+    berth_preview_active = (seg_start_idx >= preview_first_seg) && (d_to_berth <= 1.35 * berth_cfg.activate_dist_m);
     berth_mode_active = on_final_waypoint || (d_to_berth <= berth_cfg.activate_dist_m);
 
     if berth_preview_active
         goal_heading_enable = true;
-        goal_heading_rad = deg2rad(berth_cfg.heading_deg);
+        preview_w = revRamp01(d_to_berth, 0.9 * berth_cfg.activate_dist_m, 1.8 * berth_cfg.activate_dist_m);
+        goal_heading_rad = wrapToPi((1 - preview_w) * chi_seg + preview_w * deg2rad(berth_cfg.heading_deg));
     end
 
     if berth_mode_active
@@ -702,6 +723,8 @@ solve_opts.collision_clearance_m = hull_cfg.nmpc_clearance_m;
     solve_opts.path_tube_half_width_m= path_cost_cfg.W_tube_m;
 solve_opts.soft_speed_cap_weight = path_cost_cfg.soft_speed_cap_weight;
     solve_opts.soft_speed_cap_mps    = path_cost_cfg.soft_speed_cap_mps;
+        solve_opts.soft_speed_floor_weight = path_cost_cfg.soft_speed_floor_weight;
+        solve_opts.soft_speed_floor_mps    = path_cost_cfg.soft_speed_floor_mps;
 
 solve_opts.goal_heading_enable = goal_heading_enable;
     solve_opts.goal_heading_rad    = goal_heading_rad;
@@ -759,8 +782,13 @@ solve_opts.enable_soft_obstacles = soft_obstacle_cfg.enabled;
     solve_opts.u_min_forward      = nmpc_cfg.u_min_forward;
 
     solve_opts.n3_max              = 0;
-    solve_opts.max_azimuth_split   = azipod_sync_cfg.transit_alpha_split_rad;
-    solve_opts.max_stern_cmd_split = azipod_sync_cfg.transit_stern_split_rpm;
+    if getOr(azipod_sync_cfg, 'enabled', true)
+        solve_opts.max_azimuth_split   = azipod_sync_cfg.transit_alpha_split_rad;
+        solve_opts.max_stern_cmd_split = azipod_sync_cfg.transit_stern_split_rpm;
+    else
+        solve_opts.max_azimuth_split   = inf;
+        solve_opts.max_stern_cmd_split = inf;
+    end
 
     solve_opts.map_soft_margin_m = sched_cfg.map_soft_margin_m;
 
@@ -784,7 +812,7 @@ solve_opts.enable_soft_obstacles = soft_obstacle_cfg.enabled;
     d_stop = U_now^2 / (2 * a_eff) + sched_cfg.stop_margin_m;
     d_stop_log(i) = d_stop;
     d_free_candidates = []; d_free_candidates(end+1) = max(0, d_to_active_end);
-    if berth_cfg.enabled
+    if berth_cfg.enabled && berth_mode_active
         d_entry = distanceToBerthCorridorEntry(x(4:5), berth_cfg);
         d_endcorr = distanceToBerthCorridorEnd(x(4:5), berth_cfg);
         if isfinite(d_entry),   d_free_candidates(end+1) = max(0, d_entry);   end
@@ -871,6 +899,8 @@ solve_opts.enable_soft_obstacles = soft_obstacle_cfg.enabled;
     U_cap_dyn   = lerp(sched_cfg.u_cruise_mps, sched_cfg.u_yield, lambda_yield);
     solve_opts.soft_speed_cap_mps = min([U_cap_tight, U_cap_stop, U_cap_berth, U_cap_dyn]);
     solve_opts.soft_speed_cap_weight = lerp(sched_cfg.soft_speed_weight_far, sched_cfg.soft_speed_weight_near, lambda_total);
+    solve_opts.soft_speed_floor_mps = max(0.0, sched_cfg.soft_speed_floor_ratio * solve_opts.soft_speed_cap_mps);
+    solve_opts.soft_speed_floor_weight = lerp(sched_cfg.soft_speed_floor_weight_far, sched_cfg.soft_speed_floor_weight_near, lambda_total);
 
     % Along-track reward scheduling (yield reduces progress urgency)
     solve_opts.path_along_weight = lerp(path_cost_cfg.W_along, sched_cfg.w_along_min, lambda_yield);
@@ -891,6 +921,9 @@ solve_opts.enable_soft_obstacles = soft_obstacle_cfg.enabled;
     0.35 * lambda_turn  * sched_cfg.heading_weight_turn, ...
     0.10 * lambda_berth * sched_cfg.heading_weight_berth, ...
     lambda_return       * sched_cfg.heading_weight_return]);
+
+    stop_heading_weight = lerp(0.0, sched_cfg.heading_weight_stop, max(lambda_stop, lambda_tight));
+    solve_opts.path_heading_weight = max(solve_opts.path_heading_weight, stop_heading_weight);
 
     % Recovery recapture: once obstacle pressure is gone, force the ship back
     % onto the segment instead of letting large lateral error linger.
@@ -955,6 +988,7 @@ solve_opts.enable_soft_obstacles = soft_obstacle_cfg.enabled;
     % If the next segment after the active one makes a large turn, ask NMPC
     % to start tracking the next-segment heading early so references stay
     % continuous during the handoff.
+    sharp_turn_active = false;
     if seg_end_idx < n_wps
         next_idx = min(seg_end_idx + 1, n_wps);
         p_next = waypoints(next_idx, 1:2)';
@@ -974,6 +1008,7 @@ solve_opts.enable_soft_obstacles = soft_obstacle_cfg.enabled;
         if heading_diff_deg >= route_follow_cfg.sharp_turn_deg && d_to_active_end <= route_follow_cfg.sharp_turn_heading_enable_dist_m
             % For sharp turns, increase the heading pressure as soon as we are
             % within the lookahead band.
+            sharp_turn_active = true;
             if getOr(solve_opts, 'terminal_goal_heading_weight', 0) <= 0
                 solve_opts.terminal_goal_heading_weight = route_follow_cfg.sharp_turn_heading_weight;
             else
@@ -1015,6 +1050,19 @@ solve_opts.enable_soft_obstacles = soft_obstacle_cfg.enabled;
         solve_opts.goal_heading_rad = desired_goal_heading;
     end
 
+    % Re-assert sharp-turn heading pressure after smoothing to avoid drift
+    if sharp_turn_active
+        solve_opts.path_heading_weight = max(getOr(solve_opts, 'path_heading_weight', 0), route_follow_cfg.sharp_turn_heading_weight);
+        solve_opts.terminal_goal_heading_weight = max(getOr(solve_opts, 'terminal_goal_heading_weight', 0), route_follow_cfg.sharp_turn_heading_weight);
+    end
+
+    % When the stop constraint is fully active, keep heading anchored to the segment
+    if lambda_stop > 0.6 && ~lambda_yield && ~berth_preview_active && ~berth_mode_active
+        solve_opts.goal_heading_enable = true;
+        solve_opts.goal_heading_rad = chi_seg;
+        solve_opts.path_heading_weight = max(getOr(solve_opts, 'path_heading_weight', 0), route_follow_cfg.sharp_turn_heading_weight);
+    end
+
     solve_opts.terminal_goal_pos_weight = max( ...
         solve_opts.terminal_goal_pos_weight, ...
         lerp(sched_cfg.term_pos_weight_far, sched_cfg.term_pos_weight_berth, lambda_berth_strict));
@@ -1025,7 +1073,7 @@ solve_opts.enable_soft_obstacles = soft_obstacle_cfg.enabled;
     % EARLY BERTH PREVIEW
     if berth_preview_active && ~berth_mode_active
     solve_opts.goal_heading_enable = true;
-    solve_opts.goal_heading_rad = deg2rad(berth_cfg.heading_deg);
+    solve_opts.goal_heading_rad = wrapToPi((1 - lambda_berth_strict) * chi_seg + lambda_berth_strict * deg2rad(berth_cfg.heading_deg));
 
         solve_opts.terminal_goal_heading_weight = max( ...
             solve_opts.terminal_goal_heading_weight, ...
@@ -1067,13 +1115,23 @@ solve_opts.enable_soft_obstacles = soft_obstacle_cfg.enabled;
     % Hard structural limits only
     if berth_mode_active
     solve_opts.n3_max = berth_cfg.n3_max;
-    solve_opts.max_azimuth_split = berth_cfg.max_azimuth_split_rad;
-    solve_opts.max_stern_cmd_split = berth_cfg.max_stern_cmd_split_rpm;
+        if getOr(azipod_sync_cfg, 'enabled', true)
+        solve_opts.max_azimuth_split = berth_cfg.max_azimuth_split_rad;
+        solve_opts.max_stern_cmd_split = berth_cfg.max_stern_cmd_split_rpm;
+        else
+            solve_opts.max_azimuth_split = inf;
+            solve_opts.max_stern_cmd_split = inf;
+        end
         desired_u_min_forward = min(desired_u_min_forward, berth_cfg.u_min_final_mps);
     else
         solve_opts.n3_max = 0;
-        solve_opts.max_azimuth_split = azipod_sync_cfg.transit_alpha_split_rad;
-        solve_opts.max_stern_cmd_split = azipod_sync_cfg.transit_stern_split_rpm;
+        if getOr(azipod_sync_cfg, 'enabled', true)
+            solve_opts.max_azimuth_split = azipod_sync_cfg.transit_alpha_split_rad;
+            solve_opts.max_stern_cmd_split = azipod_sync_cfg.transit_stern_split_rpm;
+        else
+            solve_opts.max_azimuth_split = inf;
+            solve_opts.max_stern_cmd_split = inf;
+        end
     end
 
     solve_opts.u_min_forward = desired_u_min_forward;
@@ -1127,6 +1185,12 @@ solve_opts.enable_soft_obstacles = soft_obstacle_cfg.enabled;
     lambda_total_log(i) = lambda_total; lambda_yield_log(i)= lambda_yield;
     lambda_return_log(i)= lambda_return; lambda_ttc_log(i)  = lambda_ttc;
     u_cap_log(i)        = solve_opts.soft_speed_cap_mps; d_edge_log(i) = d_edge_now;
+    path_heading_weight_log(i) = getOr(solve_opts, 'path_heading_weight', NaN);
+    terminal_heading_weight_log(i) = getOr(solve_opts, 'terminal_goal_heading_weight', NaN);
+    goal_heading_enable_log(i) = double(getOr(solve_opts, 'goal_heading_enable', false));
+    goal_heading_rad_log(i) = getOr(solve_opts, 'goal_heading_rad', NaN);
+    map_barrier_weight_log(i) = getOr(solve_opts, 'map_barrier_weight', NaN);
+    u_min_forward_log(i) = getOr(solve_opts, 'u_min_forward', NaN);
 az_split_limit_log(i) = solve_opts.max_azimuth_split;
 stern_split_limit_log(i) = solve_opts.max_stern_cmd_split;
 ref_time_log(i) = toc(t_seg);
@@ -1300,6 +1364,12 @@ soft_slack_sum_log = soft_slack_sum_log(1:steps);
 terminal_pose_slack_max_log = terminal_pose_slack_max_log(1:steps);
 az_split_limit_log = az_split_limit_log(1:steps);
 stern_split_limit_log = stern_split_limit_log(1:steps);
+path_heading_weight_log = path_heading_weight_log(1:steps);
+terminal_heading_weight_log = terminal_heading_weight_log(1:steps);
+goal_heading_enable_log = goal_heading_enable_log(1:steps);
+goal_heading_rad_log = goal_heading_rad_log(1:steps);
+map_barrier_weight_log = map_barrier_weight_log(1:steps);
+u_min_forward_log = u_min_forward_log(1:steps);
 
 %% SUMMARY / OUTPUT =======================================================
 output_gen_error = false;
