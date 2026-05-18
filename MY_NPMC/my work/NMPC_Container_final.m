@@ -44,7 +44,7 @@ classdef NMPC_Container_final < handle
         alpha_max = pi
         Dn_max = 10
         Dn_bow_max = 8
-        alpha_rate_max = 0.20944
+        alpha_rate_max = deg2rad(25)
 
         % Obstacle settings
         max_obs = 5
@@ -253,6 +253,7 @@ classdef NMPC_Container_final < handle
             P_map_soft_margin = SX.sym('P_map_soft_margin', 1, 1); % Soft map-boundary margin (base distance for penalty)
             P_R_rate_scale  = SX.sym('P_R_rate_scale',  1, 1);   % Control-rate scaling during yield
             P_terminal_line = SX.sym('P_terminal_line', 2, 1); % [W_xte_term W_psi_term]
+            P_forward_pref_scale = SX.sym('P_forward_pref_scale', 1, 1); % scales reverse-motion discouragement online
             P_u_prev   = SX.sym('P_u_prev', n_ctrl, 1);
             P_max_brake_rate = SX.sym('P_max_brake_rate', 1, 1);
             P_q_state = SX.sym('P_q_state', n_state, 1);
@@ -272,6 +273,7 @@ classdef NMPC_Container_final < handle
                             P_path_weights, P_path_heading_weight, P_speed_ref, P_speed_floor, P_terminal_path, ...
                             P_uref(:), P_n_obs_real, P_obs_pos(:), P_obs_rad, P_obs_vel(:), ...
                             P_n_hp_real, P_hp_n(:), P_hp_b, ...
+                            P_forward_pref_scale, ...
                             P_u_prev, P_max_brake_rate, ...
                             P_q_state, P_r_input, P_r_rate, ...
                             P_stage_scales, P_terminal_scales, ...
@@ -338,7 +340,7 @@ classdef NMPC_Container_final < handle
                 % Actuator magnitude and reverse-motion discouragement
                 J = J + obj.actuator_force_weight * (X(7,k)^2 + X(8,k)^2 + X(9,k)^2);
                 u_back = min(0, X(1,k));
-                J = J + obj.forward_incentive_weight * u_back^2;
+                J = J + P_forward_pref_scale * obj.forward_incentive_weight * u_back^2;
 
                 du = U(:,k) - P_uref(:,k);
                 J = J + w_stage_input * sum1(P_r_input .* (du.^2));
@@ -394,7 +396,7 @@ classdef NMPC_Container_final < handle
             J = J + w_terminal_actuator * 2 * obj.actuator_force_weight * ...
                 (X(7,N_h+1)^2 + X(8,N_h+1)^2 + X(9,N_h+1)^2);
             u_back_N = min(0, X(1,N_h+1));
-            J = J + w_terminal_forward * 2 * obj.forward_incentive_weight * u_back_N^2;
+            J = J + w_terminal_forward * 2 * P_forward_pref_scale * obj.forward_incentive_weight * u_back_N^2;
 
             for j = 1:n_obs
                 J = J + obj.soft_obs_weight * S_obs(j,N_h+1)^2;
@@ -855,6 +857,12 @@ classdef NMPC_Container_final < handle
             end
             soft_speed_floor_mps = max(0.0, soft_speed_floor_mps);
 
+            forward_pref_scale = getOr(solve_opts, 'forward_preference_scale', 1.0);
+            if isempty(forward_pref_scale) || ~isfinite(forward_pref_scale)
+                forward_pref_scale = 1.0;
+            end
+            forward_pref_scale = max(0.0, min(1.0, forward_pref_scale));
+
             map_soft_margin = max(0.0, getOr(solve_opts, 'map_soft_margin_m', obj.map_soft_margin_default));
 
 
@@ -1022,6 +1030,7 @@ classdef NMPC_Container_final < handle
                 terminal_stop_u_weight; terminal_stop_v_weight; terminal_stop_r_weight]; ...
                 u_ref(:); n_real; obs_pos(:); obs_rad(:); obs_vel(:); ...
                 n_hp_real; hp_n(:); hp_b(:); ...
+                forward_pref_scale; ...
                 u_prev(:); obj.max_brake_rate; ...
                 q_state_diag(:); r_input_diag(:); r_rate_diag(:); ...
                 [stage_state_scale; stage_input_scale]; ...

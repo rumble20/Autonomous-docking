@@ -63,6 +63,10 @@ If RRT* is later integrated, a consistent framing is:
 
 This keeps RRT* as an enhancement, not a replacement for NMPC online trajectory generation.
 
+## Navigation mode labels
+
+Displayed navigation modes (e.g., TRANSIT, BERTH_PREVIEW, BERTH, FINAL) are human-facing labels derived from continuous scheduler signals (lambda_* values and boolean gating). They summarize which cost/constraint weights are dominant at a given time— they are not produced by a separate discrete finite-state machine, and controller behavior transitions smoothly via weight blending rather than hard mode switching.
+
 ## Thruster allocation
 
 State clearly that thrust allocation is handled inside the NMPC problem through force/moment generation with two azimuth thrusters (as in the MSS-style vessel model abstraction). Detailed motor-drive/RPM-loop implementation is outside the thesis scope.

@@ -141,6 +141,8 @@ classdef RunNmpcHelpers
             cfg.preview_goal_weight_gain = RunNmpcHelpers.getOr(cfg, 'preview_goal_weight_gain', 1.35);
             cfg.capture_radius_m = RunNmpcHelpers.getOr(cfg, 'capture_radius_m', 12);
             cfg.capture_speed_mps = RunNmpcHelpers.getOr(cfg, 'capture_speed_mps', 0.35);
+            % If true, berth preview/mode can only activate on the final route segment.
+            cfg.final_leg_only = logical(RunNmpcHelpers.getOr(cfg, 'final_leg_only', true));
 
             cfg.use_corridor = logical(RunNmpcHelpers.getOr(cfg, 'use_corridor', false));
             cfg.corridor_origin_xy = RunNmpcHelpers.getOr(cfg, 'corridor_origin_xy', final_xy);
@@ -154,6 +156,33 @@ classdef RunNmpcHelpers
             cfg.corridor_half_width_m = RunNmpcHelpers.getOr(cfg, 'corridor_half_width_m', 12);
             cfg.corridor_along_min_m = RunNmpcHelpers.getOr(cfg, 'corridor_along_min_m', -200);
             cfg.corridor_along_max_m = RunNmpcHelpers.getOr(cfg, 'corridor_along_max_m', 20);
+            % Corridor approach distance used when creating origin from berth heading
+            cfg.corridor_approach_dist_m = RunNmpcHelpers.getOr(cfg, 'corridor_approach_dist_m', 300);
+            % Relaxation / fallback parameters when berth heading differs strongly
+            cfg.corridor_relax_max_scale = RunNmpcHelpers.getOr(cfg, 'corridor_relax_max_scale', 3.0);
+            cfg.corridor_relax_along_extra_m = RunNmpcHelpers.getOr(cfg, 'corridor_relax_along_extra_m', 150);
+            % If heading difference between approach vector and berth heading exceeds this (deg)
+            % then derive the corridor origin from berth heading instead of approach vector.
+            cfg.corridor_force_origin_by_heading_threshold_deg = RunNmpcHelpers.getOr(cfg, 'corridor_force_origin_by_heading_threshold_deg', 90);
+
+            % If the berth heading differs strongly from the approach vector, derive
+            % the corridor origin from the berth heading so the corridor frame is
+            % consistent with the final parking attitude (helps large-rotation berths).
+            try
+                if size(waypoints,1) >= 2
+                    v = waypoints(end,1:2)' - waypoints(end-1,1:2)';
+                    approach_heading_deg = rad2deg(atan2(v(2), v(1)));
+                else
+                    approach_heading_deg = rad2deg(0);
+                end
+                corr_heading_rad = deg2rad(cfg.corridor_heading_deg);
+                ddeg = abs(rad2deg(abs(wrapToPi(corr_heading_rad - deg2rad(approach_heading_deg)))));
+                if ddeg >= cfg.corridor_force_origin_by_heading_threshold_deg
+                    cfg.corridor_origin_xy = cfg.target_xy(:) + [cos(corr_heading_rad); sin(corr_heading_rad)] * cfg.corridor_approach_dist_m;
+                end
+            catch
+                % keep provided corridor_origin_xy on error
+            end
 
             cfg.pose_eps_xy_m = RunNmpcHelpers.getOr(cfg, 'pose_eps_xy_m', [4; 4]);
             cfg.pose_eps_xy_m = cfg.pose_eps_xy_m(:);
@@ -172,6 +201,9 @@ classdef RunNmpcHelpers
             cfg.n3_max = RunNmpcHelpers.getOr(cfg, 'n3_max', 110);
             cfg.max_azimuth_split_rad = RunNmpcHelpers.getOr(cfg, 'max_azimuth_split_rad', deg2rad(10));
             cfg.max_stern_cmd_split_rpm = RunNmpcHelpers.getOr(cfg, 'max_stern_cmd_split_rpm', 8);
+
+            % Capture heading gating: require final heading within threshold for mission capture
+            cfg.capture_heading_deg = RunNmpcHelpers.getOr(cfg, 'capture_heading_deg', 6.0);
         end
 
         function xte = computeXTE(x, wp, wp_idx)
