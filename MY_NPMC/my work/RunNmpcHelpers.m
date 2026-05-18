@@ -1,9 +1,13 @@
 classdef RunNmpcHelpers
     methods(Static)
-        function wp_idx = updateWaypointIndexManaged(x, wp, wp_idx, R_accept)
+        function wp_idx = updateWaypointIndexManaged(x, wp, wp_idx, R_accept, switch_cfg)
             % Robust waypoint progression.
             % Only decides segment handoff.
             % No heading generation. No speed shaping.
+
+            if nargin < 5 || isempty(switch_cfg)
+                switch_cfg = struct();
+            end
 
             n_wps = size(wp, 1);
             if n_wps <= 1
@@ -79,10 +83,13 @@ classdef RunNmpcHelpers
                     wp_idx = wp_idx + 1;
                     fprintf('  [wp-advance] %d -> %d (proj=%.2f, d_wp=%.1f m, xte=%.1f m, turn=%.1f deg)', ...
                         old_wp_idx, wp_idx, proj, d_to_waypoint, xte_seg, turn_angle_deg);
-                    return;
-                else
-                    return;
+                    if ~RunNmpcHelpers.getOr(switch_cfg, 'allow_multi_skip', true)
+                        return;
+                    end
+                    continue;
                 end
+
+                return;
             end
         end
 

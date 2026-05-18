@@ -18,7 +18,9 @@ fprintf('═══════════════════════�
 
 % Waypoints: rows = [x, y].
 % No heading is stored in the waypoint list anymore.
-waypoints = [-2600, -1400; -2300, -1300; -2100, -1300; -1900, -1250;];
+% The penultimate point is a staging point north of the berth so the last
+% segment becomes a real final docking leg instead of a shallow transit leg.
+waypoints = [-2600, -1400; -2300, -1300; -2100, -1300; -1750, -1250; -1900, -1250;];
 
 % Static obstacles: N-by-3 [x y radius] or struct array.
 static_obstacles = [];
@@ -45,6 +47,7 @@ berth_cfg.target_xy = [waypoints(end, 1); waypoints(end, 2)];     % final parkin
 berth_cfg.heading_deg = 180;                % desired final ship heading
 berth_cfg.prepare_last_n_segments = 3;    % start preparing on last route segments
 berth_cfg.activate_dist_m = 400;          % force berth mode when this close to berth target
+berth_cfg.final_leg_only = false;          % allow berth mode by proximity, even if a waypoint was skipped
 berth_cfg.preview_heading_weight = 18.0;  % mild early heading preparation before full berth mode
 berth_cfg.preview_goal_weight_gain = 1.35;
 berth_cfg.capture_radius_m = 12;          % hard completion radius in berth mode
@@ -122,6 +125,9 @@ T_final = 500;
 R_accept = 90;
 R_accept_final = 10;
 R_accept_final_soft = 50;
+
+wp_switch_cfg = struct();
+wp_switch_cfg.allow_multi_skip = true;
 final_capture_speed_mps = 2.5;
 final_capture_hold_s = 6;
 n1_cruise = 100;
@@ -581,7 +587,7 @@ for i = 1:length(t)
     t_step = tic;
     % 1) Update active segment only, then define segment / berth references
     t_seg = tic;
-    wp_idx = updateWaypointIndexManaged(x, waypoints, wp_idx, R_accept);
+    wp_idx = updateWaypointIndexManaged(x, waypoints, wp_idx, R_accept, wp_switch_cfg);
 
     xte = computeXTE(x, waypoints, wp_idx);
     n_wps = size(waypoints, 1);
