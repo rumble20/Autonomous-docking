@@ -1313,14 +1313,26 @@ classdef RunNmpcHelpers
             end
         end
 
-        function plotMapBackground(map)
+        function plotMapBackground(map, useLightTheme)
             if isempty(map), return; end
             hold on;
+            if nargin < 2 || isempty(useLightTheme)
+                useLightTheme = false;
+            end
+            if useLightTheme
+                fillColor = [0.96 0.72 0.72];
+                edgeColor = [0.70 0.12 0.12];
+                faceAlpha = 0.14;
+            else
+                fillColor = [0.90 0.20 0.20];
+                edgeColor = [1.00 0.25 0.25];
+                faceAlpha = 0.10;
+            end
             if isfield(map, 'polygons')
                 for kk = 1:length(map.polygons)
                     patch(map.polygons(kk).Y, map.polygons(kk).X, 'k', ...
-                        'FaceColor', [0.9 0.2 0.2], 'FaceAlpha', 0.1, ...
-                        'EdgeColor', 'r', 'LineWidth', 1.5);
+                        'FaceColor', fillColor, 'FaceAlpha', faceAlpha, ...
+                        'EdgeColor', edgeColor, 'LineWidth', 1.5);
                 end
             end
         end

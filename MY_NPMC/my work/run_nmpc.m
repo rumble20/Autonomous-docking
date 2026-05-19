@@ -146,6 +146,7 @@ record_output_dir = 'MY_NPMC\my work\plots in development process\recordings';
 log_output_dir = 'MY_NPMC\my work\plots in development process\logs';
 enable_terminal_log_recording = true;
 terminal_log_output_dir = log_output_dir;
+use_light_theme = true;   % true = print-friendly light mode, false = current dark mode
 
 % Optional map-aware terminal success gate.
 enable_safe_terminal_stop = true;
@@ -548,6 +549,14 @@ az_split_limit_log = nan(1, length(t));
 stern_split_limit_log = nan(1, length(t));
 path_heading_weight_log = nan(1, length(t));
 terminal_heading_weight_log = nan(1, length(t));
+soft_speed_cap_weight_log = nan(1, length(t));
+soft_speed_floor_weight_log = nan(1, length(t));
+path_xte_weight_log = nan(1, length(t));
+path_tube_half_width_log = nan(1, length(t));
+terminal_pos_weight_log = nan(1, length(t));
+terminal_stop_u_weight_log = nan(1, length(t));
+terminal_stop_v_weight_log = nan(1, length(t));
+terminal_stop_r_weight_log = nan(1, length(t));
 goal_heading_enable_log = nan(1, length(t));
 goal_heading_rad_log = nan(1, length(t));
 map_barrier_weight_log = nan(1, length(t));
@@ -1205,6 +1214,14 @@ for i = 1:length(t)
     lambda_total_log(i) = lambda_total; lambda_yield_log(i)= lambda_yield;
     lambda_return_log(i)= lambda_return; lambda_ttc_log(i)  = lambda_ttc;
     u_cap_log(i)        = solve_opts.soft_speed_cap_mps; d_edge_log(i) = d_edge_now;
+    soft_speed_cap_weight_log(i) = solve_opts.soft_speed_cap_weight;
+    soft_speed_floor_weight_log(i) = solve_opts.soft_speed_floor_weight;
+    path_xte_weight_log(i) = solve_opts.path_xte_weight;
+    path_tube_half_width_log(i) = solve_opts.path_tube_half_width_m;
+    terminal_pos_weight_log(i) = solve_opts.terminal_goal_pos_weight;
+    terminal_stop_u_weight_log(i) = solve_opts.terminal_stop_u_weight;
+    terminal_stop_v_weight_log(i) = solve_opts.terminal_stop_v_weight;
+    terminal_stop_r_weight_log(i) = solve_opts.terminal_stop_r_weight;
     path_heading_weight_log(i) = getOr(solve_opts, 'path_heading_weight', NaN);
     terminal_heading_weight_log(i) = getOr(solve_opts, 'terminal_goal_heading_weight', NaN);
     goal_heading_enable_log(i) = double(getOr(solve_opts, 'goal_heading_enable', false));
@@ -1407,6 +1424,14 @@ az_split_limit_log = az_split_limit_log(1:steps);
 stern_split_limit_log = stern_split_limit_log(1:steps);
 path_heading_weight_log = path_heading_weight_log(1:steps);
 terminal_heading_weight_log = terminal_heading_weight_log(1:steps);
+soft_speed_cap_weight_log = soft_speed_cap_weight_log(1:steps);
+soft_speed_floor_weight_log = soft_speed_floor_weight_log(1:steps);
+path_xte_weight_log = path_xte_weight_log(1:steps);
+path_tube_half_width_log = path_tube_half_width_log(1:steps);
+terminal_pos_weight_log = terminal_pos_weight_log(1:steps);
+terminal_stop_u_weight_log = terminal_stop_u_weight_log(1:steps);
+terminal_stop_v_weight_log = terminal_stop_v_weight_log(1:steps);
+terminal_stop_r_weight_log = terminal_stop_r_weight_log(1:steps);
 goal_heading_enable_log = goal_heading_enable_log(1:steps);
 goal_heading_rad_log = goal_heading_rad_log(1:steps);
 map_barrier_weight_log = map_barrier_weight_log(1:steps);
@@ -1478,6 +1503,7 @@ try
             anim_cfg.thrusterCfg = thr_cfg;
             anim_cfg.showControlPlot = true;
             anim_cfg.showSpeedPlot = false;
+            anim_cfg.useLightTheme = use_light_theme;
             anim_cfg.dynamicObsHistory = dyn_obs_hist(:, :, 1:steps+1);
             anim_cfg.dynamicObsRadius = dynamic_obs_radius_m;
             anim_cfg.circObs = static_obstacles;
@@ -1605,3 +1631,92 @@ title('Commanded Rudder / Thrust vs Time'); grid on;
 legend('\alpha_1', '\alpha_2', 'n_{1,c}', 'n_{2,c}', 'n_{3,c}', 'Location', 'best');
 
 sgtitle('NMPC Harbor Navigation — Unified Test');
+
+figure(3); clf;
+set(gcf, 'Position', [120 80 1550 980]);
+tiledlayout(3,1,'TileSpacing','compact','Padding','compact');
+
+phase_names = {'Tight', 'Stop', 'Turn', 'Berth', 'Yield', 'Return', 'TTC'};
+phase_colors = [
+    0.00 0.45 0.74;
+    0.85 0.33 0.10;
+    0.93 0.69 0.13;
+    0.49 0.18 0.56;
+    0.47 0.67 0.19;
+    0.30 0.75 0.93;
+    0.64 0.08 0.18];
+
+lambda_stack = [lambda_tight_log(:), lambda_stop_log(:), lambda_turn_log(:), ...
+                lambda_berth_log(:), lambda_yield_log(:), lambda_return_log(:), lambda_ttc_log(:)];
+[~, dominant_idx] = max(lambda_stack, [], 2);
+switch_points = [1; find(diff(dominant_idx) ~= 0) + 1; numel(t_sim)];
+
+nexttile;
+hold on;
+for k = 1:numel(phase_names)
+    plot(t_sim(1:steps), lambda_stack(:,k), 'LineWidth', 1.7, 'Color', phase_colors(k,:));
+end
+plot(t_sim(1:steps), lambda_total_log, 'k-', 'LineWidth', 2.6);
+ylim([0 1.05]);
+xlim([t_sim(1) t_sim(end)]);
+grid on;
+ylabel('Lambda');
+title('Scheduler Lambdas');
+legend([phase_names, {'Total'}], 'Location', 'eastoutside');
+
+nexttile;
+hold on;
+plot(t_sim(1:steps), path_xte_weight_log, 'Color', [0.00 0.45 0.74], 'LineWidth', 1.7);
+plot(t_sim(1:steps), path_tube_half_width_log, 'Color', [0.49 0.18 0.56], 'LineWidth', 1.7);
+plot(t_sim(1:steps), path_heading_weight_log, 'Color', [0.85 0.33 0.10], 'LineWidth', 1.7);
+plot(t_sim(1:steps), terminal_heading_weight_log, 'Color', [0.93 0.69 0.13], 'LineWidth', 1.7);
+plot(t_sim(1:steps), soft_speed_cap_weight_log, 'Color', [0.47 0.67 0.19], 'LineWidth', 1.7);
+plot(t_sim(1:steps), soft_speed_floor_weight_log, 'Color', [0.30 0.75 0.93], 'LineWidth', 1.5, 'LineStyle', '--');
+plot(t_sim(1:steps), terminal_pos_weight_log, 'Color', [0.64 0.08 0.18], 'LineWidth', 1.7);
+plot(t_sim(1:steps), map_barrier_weight_log, 'Color', [0.15 0.15 0.15], 'LineWidth', 1.5, 'LineStyle', ':');
+grid on;
+xlim([t_sim(1) t_sim(end)]);
+ylabel('Weight / width');
+title('Scheduled Cost Terms');
+legend({'XTE weight', 'Tube half-width', 'Path heading weight', 'Terminal heading weight', ...
+        'Speed cap weight', 'Speed floor weight', 'Terminal position weight', 'Map barrier weight'}, ...
+        'Location', 'eastoutside');
+
+nexttile;
+hold on;
+cost_plot = max(cost_log, eps);
+cost_plot(~isfinite(cost_plot)) = NaN;
+semilogy(t_sim(1:steps), cost_plot, 'k-', 'LineWidth', 2.0);
+cost_y = cost_plot(isfinite(cost_plot));
+if isempty(cost_y)
+    cost_y = eps;
+end
+cost_ylim = [max(eps, min(cost_y) * 0.8), max(cost_y) * 1.2];
+ylim(cost_ylim);
+for s = 1:numel(switch_points)-1
+    idx0 = switch_points(s);
+    idx1 = switch_points(s+1);
+    if idx1 > idx0
+        patch([t_sim(idx0) t_sim(idx1) t_sim(idx1) t_sim(idx0)], ...
+            [cost_ylim(1) cost_ylim(1) cost_ylim(2) cost_ylim(2)], ...
+            phase_colors(dominant_idx(idx0),:), 'FaceAlpha', 0.08, ...
+            'EdgeColor', 'none', 'HandleVisibility', 'off');
+    end
+end
+for s = 2:numel(switch_points)-1
+    xline(t_sim(switch_points(s)), '-', 'Color', [0.4 0.4 0.4], 'LineWidth', 0.8, 'HandleVisibility', 'off');
+end
+yyaxis right;
+stairs(t_sim(1:steps), dominant_idx, 'LineWidth', 1.2, 'Color', [0.25 0.25 0.25]);
+yticks(1:numel(phase_names));
+yticklabels(phase_names);
+ylabel('Dominant lambda');
+ylim([0.5 numel(phase_names)+0.5]);
+yyaxis left;
+xlim([t_sim(1) t_sim(end)]);
+ylabel('Cost');
+xlabel('Time [s]');
+grid on;
+title('Cost Switching Behaviour');
+
+sgtitle('NMPC Scheduler Diagnostics — Lambdas, Scheduled Weights, and Cost Switching');
