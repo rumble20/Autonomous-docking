@@ -98,6 +98,7 @@ recordVideo = cfgGet(cfg, 'recordVideo', false);
 recordGif = cfgGet(cfg, 'recordGif', false);
 recordFps = cfgGet(cfg, 'recordFps', 15);
 videoFile = cfgGet(cfg, 'videoFile', 'nmpc_run.mp4');
+followCamera = cfgGet(cfg, 'followCamera', false);
 gifFile = cfgGet(cfg, 'gifFile', 'nmpc_run.gif');
 plannedRoutes = cfgGet(cfg, 'plannedRoutes', []);
 plannedRouteMaxHistory = cfgGet(cfg, 'plannedRouteMaxHistory', 6);
@@ -106,6 +107,7 @@ plannedRouteAlphaMax = cfgGet(cfg, 'plannedRouteAlphaMax', 0.70);
 plannedRouteLineWidth = cfgGet(cfg, 'plannedRouteLineWidth', 1.4);
 plannedRouteColor = cfgGet(cfg, 'plannedRouteColor', [0.95 0.75 0.20]);
 plannedRouteStride = cfgGet(cfg, 'plannedRouteStride', 1);
+useLightTheme = cfgGet(cfg, 'useLightTheme', false);
 thrusterHistory = cfgGet(cfg, 'thrusterHistory', []);
 thrusterCfg = cfgGet(cfg, 'thrusterCfg', struct());
 showThrusters = cfgGet(cfg, 'showThrusters', true);
@@ -113,6 +115,48 @@ thrusterDeadbandRpm = cfgGet(cfg, 'thrusterDeadbandRpm', 5);
 thrusterLineWidth = cfgGet(cfg, 'thrusterLineWidth', 2.0);
 thrusterPowerExponent = cfgGet(cfg, 'thrusterPowerExponent', 1.6);
 thrusterSmoothing = cfgGet(cfg, 'thrusterSmoothing', 0.60);
+
+if useLightTheme
+    theme.figBg = [0.96 0.96 0.965];
+    theme.axBg = [0.92 0.92 0.93];
+    theme.fg = [0.14 0.14 0.16];
+    theme.title = [0.10 0.10 0.12];
+    theme.grid = [0.78 0.78 0.80];
+    theme.gridAlpha = 0.60;
+    theme.legendBg = [0.97 0.97 0.975];
+    theme.legendEdge = [0.74 0.74 0.76];
+    theme.shipFill = [0.20 0.56 0.84];
+    theme.shipEdge = [0.16 0.19 0.22];
+    theme.trail = [0.12 0.52 0.24];
+    theme.speed = [0.13 0.55 0.28];
+    theme.speedMarker = [0.83 0.52 0.10];
+    theme.ghost = [0.26 0.45 0.72];
+    theme.plannedRoute = [0.72 0.52 0.14];
+    theme.obstacle = [0.78 0.28 0.26];
+    theme.hullEdge = [0.72 0.39 0.12];
+    theme.start = [0.14 0.58 0.26];
+    theme.end = [0.70 0.20 0.20];
+else
+    theme.figBg = [0.09 0.09 0.13];
+    theme.axBg = [0.11 0.11 0.16];
+    theme.fg = [0.90 0.90 0.95];
+    theme.title = [1.00 1.00 1.00];
+    theme.grid = [0.28 0.28 0.38];
+    theme.gridAlpha = 0.50;
+    theme.legendBg = [0.09 0.09 0.13];
+    theme.legendEdge = [0.35 0.35 0.45];
+    theme.shipFill = [0.20 0.75 1.00];
+    theme.shipEdge = [1.00 1.00 1.00];
+    theme.trail = [0.20 0.85 0.45];
+    theme.speed = [0.20 0.85 0.45];
+    theme.speedMarker = [1.00 0.95 0.10];
+    theme.ghost = [0.35 0.55 1.00];
+    theme.plannedRoute = [0.95 0.75 0.20];
+    theme.obstacle = [1.00 0.35 0.35];
+    theme.hullEdge = [1.00 0.62 0.18];
+    theme.start = [0.20 0.85 0.45];
+    theme.end = [1.00 0.30 0.30];
+end
 
 %  1. Load image once  (only when file path changes)
 useImage = true;  % set false if loading fails
@@ -138,28 +182,27 @@ if isempty(cachedImgFile) || ~strcmp(imgFile, cachedImgFile) || isempty(shipImg)
             % Optional vertical flip for icons stored with opposite row orientation.
             % Default false so bow/stern orientation follows the source image directly.
             if flipShipImageVertical
-                shipImg   = flipud(rawImg);
-                shipAlpha = flipud(rawAlpha);
-            else
-                shipImg   = rawImg;
-                shipAlpha = rawAlpha;
+                rawImg   = flipud(rawImg);
+                rawAlpha = flipud(rawAlpha);
             end
 
-            shipHeightPx  = size(shipImg, 1);
-            shipWidthPx   = size(shipImg, 2);
-
-            % Effective icon aspect from non-transparent pixels so we do not
-            % stretch square canvases with tall/narrow ship silhouettes.
-            mask = shipAlpha > 0.05;
+            % Crop away the transparent frame so the visible ship keeps its
+            % original proportions instead of being framed by a square canvas.
+            mask = rawAlpha > 0.05;
             cols = find(any(mask, 1));
             rows = find(any(mask, 2));
             if isempty(cols) || isempty(rows)
-                shipEffWidthPx = shipWidthPx;
-                shipEffHeightPx = shipHeightPx;
+                shipImg = rawImg;
+                shipAlpha = rawAlpha;
             else
-                shipEffWidthPx = cols(end) - cols(1) + 1;
-                shipEffHeightPx = rows(end) - rows(1) + 1;
+                shipImg = rawImg(rows(1):rows(end), cols(1):cols(end), :);
+                shipAlpha = rawAlpha(rows(1):rows(end), cols(1):cols(end));
             end
+
+            shipHeightPx = size(shipImg, 1);
+            shipWidthPx  = size(shipImg, 2);
+            shipEffWidthPx = shipWidthPx;
+            shipEffHeightPx = shipHeightPx;
 
             cachedImgFile = imgFile;
             fprintf('  [animateSimResult] Icon loaded (%dx%d px).\n', shipWidthPx, shipHeightPx);
@@ -200,7 +243,7 @@ hFig = figure(figNo);
 clf(hFig);
 set(hFig, 'Name',        sprintf('NMPC Animation — %s', testName), ...
           'NumberTitle', 'off', ...
-          'Color',       [0.09 0.09 0.13]);
+          'Color',       theme.figBg);
 
 % Make animation window larger for better readability in live view and recordings.
 scr = get(0, 'ScreenSize');
@@ -223,31 +266,31 @@ set(ax_speed, 'Position', [0.06, 0.08, 0.91, 0.22]);
 % Map axes styling
 axis(ax, 'equal');
 grid(ax, 'on');
-ax.Color     = [0.11 0.11 0.16];
-ax.XColor    = [0.75 0.75 0.80];
-ax.YColor    = [0.75 0.75 0.80];
-ax.GridColor = [0.28 0.28 0.38];
-ax.GridAlpha = 0.5;
-xlabel(ax, 'East / y  [m]',  'Color', [0.90 0.90 0.95], 'FontSize', 11);
-ylabel(ax, 'North / x  [m]', 'Color', [0.90 0.90 0.95], 'FontSize', 11);
+ax.Color     = theme.axBg;
+ax.XColor    = theme.fg;
+ax.YColor    = theme.fg;
+ax.GridColor = theme.grid;
+ax.GridAlpha = theme.gridAlpha;
+xlabel(ax, 'East / y  [m]',  'Color', theme.fg, 'FontSize', 11);
+ylabel(ax, 'North / x  [m]', 'Color', theme.fg, 'FontSize', 11);
 title(ax, sprintf('Ship Simulation — %s', testName), ...
-    'Color', [1 1 1], 'FontSize', 13, 'FontWeight', 'bold');
+    'Color', theme.title, 'FontSize', 13, 'FontWeight', 'bold');
 
 % NEW: Speed plot axes styling
-ax_speed.Color = [0.11 0.11 0.16];
-ax_speed.XColor = [0.75 0.75 0.80];
-ax_speed.YColor = [0.75 0.75 0.80];
-ax_speed.GridColor = [0.28 0.28 0.38];
-ax_speed.GridAlpha = 0.5;
+ax_speed.Color = theme.axBg;
+ax_speed.XColor = theme.fg;
+ax_speed.YColor = theme.fg;
+ax_speed.GridColor = theme.grid;
+ax_speed.GridAlpha = theme.gridAlpha;
 grid(ax_speed, 'on');
-xlabel(ax_speed, 'Time [s]', 'Color', [0.90 0.90 0.95], 'FontSize', 11);
-ylabel(ax_speed, 'Surge velocity [m/s]', 'Color', [0.90 0.90 0.95], 'FontSize', 11);
-title(ax_speed, 'Forward Speed Profile', 'Color', [1 1 1], 'FontSize', 12, 'FontWeight', 'bold');
+xlabel(ax_speed, 'Time [s]', 'Color', theme.fg, 'FontSize', 11);
+ylabel(ax_speed, 'Surge velocity [m/s]', 'Color', theme.fg, 'FontSize', 11);
+title(ax_speed, 'Forward Speed Profile', 'Color', theme.title, 'FontSize', 12, 'FontWeight', 'bold');
 set(ax_speed, 'XLim', [t_vec(1), t_vec(end)]);
 set(ax_speed, 'YLim', [min(u_vel)*0.95, max(u_vel)*1.05]);
 
 % NEW: Ghost profile (full trajectory at low opacity)
-plot(ax_speed, t_vec, u_vel, '-', 'Color', [0.35 0.55 1.00], 'LineWidth', 1.2, ...
+plot(ax_speed, t_vec, u_vel, '-', 'Color', theme.ghost, 'LineWidth', 1.2, ...
     'DisplayName', 'Full profile (ghost)', 'HandleVisibility', 'on');
 
 % plotMap() creates many patch objects; we capture them and clear them from
@@ -276,7 +319,7 @@ if showCollisionCircles && isfield(cfg, 'circObs') && ~isempty(cfg.circObs)
         oy = cfg.circObs(k).position(1);  % North (plot y-axis)
         r  = cfg.circObs(k).radius;
         plot(ax, ox + r*cos(th), oy + r*sin(th), ...
-             'Color', [1.0 0.35 0.35], 'LineWidth', 1.1, ...
+             'Color', theme.obstacle, 'LineWidth', 1.1, ...
              'HandleVisibility', 'off');
     end
 end
@@ -297,7 +340,7 @@ end
 
 % --- Ghost trajectory of the executed path (full run, low opacity) -------
 plot(ax, yPath, xPath, '-', ...
-    'Color', [0.35 0.55 1.00], 'LineWidth', 1.2, ...
+    'Color', theme.ghost, 'LineWidth', 1.2, ...
     'DisplayName', 'Executed path (ghost)');
 
 % --- Extra paths (e.g. target ship trajectory) ---------------------------
@@ -317,7 +360,7 @@ end
 
 % --- Start marker ---------------------------------------------------------
 plot(ax, yPath(1), xPath(1), 'go', ...
-     'MarkerSize', 8, 'MarkerFaceColor', 'g', 'DisplayName', 'Start');
+    'MarkerSize', 8, 'MarkerFaceColor', theme.start, 'MarkerEdgeColor', theme.start, 'DisplayName', 'Start');
 
 % --- Axis limits (add margin) --------------------------------------------
 marginFrac = 0.08;
@@ -330,28 +373,22 @@ halfSpan = axRng/2 * (1 + marginFrac);
 
 xlim(ax, [yMid - halfSpan, yMid + halfSpan]);
 ylim(ax, [xMid - halfSpan, xMid + halfSpan]);
+cameraHalfSpan = halfSpan;
 
-% Ship display size in axes units
-% When hull config is available, keep icon size physically consistent
-% with the same rectangle used by collision/hitbox plotting.
+% Ship display size in axes units.
+% Preserve the cropped ship silhouette proportions and scale it uniformly
+% against the hull dimensions when they are available.
+imgAspect = max(1e-6, shipWidthPx) / max(1e-6, shipHeightPx);
 if ~isempty(hullCfg) && isfield(hullCfg, 'half_beam_m') && isfield(hullCfg, 'half_length_m')
-    boxWidth  = 2 * hullCfg.half_beam_m;
-    boxHeight = 2 * hullCfg.half_length_m;
-    if useImage
-        effAspect = shipEffHeightPx / max(shipEffWidthPx, 1); % height/width
-        shipWidthAx  = min(boxWidth, boxHeight / max(effAspect, 1e-6));
-        shipHeightAx = shipWidthAx * effAspect;
-    else
-        shipWidthAx  = boxWidth;
-        shipHeightAx = boxHeight;
-    end
+    boxBeam  = 2 * hullCfg.half_beam_m;
+    boxLength = 2 * hullCfg.half_length_m;
+    shipScale = shipImageScale * min(1.35 * boxBeam, 0.18 * boxLength);
+    shipWidthAx  = shipScale;
+    shipHeightAx = shipScale / max(imgAspect, 1e-6);
 else
-    shipWidthAx  = axRng * shipSize;
-    if useImage
-        shipHeightAx = shipWidthAx * (shipHeightPx / shipWidthPx);
-    else
-        shipHeightAx = shipWidthAx * 2.5;
-    end
+    shipScale = axRng * shipSize * shipImageScale;
+    shipWidthAx  = shipScale;
+    shipHeightAx = shipScale / max(imgAspect, 1e-6);
 end
 
 % --- Initialise ship handle ----------------------------------------------
@@ -365,34 +402,9 @@ else
 end
 
 % Display-only scaling for the ship icon (does not alter collision hitbox geometry).
-% Aim: make the icon at least as large as the hull (scaled by `shipImageScale`),
-% while preserving the original image aspect ratio so the icon is not distorted.
-shipImgHalfLen = shipHalfLen;
-shipImgHalfBeam = shipHalfBeam;
-if useImage
-    shipImageScale = max(0.5, shipImageScale);
-
-    % Image aspect: width (cols) corresponds to beam, height (rows) to length
-    imgAspect = max(1e-6, shipEffWidthPx) / max(1e-6, shipEffHeightPx); % beam/length
-
-    % Required half-dimensions from hull (apply desired display scale)
-    reqHalfBeam = shipHalfBeam * shipImageScale;
-    reqHalfLen  = shipHalfLen  * shipImageScale;
-
-    % If we scale image so its beam equals required beam, the implied length
-    % (from image aspect) is: impliedLen = reqHalfBeam / imgAspect.
-    % Choose the scaling that ensures BOTH dimensions cover the required hull dims.
-    impliedLen_from_beam = reqHalfBeam / imgAspect;
-    if impliedLen_from_beam >= reqHalfLen
-        % Beam-driven scaling covers required length as well -> use it
-        shipImgHalfBeam = reqHalfBeam;
-        shipImgHalfLen  = impliedLen_from_beam;
-    else
-        % Beam-driven scaling too short in length -> use length-driven scaling
-        shipImgHalfLen  = reqHalfLen;
-        shipImgHalfBeam = shipImgHalfLen * imgAspect;
-    end
-end
+% The PNG keeps its original proportions and is only scaled uniformly.
+shipImgHalfBeam = shipWidthAx / 2;
+shipImgHalfLen  = shipHeightAx / 2;
 
 if useImage
     [xq0, yq0] = computeShipImageQuad(cx0, cy0, shipImgHalfLen, shipImgHalfBeam, psi0);
@@ -407,15 +419,15 @@ if useImage
     uistack(hShip, 'top');
 else
     [tx, ty] = shipTriangle(cx0, cy0, 2 * shipHalfBeam, psi0);
-    hShip = fill(ax, tx, ty, [0.20 0.75 1.00], ...
-        'EdgeColor', 'w', 'LineWidth', 1.2, 'HandleVisibility', 'off');
+    hShip = fill(ax, tx, ty, theme.shipFill, ...
+        'EdgeColor', theme.shipEdge, 'LineWidth', 1.2, 'HandleVisibility', 'off');
 end
 
 % Bow-direction arrow removed to reduce visual clutter
 
 % --- Live trail line ------------------------------------------------------
 hTrail = plot(ax, yPath(1), xPath(1), '-', ...
-              'Color', [0.20 0.85 0.45], 'LineWidth', 2, ...
+              'Color', theme.trail, 'LineWidth', 2, ...
               'DisplayName', 'Own ship');
 
 % --- Hull footprint rectangle (if enabled) -------------------------------
@@ -425,8 +437,8 @@ if showHullHitbox && ~isempty(hullCfg) && isstruct(hullCfg) && isfield(hullCfg, 
     cx0 = yPath(1);  cy0 = xPath(1);  psi0 = psi(1);
     rectCorners0 = computeHullCorners(cx0, cy0, hullCfg.half_length_m, hullCfg.half_beam_m, psi0);
     hHullRect = patch(ax, rectCorners0(1,:), rectCorners0(2,:), ...
-                      [1.0 0.50 0.20], ...
-                      'FaceAlpha', 0.04, 'EdgeColor', [1.0 0.62 0.18], ...
+                      theme.hullEdge, ...
+                      'FaceAlpha', 0.04, 'EdgeColor', theme.hullEdge, ...
                       'LineWidth', 2.0, 'LineStyle', '--', 'HandleVisibility', 'off');
     uistack(hHullRect, 'top');
 end
@@ -477,19 +489,19 @@ xlims = xlim(ax);  ylims = ylim(ax);
 hTime = text(ax, xlims(1) + 0.02*diff(xlims), ...
                  ylims(2) - 0.04*diff(ylims), ...
                  't = 0 s', ...
-                 'Color', [1 1 1], 'FontSize', 11, 'FontWeight', 'bold');
+                 'Color', theme.fg, 'FontSize', 11, 'FontWeight', 'bold');
 
 % Legend for map
 if showLegend
     legend(ax, 'show', 'Location', 'best', ...
-        'TextColor', [0.90 0.90 0.95], 'Color', [0.09 0.09 0.13], ...
-        'EdgeColor', [0.35 0.35 0.45]);
+        'TextColor', theme.fg, 'Color', theme.legendBg, ...
+        'EdgeColor', theme.legendEdge);
 end
 
 % NEW: Speed plot legend
 legend(ax_speed, 'show', 'Location', 'best', ...
-    'TextColor', [0.90 0.90 0.95], 'Color', [0.09 0.09 0.13], ...
-    'EdgeColor', [0.35 0.35 0.45], 'FontSize', 9);
+    'TextColor', theme.fg, 'Color', theme.legendBg, ...
+    'EdgeColor', theme.legendEdge, 'FontSize', 9);
 
 drawnow;
 
@@ -547,10 +559,10 @@ end
 speedX_live = [t_vec(1)];                    % Time points for live speed
 speedY_live = [u_vel(1)];                    % Speed values for live line
 hSpeedLine = plot(ax_speed, speedX_live, speedY_live, '-', ...
-    'Color', [0.20 0.85 0.45], 'LineWidth', 2.2, ...
+    'Color', theme.speed, 'LineWidth', 2.2, ...
     'DisplayName', 'Live speed', 'HandleVisibility', 'on');
 hSpeedMarker = plot(ax_speed, t_vec(1), u_vel(1), 'o', ...
-    'Color', [1.0 0.95 0.10], 'MarkerSize', 7, 'MarkerFaceColor', [1.0 0.95 0.10], ...
+    'Color', theme.speedMarker, 'MarkerSize', 7, 'MarkerFaceColor', theme.speedMarker, ...
     'HandleVisibility', 'off');
 
 trailX = yPath(1);
@@ -595,6 +607,15 @@ for k = 1:length(idx)
     % Update time stamp
     if i <= length(t_vec)
         set(hTime, 'String', sprintf('t = %.0f s', t_vec(i)));
+    end
+
+    if followCamera
+        xlim(ax, [cy - cameraHalfSpan, cy + cameraHalfSpan]);
+        ylim(ax, [cx - cameraHalfSpan, cx + cameraHalfSpan]);
+        xlims = xlim(ax);
+        ylims = ylim(ax);
+        set(hTime, 'Position', [xlims(1) + 0.02*diff(xlims), ...
+                                ylims(2) - 0.04*diff(ylims), 0]);
     end
 
     % Update dynamic obstacles (if provided)
@@ -700,7 +721,7 @@ for k = 1:length(idx)
                     continue;
                 end
                 % Blend planned route color into the background to mimic opacity.
-                cBlend = alphaVals(s) * plannedRouteColor + (1 - alphaVals(s)) * ax.Color;
+                cBlend = alphaVals(s) * plannedRouteColor + (1 - alphaVals(s)) * theme.axBg;
                 hPlanRoutes(end+1,1) = plot(ax, px, py, '-', ...
                     'Color', cBlend, 'LineWidth', plannedRouteLineWidth, ...
                     'HandleVisibility', 'off');
@@ -752,7 +773,7 @@ end
 
 % Mark final position without the large arrow marker.
 plot(ax, yPath(end), xPath(end), 'ro', ...
-    'MarkerSize', 6, 'MarkerFaceColor', [1 0.3 0.3], ...
+    'MarkerSize', 6, 'MarkerFaceColor', theme.end, 'MarkerEdgeColor', theme.end, ...
     'DisplayName', 'End', 'LineWidth', 1.0);
 drawnow;
 
