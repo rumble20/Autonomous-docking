@@ -20,16 +20,16 @@ fprintf('═══════════════════════�
 % No heading is stored in the waypoint list anymore.
 % The penultimate point is a staging point north of the berth so the last
 % segment becomes a real final docking leg instead of a shallow transit leg.
-waypoints = [-2600, -1400; -2300, -1300; -2100, -1300; -1750, -1250; -1900, -1250;];
+waypoints = [-3000, -2800; -2700, -2650; -2400, -2700; -2150, -2650; -1850, -2450; -2000, -2500];
 
 % Static obstacles: N-by-3 [x y radius] or struct array.
 static_obstacles = [];
 
 % Dynamic obstacles.
-dynamic_obs_positions_xy = [-2400, -2400];
-dynamic_obs_headings_deg = [90];
+dynamic_obs_positions_xy = [-2100, -2800];
+dynamic_obs_headings_deg = [120];
 dynamic_obs_speeds_mps   = [3];
-enable_dynamic_obstacles = false;
+enable_dynamic_obstacles = true;
 dynamic_obs_radius_m     = 25;
 dynamic_obs_speed_mps    = 5;
 dynamic_obs_nmpc_guard_m = 0;
@@ -206,7 +206,9 @@ terminal_goal_cfg.term_pose_slack_max = 5.0;
 % Soft obstacle slack.
 soft_obstacle_cfg = struct();
 soft_obstacle_cfg.enabled = true;
-soft_obstacle_cfg.max_slack_m = 15.0;
+% Reduce allowed soft-obstacle slack so solver prefers feasible stopping
+% or prudent traversal over large constraint violations.
+soft_obstacle_cfg.max_slack_m = 6.0;
 soft_obstacle_cfg.penalty_weight = 5e4;
 
 % Twin-stern synchrony.
@@ -315,7 +317,7 @@ sched_cfg.u_yield       = 1;    % m/s: crawl speed during yield
 sched_cfg.w_along_min   = 0.05;    % minimal progress reward
 sched_cfg.R_rate_scale_yield = 2;% control smoothness multiplier
 sched_cfg.map_barrier_w_base = 0.0;
-sched_cfg.map_barrier_w_near = 80.0;
+sched_cfg.map_barrier_w_near = 30.0; % MPC should not be too afraid to go into tight spots, but increase caution when it happens
 sched_cfg.map_soft_margin_m = 18;
 
 %% HELPER FUNCTION ALIASES ================================================
@@ -1078,6 +1080,11 @@ for i = 1:length(t)
         solve_opts.goal_heading_enable = true;
         solve_opts.goal_heading_rad = chi_seg;
         solve_opts.path_heading_weight = max(getOr(solve_opts, 'path_heading_weight', 0), route_follow_cfg.sharp_turn_heading_weight);
+        % When stop pressure is high, enforce terminal stop weight so NMPC
+        % prefers stopping rather than executing large avoidance arcs.
+        solve_opts.terminal_stop_u_weight = max(getOr(solve_opts, 'terminal_stop_u_weight', 0), terminal_goal_cfg.stop_u_weight);
+        % Allow going to zero or slight reverse when stopping urgency is high.
+        solve_opts.u_min_forward = min(getOr(solve_opts, 'u_min_forward', nmpc_cfg.u_min_forward), lerp(sched_cfg.u_min_forward_far, -0.2, lambda_stop));
     end
 
     solve_opts.terminal_goal_pos_weight = max( ...
@@ -1226,6 +1233,27 @@ for i = 1:length(t)
     if isfield(info, 'sum_soft_slack_m'), soft_slack_sum_log(i) = info.sum_soft_slack_m; end
     if isfield(info, 'max_terminal_slack'), terminal_pose_slack_max_log(i) = info.max_terminal_slack; end
     X_pred_hist{i} = X_pred;
+
+    debug_trigger = false;
+    debug_reasons = {};
+    if isfield(info,'max_soft_slack_m') && info.max_soft_slack_m > 8
+        debug_trigger = true; debug_reasons{end+1} = sprintf('max_soft_slack=%.2f', info.max_soft_slack_m);
+    end
+    if isfield(info,'sum_soft_slack_m') && info.sum_soft_slack_m > 20
+        debug_trigger = true; debug_reasons{end+1} = sprintf('sum_soft_slack=%.2f', info.sum_soft_slack_m);
+    end
+    if exist('xte','var') && abs(xte) > 50
+        debug_trigger = true; debug_reasons{end+1} = sprintf('xte=%.1f', xte);
+    end
+    if exist('rt_ratio_log','var') && rt_ratio_log(i) > 2
+        debug_trigger = true; debug_reasons{end+1} = sprintf('rt_ratio=%.2f', rt_ratio_log(i));
+    end
+
+    if debug_trigger
+        fprintf('[DEBUG] t=%.1f TRIGGERS: %s\n', t(i), strjoin(debug_reasons, ', '));
+        debug_fname = fullfile('MY_NPMC','my work', sprintf('debug_nmpc_issue_%d.mat', i));
+        save(debug_fname, 'i', 't', 'x', 'path_ref', 'solve_opts', 'info', 'X_pred', 'obs_local', 'xte');
+    end
 
     % 6) Plant integration
     t_seg = tic;
