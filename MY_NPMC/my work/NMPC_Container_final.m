@@ -234,6 +234,7 @@ classdef NMPC_Container_final < handle
             P_x0       = SX.sym('P_x0', n_state, 1);
             P_wp_start = SX.sym('P_wp_start', 2, 1);
             P_wp_end   = SX.sym('P_wp_end', 2, 1);
+            P_wp_next  = SX.sym('P_wp_next', 2, 1);
             P_goal_heading = SX.sym('P_goal_heading', 1, 1);
             P_goal_heading_enable = SX.sym('P_goal_heading_enable', 1, 1);
             P_path_weights = SX.sym('P_path_weights', 4, 1); % [W_xte W_along W_tube W_soft_speed_cap]
@@ -269,7 +270,7 @@ classdef NMPC_Container_final < handle
             P_gamma_obs = SX.sym('P_gamma_obs', 1, 1);
             P_gamma_hp = SX.sym('P_gamma_hp', 1, 1);
 
-            P_all = vertcat(P_x0, P_wp_start, P_wp_end, P_goal_heading, P_goal_heading_enable, ...
+            P_all = vertcat(P_x0, P_wp_start, P_wp_end, P_wp_next, P_goal_heading, P_goal_heading_enable, ...
                             P_path_weights, P_path_heading_weight, P_speed_ref, P_speed_floor, P_terminal_path, ...
                             P_uref(:), P_n_obs_real, P_obs_pos(:), P_obs_rad, P_obs_vel(:), ...
                             P_n_hp_real, P_hp_n(:), P_hp_b, ...
@@ -304,6 +305,15 @@ classdef NMPC_Container_final < handle
 
             % Stage cost: line tracking + tube guidance + stage heading + soft speed cap
             psi_path_ref = atan2(t_hat(2), t_hat(1));
+            next_seg = P_wp_next - P_wp_end;
+            next_seg_len = sqrt(next_seg(1)^2 + next_seg(2)^2) + 1e-9;
+            psi_next_ref = atan2(next_seg(2), next_seg(1));
+            turn_cos = (seg(1) * next_seg(1) + seg(2) * next_seg(2)) / max(L_seg * next_seg_len, 1e-9);
+            turn_cos = fmin(1.0, fmax(-1.0, turn_cos));
+            turn_angle_deg = acos(turn_cos) * 180.0 / pi;
+            preview_gain = fmin(0.30, fmax(0.0, (turn_angle_deg - 8.0) / 30.0));
+            psi_path_ref = atan2((1 - preview_gain) * sin(psi_path_ref) + preview_gain * sin(psi_next_ref), ...
+                                 (1 - preview_gain) * cos(psi_path_ref) + preview_gain * cos(psi_next_ref));
 
             for k = 1:N_h
                 pos_k = [X(4,k); X(5,k)];
@@ -814,7 +824,7 @@ classdef NMPC_Container_final < handle
                 u_min_local = max(-4.0, min(12.0, solve_opts.u_min_forward));
             end
             
-            [wp_start_xy, wp_end_xy, goal_heading_rad, goal_heading_enable] = parsePathRefArg(path_ref, x0);
+            [wp_start_xy, wp_end_xy, wp_next_xy, goal_heading_rad, goal_heading_enable] = parsePathRefArg(path_ref, x0);
             if isfield(solve_opts, 'goal_heading_rad') && ~isempty(solve_opts.goal_heading_rad)
                 goal_heading_rad = solve_opts.goal_heading_rad;
             end
@@ -1023,7 +1033,7 @@ classdef NMPC_Container_final < handle
                 u_ref(5,:) = rpm_ref(3);
             end
 
-            p_val = [x0(:); wp_start_xy(:); wp_end_xy(:); goal_heading_rad; double(goal_heading_enable); ...
+            p_val = [x0(:); wp_start_xy(:); wp_end_xy(:); wp_next_xy(:); goal_heading_rad; double(goal_heading_enable); ...
                 [path_xte_weight; path_along_weight; path_tube_half_width; soft_speed_cap_weight]; path_heading_weight; soft_speed_cap_mps; ...
                 [soft_speed_floor_weight; soft_speed_floor_mps]; ...
                 [terminal_goal_pos_weight; terminal_goal_heading_weight; double(is_final_waypoint); ...
@@ -1403,9 +1413,10 @@ classdef NMPC_Container_final < handle
 end
 
 
-function [wp_start_xy, wp_end_xy, goal_heading_rad, goal_heading_enable] = parsePathRefArg(path_ref, x0)
+function [wp_start_xy, wp_end_xy, wp_next_xy, goal_heading_rad, goal_heading_enable] = parsePathRefArg(path_ref, x0)
     wp_start_xy = x0(4:5);
     wp_end_xy = x0(4:5);
+    wp_next_xy = x0(4:5);
     goal_heading_rad = x0(6);
     goal_heading_enable = false;
 
@@ -1419,6 +1430,11 @@ function [wp_start_xy, wp_end_xy, goal_heading_rad, goal_heading_enable] = parse
         end
         if isfield(path_ref, 'wp_end') && ~isempty(path_ref.wp_end)
             wp_end_xy = path_ref.wp_end(1:2);
+        end
+        if isfield(path_ref, 'wp_next') && ~isempty(path_ref.wp_next)
+            wp_next_xy = path_ref.wp_next(1:2);
+        else
+            wp_next_xy = wp_end_xy;
         end
         if isfield(path_ref, 'goal_heading_rad') && ~isempty(path_ref.goal_heading_rad)
             goal_heading_rad = path_ref.goal_heading_rad;
@@ -1440,12 +1456,14 @@ function [wp_start_xy, wp_end_xy, goal_heading_rad, goal_heading_enable] = parse
             % Legacy numeric matrix
             wp_start_xy = path_ref(4:5, 1);
             wp_end_xy = path_ref(4:5, end);
+            wp_next_xy = wp_end_xy;
             goal_heading_rad = path_ref(6, end);
             goal_heading_enable = true;
             return;
         elseif isequal(sz, [2 2])
             wp_start_xy = path_ref(:,1);
             wp_end_xy = path_ref(:,2);
+            wp_next_xy = wp_end_xy;
             seg = wp_end_xy - wp_start_xy;
             if norm(seg) > 1e-9
                 goal_heading_rad = atan2(seg(2), seg(1));
@@ -1456,6 +1474,7 @@ function [wp_start_xy, wp_end_xy, goal_heading_rad, goal_heading_enable] = parse
             raw = path_ref(:);
             wp_start_xy = raw(1:2);
             wp_end_xy = raw(3:4);
+            wp_next_xy = wp_end_xy;
             seg = wp_end_xy - wp_start_xy;
             if norm(seg) > 1e-9
                 goal_heading_rad = atan2(seg(2), seg(1));

@@ -674,6 +674,11 @@ How NMPC now covers previously external behaviors
 3) Guidance
 - Guidance remains but is reduced: it chooses the active segment, advances waypoint index and optionally provides final heading. It no longer performs speed shaping or heavy motion control.
 
+3b) Waypoint lookahead / handoff
+- The waypoint handoff is intentionally permissive, but the NMPC is given a short lookahead toward the next segment so it can start aligning before the switch.
+- This is a compromise between strict handoff logic and fully global pre-planning: the vessel follows the current leg, while the upcoming leg influences the heading cost early enough to smooth the turn.
+- Additional staging waypoints can be inserted when a route bend is too abrupt, so the controller sees a gentler geometric transition without making the switching rule rigid.
+
 4) Speed planning near obstacles
 - Instead of a custom governor, the mechanism is: soft cruise encouragement + hard/soft safety constraints. Braking and slowdown emerge naturally when fast trajectories are infeasible or expensive.
 

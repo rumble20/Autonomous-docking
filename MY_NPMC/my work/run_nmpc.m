@@ -13,28 +13,30 @@ clear animateSimResult
 fprintf('══════════════════════════════════════════════════════════════\n');
 fprintf('  NMPC HARBOR NAVIGATION — LINE TRACKING + TUBE MPC\n');
 fprintf('══════════════════════════════════════════════════════════════\n\n');
+log_lines = {};
 
 %% USER CONFIGURATION 
 
 % Waypoints: rows = [x, y].
 % No heading is stored in the waypoint list anymore.
-% The penultimate point is a staging point north of the berth so the last
-% segment becomes a real final docking leg instead of a shallow transit leg.
-waypoints = [-3000, -2800; -2700, -2650; -2400, -2700; -2150, -2650; -1850, -2450; -2000, -2500];
+% Add a couple of bend-staging points so the first leg change is less abrupt.
+% The penultimate point is still a staging point north of the berth so the
+% last segment becomes a real final docking leg instead of a shallow transit leg.
+waypoints = [-3000, -2800; -2700, -2650; -2600, -2625; -2500, -2640; -2400, -2700; -2250, -2800; -2000, -2500; -2150, -2600];
 
 % Static obstacles: N-by-3 [x y radius] or struct array.
-static_obstacles = [];
+static_obstacles = [-2500, -2650, 30];
 
 % Dynamic obstacles.
 dynamic_obs_positions_xy = [-2100, -2800];
-dynamic_obs_headings_deg = [120];
-dynamic_obs_speeds_mps   = [3];
-enable_dynamic_obstacles = true;
+dynamic_obs_headings_deg = [160];
+dynamic_obs_speeds_mps   = [4];
+enable_dynamic_obstacles = true;        
 dynamic_obs_radius_m     = 25;
 dynamic_obs_speed_mps    = 5;
 dynamic_obs_nmpc_guard_m = 0;
 dynamic_obs_start_mode   = 'proximity';   % immediate | proximity
-dynamic_obs_trigger_distance_m = 300;
+dynamic_obs_trigger_distance_m = 400;
 dynamic_obs_boundary_margin = 200;
 dynamic_obs_boundary_policy = 'wrap';    
 
@@ -46,10 +48,10 @@ berth_cfg.enabled = true;                 % true = use precise berthing mode
 berth_cfg.target_xy = [waypoints(end, 1); waypoints(end, 2)];     % final parking position [x; y]
 berth_cfg.heading_deg = 180;                % desired final ship heading
 berth_cfg.prepare_last_n_segments = 3;    % start preparing on last route segments
-berth_cfg.activate_dist_m = 400;          % force berth mode when this close to berth target
+berth_cfg.activate_dist_m = 300;          % force berth mode when this close to berth target
 berth_cfg.final_leg_only = false;          % allow berth mode by proximity, even if a waypoint was skipped
-berth_cfg.preview_heading_weight = 18.0;  % mild early heading preparation before full berth mode
-berth_cfg.preview_goal_weight_gain = 1.35;
+berth_cfg.preview_heading_weight = 28.0;  % stronger early heading preparation before full berth mode
+berth_cfg.preview_goal_weight_gain = 1.60;
 berth_cfg.capture_radius_m = 12;          % hard completion radius in berth mode
 berth_cfg.capture_speed_mps = 0.35;       % completion speed in berth mode
 
@@ -72,7 +74,7 @@ end
 % Corridor starts from a point ahead of last waypoint along approach vector
 corridor_approach_dist_m = 300;  % distance to start corridor from target
 berth_cfg.corridor_origin_xy = last_wp + approach_unit * corridor_approach_dist_m;
-berth_cfg.corridor_heading_deg = berth_cfg.heading_deg;  % inherit berthing heading
+berth_cfg.corridor_heading_deg = rad2deg(atan2(approach_unit(2), approach_unit(1)));  % align corridor with approach
 berth_cfg.use_corridor = true;
 berth_cfg.corridor_half_width_m = 12;
 berth_cfg.corridor_along_min_m = -corridor_approach_dist_m;  % from corridor origin to target
@@ -103,9 +105,9 @@ route_follow_cfg.transit_goal_pos_weight_near = 90.0;
 route_follow_cfg.transit_goal_dist_mid_m  = 220;
 route_follow_cfg.transit_goal_dist_near_m = 120;
 route_follow_cfg.sharp_turn_deg = 10;
-route_follow_cfg.sharp_turn_goal_weight_gain = 2.0;
-route_follow_cfg.sharp_turn_heading_weight = 30.0;
-route_follow_cfg.sharp_turn_heading_enable_dist_m = 280;
+route_follow_cfg.sharp_turn_goal_weight_gain = 3.0;
+route_follow_cfg.sharp_turn_heading_weight = 45.0;
+route_follow_cfg.sharp_turn_heading_enable_dist_m = 500;
 
 % Cruise-speed suggestion for the NMPC soft speed cost.
 cruise_speed_mps = 5.0;
@@ -121,13 +123,13 @@ dynamic_latent_awareness.only_when_not_moving = false;
 
 
 % Simulation.
-T_final = 500;
+T_final = 1000;
 R_accept = 90;
 R_accept_final = 10;
 R_accept_final_soft = 50;
 
 wp_switch_cfg = struct();
-wp_switch_cfg.allow_multi_skip = true;
+wp_switch_cfg.allow_multi_skip = false;
 final_capture_speed_mps = 2.5;
 final_capture_hold_s = 6;
 n1_cruise = 100;
@@ -143,9 +145,8 @@ hull_scale            = 0.5;
 enable_animation_recording = true;
 record_fps = 30;
 record_output_dir = 'MY_NPMC\my work\plots in development process\recordings';
-log_output_dir = 'MY_NPMC\my work\plots in development process\logs';
 enable_terminal_log_recording = true;
-terminal_log_output_dir = log_output_dir;
+terminal_log_output_dir = 'MY_NPMC\my work\plots in development process\logs';
 use_light_theme = true;   % true = print-friendly light mode, false = current dark mode
 
 % Optional map-aware terminal success gate.
@@ -368,16 +369,6 @@ if ~isempty(run_dir)
     addpath(run_dir, '-begin');
 end
 
-
-if enable_terminal_log_recording
-    if ~exist(terminal_log_output_dir, 'dir')
-        mkdir(terminal_log_output_dir);
-    end
-    terminal_log_file = fullfile(terminal_log_output_dir, ...
-        ['run_nmpc_line_tube_' datestr(now, 'yyyymmdd_HHMMSS') '.txt']);
-    diary(terminal_log_file);
-    diary on;
-end
 
 fprintf('  Waypoints: ');
 for iwp = 1:size(waypoints, 1)
@@ -609,6 +600,10 @@ for i = 1:length(t)
 
     wp_start_xy_route = waypoints(seg_start_idx, 1:2)';
     wp_end_xy_route   = waypoints(seg_end_idx,   1:2)';
+    wp_next_xy_route  = wp_end_xy_route;
+    if seg_end_idx < n_wps
+        wp_next_xy_route = waypoints(seg_end_idx + 1, 1:2)';
+    end
 
     wp_start_xy = wp_start_xy_route;
     wp_end_xy   = wp_end_xy_route;
@@ -665,6 +660,7 @@ for i = 1:length(t)
     path_ref = struct();
     path_ref.wp_start = wp_start_xy;
     path_ref.wp_end = wp_end_xy;
+    path_ref.wp_next = wp_next_xy_route;
     path_ref.goal_heading_rad = goal_heading_rad;
     path_ref.goal_heading_enable = goal_heading_enable;
     guide_time_log(i) = toc(t_seg);
@@ -1026,8 +1022,9 @@ for i = 1:length(t)
         % This gives the controller a geometric preview instead of waiting
         % until the segment switch to discover the turn.
         if heading_diff_deg >= 5.0
-            turn_preview_w = ramp01(d_to_active_end, 0.55 * route_follow_cfg.sharp_turn_heading_enable_dist_m, ...
-                                           route_follow_cfg.sharp_turn_heading_enable_dist_m);
+            turn_preview_w = revRamp01(d_to_active_end, ...
+                0.60 * route_follow_cfg.sharp_turn_heading_enable_dist_m, ...
+                1.60 * route_follow_cfg.sharp_turn_heading_enable_dist_m);
             if turn_preview_w > 0
                 desired_goal_heading = wrapToPi((1 - turn_preview_w) * chi_seg + turn_preview_w * chi_next_seg);
                 desired_goal_enable = true;
@@ -1268,8 +1265,36 @@ for i = 1:length(t)
 
     if debug_trigger
         fprintf('[DEBUG] t=%.1f TRIGGERS: %s\n', t(i), strjoin(debug_reasons, ', '));
-        debug_fname = fullfile('MY_NPMC','my work', sprintf('debug_nmpc_issue_%d.mat', i));
-        save(debug_fname, 'i', 't', 'x', 'path_ref', 'solve_opts', 'info', 'X_pred', 'obs_local', 'xte');
+        d_nearest_obs = inf;
+        for j = 1:length(obs_local)
+            d_nearest_obs = min(d_nearest_obs, norm(x(4:5) - obs_local(j).position));
+        end
+        fprintf(['         pos=(%7.1f,%6.1f) psi=%+6.1fdeg vel=(%5.2f,%5.2f,%5.3f) ', ...
+                 'wp=%d xte=%+.1fm obs_d=%.0fm RT=%.2f success=%d\n'], ...
+            x(4), x(5), rad2deg(x(6)), x(1), x(2), x(3), wp_idx, xte, d_nearest_obs, ...
+            rt_ratio_log(i), isfield(info, 'success') && info.success);
+        if isfield(info, 'cost')
+            fprintf('         cost=%.3g', info.cost);
+        end
+        if isfield(info, 'solve_time')
+            fprintf(' solve=%.1fms', 1e3 * info.solve_time);
+        end
+        if isfield(info, 'max_soft_slack_m')
+            fprintf(' max_slack=%.2f', info.max_soft_slack_m);
+        end
+        if isfield(info, 'sum_soft_slack_m')
+            fprintf(' sum_slack=%.2f', info.sum_soft_slack_m);
+        end
+        fprintf('\n');
+        log_lines{end+1} = sprintf(['[DEBUG] t=%.1f TRIGGERS: %s | pos=(%7.1f,%6.1f) psi=%+6.1fdeg ', ...
+            'vel=(%5.2f,%5.2f,%5.3f) wp=%d xte=%+.1fm obs_d=%.0fm RT=%.2f success=%d'], ...
+            t(i), strjoin(debug_reasons, ', '), x(4), x(5), rad2deg(x(6)), x(1), x(2), x(3), ...
+            wp_idx, xte, d_nearest_obs, rt_ratio_log(i), isfield(info, 'success') && info.success);
+        if isfield(info, 'cost') || isfield(info, 'solve_time') || isfield(info, 'max_soft_slack_m') || isfield(info, 'sum_soft_slack_m')
+            log_lines{end+1} = sprintf('         cost=%.3g solve=%.1fms max_slack=%.2f sum_slack=%.2f', ...
+                getOr(info, 'cost', NaN), 1e3 * getOr(info, 'solve_time', NaN), ...
+                getOr(info, 'max_soft_slack_m', NaN), getOr(info, 'sum_soft_slack_m', NaN));
+        end
     end
 
     % 6) Plant integration
@@ -1293,6 +1318,9 @@ for i = 1:length(t)
         collision_log(i) = true;
         fprintf(['  [COLLISION] t=%.1f s hit_obs=%d hit_map=%d ', ...
                  '(static=%d map_samples=%d dyn_latent=%d dyn_real=%d)\n'], ...
+            t(i), hit_obs, hit_map, hit_static, hit_map_samples, hit_dyn_latent, hit_dyn_real);
+        log_lines{end+1} = sprintf(['  [COLLISION] t=%.1f s hit_obs=%d hit_map=%d ', ...
+            '(static=%d map_samples=%d dyn_latent=%d dyn_real=%d)'], ...
             t(i), hit_obs, hit_map, hit_static, hit_map_samples, hit_dyn_latent, hit_dyn_real);
         steps = i;
         traj(:, i+1) = x;
@@ -1326,6 +1354,10 @@ for i = 1:length(t)
         if berth_mode_active, mode_str = 'BERTH'; end
         fprintf(['  [t=%5.1f] mode=%s pos=(%7.1f,%6.1f) psi=%+6.1fdeg wp=%d xte=%+.1fm ', ...
                  'obs_d=%.0fm comp=%.1fms RT=%.2f obs=%d\n'], ...
+            t(i), mode_str, x(4), x(5), rad2deg(x(6)), wp_idx, xte, d_nearest_obs, ...
+            1e3*step_time_log(i), rt_ratio_log(i), round(n_obs_log(i)));
+        log_lines{end+1} = sprintf(['  [t=%5.1f] mode=%s pos=(%7.1f,%6.1f) psi=%+6.1fdeg wp=%d xte=%+.1fm ', ...
+            'obs_d=%.0fm comp=%.1fms RT=%.2f obs=%d'], ...
             t(i), mode_str, x(4), x(5), rad2deg(x(6)), wp_idx, xte, d_nearest_obs, ...
             1e3*step_time_log(i), rt_ratio_log(i), round(n_obs_log(i)));
     end
@@ -1405,9 +1437,6 @@ end
 %% TRIM LOGS ==============================================================
 if ~exist('steps', 'var') || isempty(steps) || steps < 1
     fprintf('⚠ No simulation steps completed. Skipping output generation.\n');
-    if enable_terminal_log_recording
-        diary off;
-    end
     return;
 end
 
@@ -1557,7 +1586,60 @@ catch ME
 end
 
 if enable_terminal_log_recording
-    diary off;
+    if ~exist(terminal_log_output_dir, 'dir')
+        mkdir(terminal_log_output_dir);
+    end
+    terminal_log_file = fullfile(terminal_log_output_dir, ...
+        ['run_nmpc_line_tube_' datestr(now, 'yyyymmdd_HHMMSS') '.txt']);
+    fid = fopen(terminal_log_file, 'w');
+    if fid < 0
+        warning('Unable to open terminal log file for writing: %s', terminal_log_file);
+    else
+        fprintf(fid, 'NMPC line-tracking run log\n');
+        fprintf(fid, 'Generated: %s\n\n', datestr(now));
+        if exist('steps', 'var') && ~isempty(steps) && steps >= 1
+            fprintf(fid, 'SUMMARY\n');
+            fprintf(fid, '  NMPC solves: %d/%d (%.1f%%)\n', n_ok, n_tot, 100*n_ok/max(n_tot,1));
+            fprintf(fid, '  Mean |XTE|: %.1f m, Max |XTE|: %.1f m\n', mean(abs(xte_log)), max(abs(xte_log)));
+            fprintf(fid, '  Final position: (%.1f, %.1f)\n', traj(4,end), traj(5,end));
+            fprintf(fid, '  Final heading: %.1f deg\n', rad2deg(traj(6,end)));
+            fprintf(fid, '  Collisions detected: %d\n', sum(collision_log));
+            if any(isfinite(obs_pack_drift_log))
+                fprintf(fid, '  Dynamic packaging drift [m]: max=%.3f\n', max(obs_pack_drift_log(isfinite(obs_pack_drift_log))));
+            end
+            if any(isfinite(soft_slack_max_log))
+                fprintf(fid, '  Soft obstacle slack [m]: max=%.3f, cumulative=%.3f\n', ...
+                    max(soft_slack_max_log(isfinite(soft_slack_max_log))), ...
+                    sum(soft_slack_sum_log(isfinite(soft_slack_sum_log))));
+            end
+            if any(isfinite(terminal_pose_slack_max_log))
+                fprintf(fid, '  Terminal pose slack [m]: max=%.3f\n', max(terminal_pose_slack_max_log(isfinite(terminal_pose_slack_max_log))));
+            end
+            if any(isfinite(brake_margin_log))
+                fprintf(fid, '  Brake-rate margin [m/s]: min=%.4f, violations=%d\n', ...
+                    min(brake_margin_log(isfinite(brake_margin_log))), sum(brake_margin_log(isfinite(brake_margin_log)) < 0));
+            end
+            valid_step = isfinite(step_time_log);
+            valid_solve = isfinite(solve_time_log);
+            n_overrun = sum(step_time_log(valid_step) > dt);
+            fprintf(fid, '\nREAL-TIME FEASIBILITY (dt = %.3f s)\n', dt);
+            fprintf(fid, '  Step compute [ms]: mean=%.2f, p95=%.2f, max=%.2f\n', ...
+                1e3*mean(step_time_log(valid_step)), ...
+                1e3*safePercentile(step_time_log(valid_step), 95), ...
+                1e3*max(step_time_log(valid_step)));
+            fprintf(fid, '  NMPC solve  [ms]: mean=%.2f, p95=%.2f, max=%.2f\n', ...
+                1e3*mean(solve_time_log(valid_solve)), ...
+                1e3*safePercentile(solve_time_log(valid_solve), 95), ...
+                1e3*max(solve_time_log(valid_solve)));
+            fprintf(fid, '  RT overruns (step_time > dt): %d/%d (%.2f%%)\n\n', ...
+                n_overrun, steps, 100*n_overrun/max(steps,1));
+        end
+        for k = 1:numel(log_lines)
+            fprintf(fid, '%s\n', log_lines{k});
+        end
+        fclose(fid);
+        fprintf('  Terminal log written: %s\n', terminal_log_file);
+    end
 end
 
 if output_gen_error

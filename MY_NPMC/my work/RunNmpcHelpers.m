@@ -51,31 +51,22 @@ classdef RunNmpcHelpers
                 approaching_final = (wp_idx >= n_wps - 2);
 
                 if sharp_turn
-                    % Relaxed thresholds for sharp turns to avoid last-moment handoff
-                    advance_now = ...
-                        (d_to_waypoint <= max(35, 0.50 * R_accept)) && ...
-                        (proj >= 0.7) && ...
-                        (xte_seg <= max(35, 0.60 * R_accept));
-                elseif approaching_final
+                    % Keep the current leg until the vessel is properly aligned
+                    % before handing off across a sharper bend.
                     advance_now = ...
                         (d_to_waypoint <= max(25, 0.35 * R_accept)) && ...
-                        (proj >= 0.7) && ...
-                        (xte_seg <= max(25, 0.55 * R_accept));
+                        (proj >= 0.90) && ...
+                        (xte_seg <= max(20, 0.45 * R_accept));
+                elseif approaching_final
+                    advance_now = ...
+                        (d_to_waypoint <= max(20, 0.30 * R_accept)) && ...
+                        (proj >= 0.95) && ...
+                        (xte_seg <= max(15, 0.35 * R_accept));
                 else
-                    near_gate = (d_to_waypoint <= max(45, 0.80 * R_accept));
-                    passed_gate = (proj >= 1.00) && (xte_seg <= max(55, 0.90 * R_accept));
-                    missed_gate = (proj >= 0.96) && (d_to_waypoint <= max(120, 1.70 * R_accept));
+                    near_gate = (d_to_waypoint <= max(30, 0.55 * R_accept));
+                    passed_gate = (proj >= 1.05) && (xte_seg <= max(25, 0.45 * R_accept));
 
-                    better_next = false;
-                    if (wp_idx + 2) <= n_wps
-                        p_next = wp(wp_idx + 2, 1:2)';
-                        d_to_next = norm(pos - p_next);
-                        better_next = (proj >= 0.92) && ...
-                                      (d_to_next < d_to_waypoint) && ...
-                                      (xte_seg <= max(90, 1.50 * R_accept));
-                    end
-
-                    advance_now = near_gate || passed_gate || missed_gate || better_next;
+                    advance_now = near_gate || passed_gate;
                 end
 
                 if advance_now

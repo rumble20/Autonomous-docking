@@ -1,0 +1,366 @@
+NMPC line-tracking run log
+Generated: 26-May-2026 21:31:54
+
+SUMMARY
+  NMPC solves: 177/177 (100.0%)
+  Mean |XTE|: 37.4 m, Max |XTE|: 192.1 m
+  Final position: (-2215.7, -2581.3)
+  Final heading: 29.6 deg
+  Collisions detected: 1
+  Dynamic packaging drift [m]: max=0.000
+  Soft obstacle slack [m]: max=6.000, cumulative=39221.493
+  Terminal pose slack [m]: max=1.464
+  Brake-rate margin [m/s]: min=0.2021, violations=0
+
+REAL-TIME FEASIBILITY (dt = 1.000 s)
+  Step compute [ms]: mean=2291.75, p95=2981.14, max=4301.23
+  NMPC solve  [ms]: mean=2283.03, p95=2975.12, max=4292.77
+  RT overruns (step_time > dt): 177/177 (100.00%)
+
+[DEBUG] t=0.0 TRIGGERS: sum_soft_slack=65.67 | pos=(-3000.0,-2800.0) psi= +26.6deg vel=( 7.00, 0.00,0.000) wp=1 xte=+0.0m obs_d=522m RT=NaN success=1
+         cost=1.05e+07 solve=1724.2ms max_slack=0.22 sum_slack=65.67
+  [t=  0.0] mode=TRANSIT pos=(-2993.7,-2796.9) psi= +26.6deg wp=1 xte=+0.0m obs_d=515m comp=1754.2ms RT=1.75 obs=5
+[DEBUG] t=1.0 TRIGGERS: sum_soft_slack=43.98 | pos=(-2993.7,-2796.9) psi= +26.6deg vel=( 7.08,-0.03,0.001) wp=1 xte=+0.0m obs_d=515m RT=NaN success=1
+         cost=9.55e+06 solve=1897.5ms max_slack=0.14 sum_slack=43.98
+  [t=  1.0] mode=TRANSIT pos=(-2987.3,-2793.7) psi= +26.6deg wp=1 xte=+0.0m obs_d=508m comp=1917.6ms RT=1.92 obs=5
+[DEBUG] t=2.0 TRIGGERS: sum_soft_slack=25.11 | pos=(-2987.3,-2793.7) psi= +26.6deg vel=( 7.15,-0.05,0.001) wp=1 xte=+0.0m obs_d=508m RT=NaN success=1
+         cost=8.79e+06 solve=2170.0ms max_slack=0.08 sum_slack=25.11
+  [t=  2.0] mode=TRANSIT pos=(-2980.9,-2790.5) psi= +26.7deg wp=1 xte=+0.0m obs_d=501m comp=2190.6ms RT=2.19 obs=5
+[DEBUG] t=3.0 TRIGGERS: sum_soft_slack=29.72 | pos=(-2980.9,-2790.5) psi= +26.7deg vel=( 7.23,-0.07,0.001) wp=1 xte=+0.1m obs_d=501m RT=NaN success=1
+         cost=7.96e+06 solve=2471.0ms max_slack=0.10 sum_slack=29.72
+  [t=  3.0] mode=TRANSIT pos=(-2974.3,-2787.3) psi= +26.8deg wp=1 xte=+0.1m obs_d=494m comp=2490.3ms RT=2.49 obs=5
+[DEBUG] t=4.0 TRIGGERS: sum_soft_slack=35.66 | pos=(-2974.3,-2787.3) psi= +26.8deg vel=( 7.30,-0.10,0.002) wp=1 xte=+0.2m obs_d=494m RT=NaN success=1
+         cost=7.61e+06 solve=2191.9ms max_slack=0.12 sum_slack=35.66
+  [t=  4.0] mode=TRANSIT pos=(-2967.7,-2784.1) psi= +26.9deg wp=1 xte=+0.2m obs_d=487m comp=2263.2ms RT=2.26 obs=5
+[DEBUG] t=5.0 TRIGGERS: sum_soft_slack=36.99 | pos=(-2967.7,-2784.1) psi= +26.9deg vel=( 7.37,-0.13,0.002) wp=1 xte=+0.2m obs_d=487m RT=NaN success=1
+         cost=7.42e+06 solve=1934.1ms max_slack=0.12 sum_slack=36.99
+  [t=  5.0] mode=TRANSIT pos=(-2961.1,-2780.9) psi= +27.0deg wp=1 xte=+0.2m obs_d=479m comp=1964.1ms RT=1.96 obs=5
+  [t=  6.0] mode=TRANSIT pos=(-2954.4,-2777.7) psi= +27.1deg wp=1 xte=+0.3m obs_d=472m comp=2239.3ms RT=2.24 obs=5
+[DEBUG] t=7.0 TRIGGERS: sum_soft_slack=24.35 | pos=(-2954.4,-2777.7) psi= +27.1deg vel=( 7.46,-0.19,0.002) wp=1 xte=+0.5m obs_d=472m RT=NaN success=1
+         cost=5.96e+06 solve=2812.4ms max_slack=0.08 sum_slack=24.35
+  [t=  7.0] mode=TRANSIT pos=(-2947.6,-2774.4) psi= +27.3deg wp=1 xte=+0.5m obs_d=465m comp=2871.0ms RT=2.87 obs=5
+  [t=  8.0] mode=TRANSIT pos=(-2940.9,-2771.2) psi= +27.4deg wp=1 xte=+0.6m obs_d=457m comp=2227.1ms RT=2.23 obs=5
+  [t=  9.0] mode=TRANSIT pos=(-2934.1,-2767.8) psi= +27.5deg wp=1 xte=+0.7m obs_d=450m comp=2366.8ms RT=2.37 obs=5
+[DEBUG] t=10.0 TRIGGERS: sum_soft_slack=237.36 | pos=(-2934.1,-2767.8) psi= +27.5deg vel=( 7.60,-0.18,0.001) wp=1 xte=+0.7m obs_d=450m RT=NaN success=1
+         cost=1.63e+07 solve=2511.2ms max_slack=2.18 sum_slack=237.36
+  [t= 10.0] mode=TRANSIT pos=(-2927.2,-2764.5) psi= +27.5deg wp=1 xte=+0.7m obs_d=442m comp=2514.9ms RT=2.51 obs=5
+[DEBUG] t=11.0 TRIGGERS: sum_soft_slack=275.43 | pos=(-2927.2,-2764.5) psi= +27.5deg vel=( 7.62,-0.15,0.000) wp=1 xte=+0.8m obs_d=442m RT=NaN success=1
+         cost=1.95e+07 solve=3169.2ms max_slack=1.00 sum_slack=275.43
+  [t= 11.0] mode=TRANSIT pos=(-2920.4,-2761.1) psi= +27.5deg wp=1 xte=+0.8m obs_d=435m comp=3173.8ms RT=3.17 obs=5
+[DEBUG] t=12.0 TRIGGERS: sum_soft_slack=555.80 | pos=(-2920.4,-2761.1) psi= +27.5deg vel=( 7.63,-0.11,-0.000) wp=1 xte=+0.8m obs_d=435m RT=NaN success=1
+         cost=6.36e+07 solve=2396.2ms max_slack=2.75 sum_slack=555.80
+  [t= 12.0] mode=TRANSIT pos=(-2913.6,-2757.6) psi= +27.5deg wp=1 xte=+0.8m obs_d=427m comp=2401.6ms RT=2.40 obs=5
+[DEBUG] t=13.0 TRIGGERS: sum_soft_slack=540.10 | pos=(-2913.6,-2757.6) psi= +27.5deg vel=( 7.60,-0.05,-0.002) wp=1 xte=+0.7m obs_d=427m RT=NaN success=1
+         cost=5.85e+07 solve=2529.6ms max_slack=2.55 sum_slack=540.10
+  [t= 13.0] mode=TRANSIT pos=(-2906.9,-2754.1) psi= +27.3deg wp=1 xte=+0.7m obs_d=420m comp=2533.8ms RT=2.53 obs=5
+[DEBUG] t=14.0 TRIGGERS: sum_soft_slack=316.72 | pos=(-2906.9,-2754.1) psi= +27.3deg vel=( 7.52, 0.05,-0.003) wp=1 xte=+0.6m obs_d=420m RT=NaN success=1
+         cost=2.57e+07 solve=2716.8ms max_slack=4.14 sum_slack=316.72
+  [t= 14.0] mode=TRANSIT pos=(-2900.3,-2750.6) psi= +27.1deg wp=1 xte=+0.6m obs_d=413m comp=2721.4ms RT=2.72 obs=5
+[DEBUG] t=15.0 TRIGGERS: sum_soft_slack=547.39 | pos=(-2900.3,-2750.6) psi= +27.1deg vel=( 7.35, 0.17,-0.005) wp=1 xte=+0.4m obs_d=413m RT=NaN success=1
+         cost=5.58e+07 solve=2419.4ms max_slack=3.20 sum_slack=547.39
+  [t= 15.0] mode=TRANSIT pos=(-2894.0,-2747.2) psi= +26.7deg wp=1 xte=+0.4m obs_d=406m comp=2425.0ms RT=2.42 obs=5
+[DEBUG] t=16.0 TRIGGERS: sum_soft_slack=24.11 | pos=(-2894.0,-2747.2) psi= +26.7deg vel=( 7.14, 0.28,-0.006) wp=1 xte=+0.1m obs_d=406m RT=NaN success=1
+         cost=3.14e+06 solve=2088.6ms max_slack=0.08 sum_slack=24.11
+  [t= 16.0] mode=TRANSIT pos=(-2887.8,-2743.7) psi= +26.3deg wp=1 xte=+0.1m obs_d=399m comp=2092.8ms RT=2.09 obs=5
+  [t= 17.0] mode=TRANSIT pos=(-2881.8,-2740.2) psi= +25.8deg wp=1 xte=-0.2m obs_d=392m comp=2385.1ms RT=2.39 obs=5
+[DEBUG] t=18.0 TRIGGERS: sum_soft_slack=104.94 | pos=(-2881.8,-2740.2) psi= +25.8deg vel=( 6.94, 0.59,-0.010) wp=1 xte=-0.6m obs_d=392m RT=NaN success=1
+         cost=4.77e+06 solve=2563.5ms max_slack=0.36 sum_slack=104.94
+  [t= 18.0] mode=TRANSIT pos=(-2875.8,-2736.6) psi= +25.2deg wp=1 xte=-0.6m obs_d=386m comp=2568.1ms RT=2.57 obs=5
+  [t= 19.0] mode=TRANSIT pos=(-2870.0,-2733.0) psi= +24.4deg wp=1 xte=-1.2m obs_d=379m comp=2614.9ms RT=2.61 obs=5
+  [t= 20.0] mode=TRANSIT pos=(-2864.1,-2729.3) psi= +23.6deg wp=1 xte=-1.8m obs_d=373m comp=2255.0ms RT=2.25 obs=5
+  [t= 21.0] mode=TRANSIT pos=(-2858.3,-2725.6) psi= +22.8deg wp=1 xte=-2.5m obs_d=366m comp=2186.4ms RT=2.19 obs=5
+  [t= 22.0] mode=TRANSIT pos=(-2852.3,-2721.8) psi= +22.0deg wp=1 xte=-3.2m obs_d=360m comp=2111.3ms RT=2.11 obs=5
+  [t= 23.0] mode=TRANSIT pos=(-2846.1,-2718.0) psi= +21.3deg wp=1 xte=-3.9m obs_d=353m comp=2157.2ms RT=2.16 obs=5
+  [t= 24.0] mode=TRANSIT pos=(-2839.8,-2714.2) psi= +20.6deg wp=1 xte=-4.5m obs_d=346m comp=2026.5ms RT=2.03 obs=5
+  [t= 25.0] mode=TRANSIT pos=(-2833.2,-2710.4) psi= +20.0deg wp=1 xte=-5.1m obs_d=339m comp=1818.8ms RT=1.82 obs=5
+  [t= 26.0] mode=TRANSIT pos=(-2826.4,-2706.7) psi= +19.6deg wp=1 xte=-5.5m obs_d=331m comp=1802.2ms RT=1.80 obs=5
+  [t= 27.0] mode=TRANSIT pos=(-2819.3,-2702.9) psi= +19.2deg wp=1 xte=-5.8m obs_d=324m comp=1827.6ms RT=1.83 obs=5
+[DEBUG] t=28.0 TRIGGERS: sum_soft_slack=87.18 | pos=(-2819.3,-2702.9) psi= +19.2deg vel=( 8.09, 1.17,-0.006) wp=1 xte=-6.0m obs_d=324m RT=NaN success=1
+         cost=3.43e+06 solve=2867.7ms max_slack=1.02 sum_slack=87.18
+  [t= 28.0] mode=TRANSIT pos=(-2811.9,-2699.2) psi= +18.9deg wp=1 xte=-6.0m obs_d=316m comp=2872.8ms RT=2.87 obs=5
+[DEBUG] t=29.0 TRIGGERS: sum_soft_slack=581.84 | pos=(-2811.9,-2699.2) psi= +18.9deg vel=( 8.33, 1.11,-0.005) wp=1 xte=-6.1m obs_d=316m RT=NaN success=1
+         cost=6.09e+07 solve=2442.1ms max_slack=4.52 sum_slack=581.84
+  [t= 29.0] mode=TRANSIT pos=(-2804.3,-2695.4) psi= +18.7deg wp=1 xte=-6.1m obs_d=308m comp=2446.6ms RT=2.45 obs=5
+[DEBUG] t=30.0 TRIGGERS: sum_soft_slack=891.56 | pos=(-2804.3,-2695.4) psi= +18.7deg vel=( 8.47, 1.03,-0.003) wp=1 xte=-6.0m obs_d=308m RT=NaN success=1
+         cost=1.42e+08 solve=2392.6ms max_slack=6.00 sum_slack=891.56
+  [t= 30.0] mode=TRANSIT pos=(-2796.6,-2691.8) psi= +18.5deg wp=1 xte=-6.0m obs_d=299m comp=2397.5ms RT=2.40 obs=5
+[DEBUG] t=31.0 TRIGGERS: sum_soft_slack=995.12 | pos=(-2796.6,-2691.8) psi= +18.5deg vel=( 8.50, 0.95,-0.002) wp=1 xte=-5.8m obs_d=299m RT=NaN success=1
+         cost=1.73e+08 solve=2452.3ms max_slack=4.97 sum_slack=995.12
+  [t= 31.0] mode=TRANSIT pos=(-2788.8,-2688.2) psi= +18.4deg wp=1 xte=-5.8m obs_d=291m comp=2458.7ms RT=2.46 obs=5
+[DEBUG] t=32.0 TRIGGERS: sum_soft_slack=972.15 | pos=(-2788.8,-2688.2) psi= +18.4deg vel=( 8.51, 0.87,-0.001) wp=1 xte=-5.5m obs_d=291m RT=NaN success=1
+         cost=1.61e+08 solve=2570.0ms max_slack=3.97 sum_slack=972.15
+  [t= 32.0] mode=TRANSIT pos=(-2781.0,-2684.8) psi= +18.4deg wp=1 xte=-5.5m obs_d=283m comp=2575.2ms RT=2.58 obs=5
+[DEBUG] t=33.0 TRIGGERS: sum_soft_slack=926.48 | pos=(-2781.0,-2684.8) psi= +18.4deg vel=( 8.37, 0.79,-0.001) wp=1 xte=-5.1m obs_d=283m RT=NaN success=1
+         cost=1.5e+08 solve=2761.9ms max_slack=3.61 sum_slack=926.48
+  [t= 33.0] mode=TRANSIT pos=(-2773.5,-2681.4) psi= +18.4deg wp=1 xte=-5.1m obs_d=275m comp=2769.1ms RT=2.77 obs=5
+[DEBUG] t=34.0 TRIGGERS: sum_soft_slack=31.48 | pos=(-2773.5,-2681.4) psi= +18.4deg vel=( 8.07, 0.75,-0.001) wp=1 xte=-4.7m obs_d=275m RT=NaN success=1
+         cost=3.82e+05 solve=2522.5ms max_slack=0.12 sum_slack=31.48
+  [t= 34.0] mode=TRANSIT pos=(-2766.3,-2678.2) psi= +18.3deg wp=1 xte=-4.7m obs_d=268m comp=2527.4ms RT=2.53 obs=5
+[DEBUG] t=35.0 TRIGGERS: sum_soft_slack=339.21 | pos=(-2766.3,-2678.2) psi= +18.3deg vel=( 7.69, 0.76,-0.002) wp=1 xte=-4.4m obs_d=268m RT=NaN success=1
+         cost=2.76e+07 solve=2573.5ms max_slack=2.01 sum_slack=339.21
+  [t= 35.0] mode=TRANSIT pos=(-2759.4,-2675.2) psi= +18.1deg wp=1 xte=-4.4m obs_d=261m comp=2582.4ms RT=2.58 obs=5
+[DEBUG] t=36.0 TRIGGERS: sum_soft_slack=899.02 | pos=(-2759.4,-2675.2) psi= +18.1deg vel=( 7.32, 0.77,-0.003) wp=1 xte=-4.0m obs_d=261m RT=NaN success=1
+         cost=1.61e+08 solve=2614.7ms max_slack=3.33 sum_slack=899.02
+  [t= 36.0] mode=TRANSIT pos=(-2752.6,-2672.2) psi= +18.0deg wp=1 xte=-4.0m obs_d=254m comp=2619.0ms RT=2.62 obs=5
+[DEBUG] t=37.0 TRIGGERS: sum_soft_slack=910.81 | pos=(-2752.6,-2672.2) psi= +18.0deg vel=( 7.39, 0.73,-0.002) wp=1 xte=-3.7m obs_d=254m RT=NaN success=1
+         cost=1.81e+08 solve=2638.1ms max_slack=5.35 sum_slack=910.81
+  [t= 37.0] mode=TRANSIT pos=(-2745.8,-2669.2) psi= +17.9deg wp=1 xte=-3.7m obs_d=247m comp=2642.6ms RT=2.64 obs=5
+[DEBUG] t=38.0 TRIGGERS: sum_soft_slack=815.12 | pos=(-2745.8,-2669.2) psi= +17.9deg vel=( 7.37, 0.69,-0.002) wp=1 xte=-3.3m obs_d=247m RT=NaN success=1
+         cost=1.33e+08 solve=2832.7ms max_slack=5.07 sum_slack=815.12
+  [t= 38.0] mode=TRANSIT pos=(-2739.0,-2666.3) psi= +17.8deg wp=1 xte=-3.3m obs_d=240m comp=2836.9ms RT=2.84 obs=5
+[DEBUG] t=39.0 TRIGGERS: sum_soft_slack=191.25 | pos=(-2739.0,-2666.3) psi= +17.8deg vel=( 7.28, 0.66,-0.001) wp=2 xte=+6.4m obs_d=240m RT=NaN success=1
+         cost=1.35e+07 solve=2526.2ms max_slack=2.65 sum_slack=191.25
+  [t= 39.0] mode=TRANSIT pos=(-2732.4,-2663.5) psi= +17.7deg wp=2 xte=+6.4m obs_d=233m comp=2532.4ms RT=2.53 obs=5
+[DEBUG] t=40.0 TRIGGERS: sum_soft_slack=737.75 | pos=(-2732.4,-2663.5) psi= +17.7deg vel=( 7.09, 0.65,-0.002) wp=2 xte=+5.3m obs_d=233m RT=NaN success=1
+         cost=1.2e+08 solve=2398.8ms max_slack=4.22 sum_slack=737.75
+  [t= 40.0] mode=TRANSIT pos=(-2725.8,-2660.8) psi= +17.7deg wp=2 xte=+5.3m obs_d=226m comp=2403.4ms RT=2.40 obs=5
+[DEBUG] t=41.0 TRIGGERS: sum_soft_slack=896.42 | pos=(-2725.8,-2660.8) psi= +17.7deg vel=( 7.12, 0.55,-0.000) wp=2 xte=+4.2m obs_d=226m RT=NaN success=1
+         cost=2.01e+08 solve=2429.3ms max_slack=5.08 sum_slack=896.42
+  [t= 41.0] mode=TRANSIT pos=(-2719.2,-2658.1) psi= +17.7deg wp=2 xte=+4.2m obs_d=219m comp=2434.9ms RT=2.43 obs=5
+[DEBUG] t=42.0 TRIGGERS: sum_soft_slack=915.43 | pos=(-2719.2,-2658.1) psi= +17.7deg vel=( 7.18, 0.53,-0.000) wp=2 xte=+3.2m obs_d=219m RT=NaN success=1
+         cost=1.77e+08 solve=2534.2ms max_slack=5.17 sum_slack=915.43
+  [t= 42.0] mode=TRANSIT pos=(-2712.5,-2655.4) psi= +17.7deg wp=2 xte=+3.2m obs_d=213m comp=2538.7ms RT=2.54 obs=5
+[DEBUG] t=43.0 TRIGGERS: sum_soft_slack=817.45 | pos=(-2712.5,-2655.4) psi= +17.7deg vel=( 7.23, 0.52,-0.000) wp=2 xte=+2.2m obs_d=213m RT=NaN success=1
+         cost=1.67e+08 solve=3139.1ms max_slack=5.63 sum_slack=817.45
+  [t= 43.0] mode=TRANSIT pos=(-2705.7,-2652.7) psi= +17.6deg wp=2 xte=+2.2m obs_d=206m comp=3146.3ms RT=3.15 obs=5
+[DEBUG] t=44.0 TRIGGERS: sum_soft_slack=926.49 | pos=(-2705.7,-2652.7) psi= +17.6deg vel=( 7.29, 0.50,-0.001) wp=2 xte=+1.3m obs_d=206m RT=NaN success=1
+         cost=2.03e+08 solve=4292.8ms max_slack=5.79 sum_slack=926.49
+  [t= 44.0] mode=TRANSIT pos=(-2698.9,-2650.1) psi= +17.6deg wp=2 xte=+1.3m obs_d=199m comp=4301.2ms RT=4.30 obs=5
+[DEBUG] t=45.0 TRIGGERS: sum_soft_slack=905.60 | pos=(-2698.9,-2650.1) psi= +17.6deg vel=( 7.34, 0.48,-0.001) wp=2 xte=+0.3m obs_d=199m RT=NaN success=1
+         cost=2.07e+08 solve=3743.9ms max_slack=5.98 sum_slack=905.60
+  [t= 45.0] mode=TRANSIT pos=(-2692.0,-2647.4) psi= +17.6deg wp=2 xte=+0.3m obs_d=192m comp=3750.7ms RT=3.75 obs=5
+[DEBUG] t=46.0 TRIGGERS: sum_soft_slack=936.15 | pos=(-2692.0,-2647.4) psi= +17.6deg vel=( 7.36, 0.47,-0.001) wp=2 xte=-0.6m obs_d=192m RT=NaN success=1
+         cost=2.19e+08 solve=3136.4ms max_slack=5.69 sum_slack=936.15
+  [t= 46.0] mode=TRANSIT pos=(-2685.1,-2644.7) psi= +17.5deg wp=2 xte=-0.6m obs_d=185m comp=3141.1ms RT=3.14 obs=5
+[DEBUG] t=47.0 TRIGGERS: sum_soft_slack=903.93 | pos=(-2685.1,-2644.7) psi= +17.5deg vel=( 7.38, 0.45,-0.001) wp=2 xte=-1.5m obs_d=185m RT=NaN success=1
+         cost=1.76e+08 solve=3314.8ms max_slack=5.81 sum_slack=903.93
+  [t= 47.0] mode=TRANSIT pos=(-2678.2,-2642.1) psi= +17.5deg wp=2 xte=-1.5m obs_d=178m comp=3321.1ms RT=3.32 obs=5
+[DEBUG] t=48.0 TRIGGERS: sum_soft_slack=898.48 | pos=(-2678.2,-2642.1) psi= +17.5deg vel=( 7.38, 0.44,-0.001) wp=2 xte=-2.4m obs_d=178m RT=NaN success=1
+         cost=1.93e+08 solve=2711.2ms max_slack=5.25 sum_slack=898.48
+  [t= 48.0] mode=TRANSIT pos=(-2671.3,-2639.5) psi= +17.5deg wp=2 xte=-2.4m obs_d=172m comp=2718.4ms RT=2.72 obs=5
+[DEBUG] t=49.0 TRIGGERS: sum_soft_slack=911.14 | pos=(-2671.3,-2639.5) psi= +17.5deg vel=( 7.38, 0.42,-0.001) wp=2 xte=-3.3m obs_d=172m RT=NaN success=1
+         cost=1.83e+08 solve=2573.6ms max_slack=5.76 sum_slack=911.14
+  [t= 49.0] mode=TRANSIT pos=(-2664.4,-2636.8) psi= +17.4deg wp=2 xte=-3.3m obs_d=165m comp=2577.9ms RT=2.58 obs=5
+[DEBUG] t=50.0 TRIGGERS: sum_soft_slack=927.24 | pos=(-2664.4,-2636.8) psi= +17.4deg vel=( 7.38, 0.41,-0.001) wp=2 xte=-4.1m obs_d=165m RT=NaN success=1
+         cost=1.68e+08 solve=2617.5ms max_slack=4.57 sum_slack=927.24
+  [t= 50.0] mode=TRANSIT pos=(-2657.4,-2634.3) psi= +17.4deg wp=2 xte=-4.1m obs_d=158m comp=2622.9ms RT=2.62 obs=5
+[DEBUG] t=51.0 TRIGGERS: sum_soft_slack=933.05 | pos=(-2657.4,-2634.3) psi= +17.4deg vel=( 7.38, 0.39,-0.001) wp=2 xte=-5.0m obs_d=158m RT=NaN success=1
+         cost=1.5e+08 solve=2396.8ms max_slack=3.83 sum_slack=933.05
+  [t= 51.0] mode=TRANSIT pos=(-2650.5,-2631.7) psi= +17.4deg wp=2 xte=-5.0m obs_d=152m comp=2404.3ms RT=2.40 obs=5
+[DEBUG] t=52.0 TRIGGERS: sum_soft_slack=1054.77 | pos=(-2650.5,-2631.7) psi= +17.4deg vel=( 7.39, 0.35,-0.000) wp=2 xte=-5.8m obs_d=152m RT=NaN success=1
+         cost=1.93e+08 solve=2653.2ms max_slack=5.49 sum_slack=1054.77
+  [t= 52.0] mode=TRANSIT pos=(-2643.6,-2629.2) psi= +17.4deg wp=2 xte=-5.8m obs_d=145m comp=2657.6ms RT=2.66 obs=5
+  [t= 53.0] mode=TRANSIT pos=(-2636.6,-2626.7) psi= +17.4deg wp=3 xte=+10.6m obs_d=139m comp=1962.5ms RT=1.96 obs=5
+  [t= 54.0] mode=TRANSIT pos=(-2629.6,-2624.2) psi= +17.5deg wp=3 xte=+7.1m obs_d=132m comp=1954.2ms RT=1.95 obs=5
+[DEBUG] t=55.0 TRIGGERS: sum_soft_slack=21.48 | pos=(-2629.6,-2624.2) psi= +17.5deg vel=( 7.41, 0.21,0.002) wp=3 xte=+3.6m obs_d=132m RT=NaN success=1
+         cost=1.1e+06 solve=1701.3ms max_slack=0.09 sum_slack=21.48
+  [t= 55.0] mode=TRANSIT pos=(-2622.6,-2621.8) psi= +17.6deg wp=3 xte=+3.6m obs_d=126m comp=1717.8ms RT=1.72 obs=5
+  [t= 56.0] mode=TRANSIT pos=(-2615.6,-2619.5) psi= +17.8deg wp=3 xte=+0.2m obs_d=120m comp=1847.0ms RT=1.85 obs=5
+  [t= 57.0] mode=TRANSIT pos=(-2608.6,-2617.3) psi= +18.1deg wp=3 xte=-3.1m obs_d=113m comp=1737.5ms RT=1.74 obs=5
+  [t= 58.0] mode=TRANSIT pos=(-2601.7,-2615.3) psi= +18.5deg wp=3 xte=-6.3m obs_d=107m comp=1799.1ms RT=1.80 obs=5
+  [t= 59.0] mode=TRANSIT pos=(-2595.0,-2613.3) psi= +19.0deg wp=3 xte=-9.4m obs_d=102m comp=1942.5ms RT=1.94 obs=5
+  [t= 60.0] mode=TRANSIT pos=(-2588.4,-2611.6) psi= +19.7deg wp=3 xte=-12.3m obs_d=96m comp=2037.3ms RT=2.04 obs=5
+  [t= 61.0] mode=TRANSIT pos=(-2582.0,-2610.1) psi= +20.4deg wp=3 xte=-15.0m obs_d=91m comp=1948.4ms RT=1.95 obs=5
+  [t= 62.0] mode=TRANSIT pos=(-2575.9,-2608.8) psi= +21.3deg wp=3 xte=-17.4m obs_d=86m comp=1919.9ms RT=1.92 obs=5
+  [t= 63.0] mode=TRANSIT pos=(-2570.1,-2607.7) psi= +22.3deg wp=3 xte=-19.6m obs_d=82m comp=1983.5ms RT=1.98 obs=5
+  [t= 64.0] mode=TRANSIT pos=(-2564.6,-2606.8) psi= +23.4deg wp=3 xte=-21.6m obs_d=78m comp=1874.3ms RT=1.87 obs=5
+  [t= 65.0] mode=TRANSIT pos=(-2559.6,-2606.1) psi= +24.4deg wp=3 xte=-23.3m obs_d=74m comp=1855.2ms RT=1.86 obs=5
+  [t= 66.0] mode=TRANSIT pos=(-2555.1,-2605.6) psi= +25.5deg wp=3 xte=-24.7m obs_d=71m comp=1711.3ms RT=1.71 obs=5
+  [t= 67.0] mode=TRANSIT pos=(-2551.1,-2605.4) psi= +26.6deg wp=3 xte=-25.8m obs_d=68m comp=1665.4ms RT=1.67 obs=5
+  [t= 68.0] mode=TRANSIT pos=(-2547.6,-2605.3) psi= +27.6deg wp=3 xte=-26.7m obs_d=65m comp=1689.7ms RT=1.69 obs=5
+  [t= 69.0] mode=TRANSIT pos=(-2544.7,-2605.4) psi= +28.5deg wp=3 xte=-27.3m obs_d=63m comp=1670.5ms RT=1.67 obs=5
+  [t= 70.0] mode=TRANSIT pos=(-2542.3,-2605.7) psi= +29.3deg wp=3 xte=-27.6m obs_d=61m comp=1679.9ms RT=1.68 obs=5
+  [t= 71.0] mode=TRANSIT pos=(-2540.5,-2606.3) psi= +30.1deg wp=3 xte=-27.6m obs_d=60m comp=1827.0ms RT=1.83 obs=5
+  [t= 72.0] mode=TRANSIT pos=(-2539.1,-2607.0) psi= +30.8deg wp=3 xte=-27.4m obs_d=58m comp=1629.5ms RT=1.63 obs=5
+  [t= 73.0] mode=TRANSIT pos=(-2538.1,-2607.8) psi= +31.5deg wp=3 xte=-26.9m obs_d=57m comp=1691.6ms RT=1.69 obs=5
+  [t= 74.0] mode=TRANSIT pos=(-2537.2,-2608.8) psi= +32.3deg wp=3 xte=-26.2m obs_d=56m comp=1706.7ms RT=1.71 obs=5
+  [t= 75.0] mode=TRANSIT pos=(-2536.5,-2609.9) psi= +33.1deg wp=4 xte=-7.6m obs_d=54m comp=2315.3ms RT=2.32 obs=5
+  [t= 76.0] mode=TRANSIT pos=(-2535.8,-2610.9) psi= +33.9deg wp=4 xte=-7.0m obs_d=53m comp=2531.0ms RT=2.53 obs=5
+  [t= 77.0] mode=TRANSIT pos=(-2535.0,-2611.8) psi= +34.6deg wp=4 xte=-6.5m obs_d=52m comp=2336.9ms RT=2.34 obs=5
+  [t= 78.0] mode=TRANSIT pos=(-2534.3,-2612.5) psi= +35.1deg wp=4 xte=-6.2m obs_d=51m comp=1935.7ms RT=1.94 obs=5
+  [t= 79.0] mode=TRANSIT pos=(-2533.5,-2613.1) psi= +35.5deg wp=4 xte=-5.9m obs_d=50m comp=2141.2ms RT=2.14 obs=5
+  [t= 80.0] mode=TRANSIT pos=(-2532.7,-2613.5) psi= +35.7deg wp=4 xte=-5.9m obs_d=49m comp=1858.9ms RT=1.86 obs=5
+  [t= 81.0] mode=TRANSIT pos=(-2531.8,-2613.8) psi= +35.8deg wp=4 xte=-5.9m obs_d=48m comp=1988.9ms RT=1.99 obs=5
+  [t= 82.0] mode=TRANSIT pos=(-2530.9,-2614.1) psi= +35.8deg wp=4 xte=-6.1m obs_d=47m comp=2076.0ms RT=2.08 obs=5
+  [t= 83.0] mode=TRANSIT pos=(-2529.9,-2614.2) psi= +35.8deg wp=4 xte=-6.3m obs_d=47m comp=2379.8ms RT=2.38 obs=5
+  [t= 84.0] mode=TRANSIT pos=(-2528.8,-2614.2) psi= +35.7deg wp=4 xte=-6.8m obs_d=46m comp=2331.5ms RT=2.33 obs=5
+  [t= 85.0] mode=TRANSIT pos=(-2527.7,-2614.2) psi= +35.5deg wp=4 xte=-7.3m obs_d=45m comp=2432.8ms RT=2.43 obs=5
+  [t= 86.0] mode=TRANSIT pos=(-2526.5,-2614.0) psi= +35.4deg wp=4 xte=-7.9m obs_d=45m comp=2281.4ms RT=2.28 obs=5
+  [t= 87.0] mode=TRANSIT pos=(-2525.2,-2613.8) psi= +35.1deg wp=4 xte=-8.6m obs_d=44m comp=2214.3ms RT=2.21 obs=5
+  [t= 88.0] mode=TRANSIT pos=(-2523.9,-2613.6) psi= +34.9deg wp=4 xte=-9.5m obs_d=44m comp=2136.1ms RT=2.14 obs=5
+  [t= 89.0] mode=TRANSIT pos=(-2522.5,-2613.3) psi= +34.6deg wp=4 xte=-10.3m obs_d=43m comp=2165.2ms RT=2.17 obs=5
+  [t= 90.0] mode=TRANSIT pos=(-2521.1,-2613.0) psi= +34.3deg wp=4 xte=-11.3m obs_d=43m comp=2334.4ms RT=2.33 obs=5
+  [t= 91.0] mode=TRANSIT pos=(-2519.6,-2612.7) psi= +34.0deg wp=4 xte=-12.3m obs_d=42m comp=2305.5ms RT=2.31 obs=5
+  [t= 92.0] mode=TRANSIT pos=(-2518.0,-2612.3) psi= +33.7deg wp=4 xte=-13.4m obs_d=42m comp=2478.4ms RT=2.48 obs=5
+  [t= 93.0] mode=TRANSIT pos=(-2516.5,-2611.9) psi= +33.4deg wp=4 xte=-14.5m obs_d=42m comp=2569.2ms RT=2.57 obs=5
+  [t= 94.0] mode=TRANSIT pos=(-2514.9,-2611.4) psi= +32.9deg wp=4 xte=-15.7m obs_d=41m comp=2448.5ms RT=2.45 obs=5
+  [t= 95.0] mode=TRANSIT pos=(-2513.3,-2610.9) psi= +32.5deg wp=4 xte=-16.9m obs_d=41m comp=2328.8ms RT=2.33 obs=5
+  [t= 96.0] mode=TRANSIT pos=(-2511.7,-2610.4) psi= +32.0deg wp=4 xte=-18.1m obs_d=41m comp=2253.4ms RT=2.25 obs=5
+  [t= 97.0] mode=TRANSIT pos=(-2510.2,-2609.9) psi= +31.6deg wp=4 xte=-19.4m obs_d=41m comp=2676.8ms RT=2.68 obs=5
+  [t= 98.0] mode=TRANSIT pos=(-2508.6,-2609.4) psi= +31.1deg wp=4 xte=-20.6m obs_d=41m comp=2870.0ms RT=2.87 obs=5
+  [t= 99.0] mode=TRANSIT pos=(-2507.1,-2609.0) psi= +30.6deg wp=4 xte=-21.8m obs_d=42m comp=2164.5ms RT=2.16 obs=5
+  [t=100.0] mode=TRANSIT pos=(-2505.7,-2608.5) psi= +30.0deg wp=4 xte=-23.0m obs_d=42m comp=2413.8ms RT=2.41 obs=5
+  [t=101.0] mode=TRANSIT pos=(-2504.2,-2608.0) psi= +29.4deg wp=4 xte=-24.1m obs_d=42m comp=2394.6ms RT=2.39 obs=5
+  [t=102.0] mode=TRANSIT pos=(-2502.8,-2607.5) psi= +28.8deg wp=4 xte=-25.3m obs_d=43m comp=2280.7ms RT=2.28 obs=5
+  [t=103.0] mode=TRANSIT pos=(-2501.4,-2607.1) psi= +28.2deg wp=4 xte=-26.4m obs_d=43m comp=2134.6ms RT=2.13 obs=5
+  [t=104.0] mode=TRANSIT pos=(-2500.0,-2606.7) psi= +27.5deg wp=4 xte=-27.5m obs_d=43m comp=2230.0ms RT=2.23 obs=5
+  [t=105.0] mode=TRANSIT pos=(-2498.6,-2606.3) psi= +26.9deg wp=4 xte=-28.6m obs_d=44m comp=2371.1ms RT=2.37 obs=5
+  [t=106.0] mode=TRANSIT pos=(-2497.3,-2605.9) psi= +26.3deg wp=4 xte=-29.6m obs_d=44m comp=2410.7ms RT=2.41 obs=5
+  [t=107.0] mode=TRANSIT pos=(-2495.9,-2605.6) psi= +25.6deg wp=4 xte=-30.6m obs_d=45m comp=2394.9ms RT=2.39 obs=5
+  [t=108.0] mode=TRANSIT pos=(-2494.6,-2605.2) psi= +25.0deg wp=4 xte=-31.6m obs_d=45m comp=2370.2ms RT=2.37 obs=5
+  [t=109.0] mode=TRANSIT pos=(-2493.3,-2604.9) psi= +24.4deg wp=4 xte=-32.6m obs_d=46m comp=2313.2ms RT=2.31 obs=5
+  [t=110.0] mode=TRANSIT pos=(-2492.0,-2604.7) psi= +23.8deg wp=4 xte=-33.5m obs_d=46m comp=2137.1ms RT=2.14 obs=5
+  [t=111.0] mode=TRANSIT pos=(-2490.7,-2604.4) psi= +23.1deg wp=4 xte=-34.4m obs_d=47m comp=1935.6ms RT=1.94 obs=5
+  [t=112.0] mode=TRANSIT pos=(-2489.5,-2604.2) psi= +22.5deg wp=4 xte=-35.3m obs_d=47m comp=2402.7ms RT=2.40 obs=5
+  [t=113.0] mode=TRANSIT pos=(-2488.2,-2604.0) psi= +21.9deg wp=4 xte=-36.1m obs_d=47m comp=1890.5ms RT=1.89 obs=5
+  [t=114.0] mode=TRANSIT pos=(-2487.0,-2603.8) psi= +21.3deg wp=4 xte=-36.9m obs_d=48m comp=1753.4ms RT=1.75 obs=5
+  [t=115.0] mode=TRANSIT pos=(-2485.7,-2603.7) psi= +20.7deg wp=4 xte=-37.7m obs_d=48m comp=1725.0ms RT=1.72 obs=5
+  [t=116.0] mode=TRANSIT pos=(-2484.5,-2603.5) psi= +20.1deg wp=4 xte=-38.5m obs_d=49m comp=1740.1ms RT=1.74 obs=5
+  [t=117.0] mode=TRANSIT pos=(-2483.3,-2603.4) psi= +19.5deg wp=4 xte=-39.3m obs_d=49m comp=1762.0ms RT=1.76 obs=5
+  [t=118.0] mode=TRANSIT pos=(-2482.1,-2603.3) psi= +19.0deg wp=4 xte=-40.0m obs_d=50m comp=1909.4ms RT=1.91 obs=5
+  [t=119.0] mode=TRANSIT pos=(-2480.9,-2603.3) psi= +18.4deg wp=4 xte=-40.7m obs_d=50m comp=1701.3ms RT=1.70 obs=5
+  [t=120.0] mode=TRANSIT pos=(-2479.7,-2603.2) psi= +17.8deg wp=4 xte=-41.3m obs_d=51m comp=1875.8ms RT=1.88 obs=5
+  [t=121.0] mode=TRANSIT pos=(-2478.5,-2603.2) psi= +17.2deg wp=4 xte=-42.0m obs_d=52m comp=1803.6ms RT=1.80 obs=5
+  [t=122.0] mode=TRANSIT pos=(-2477.3,-2603.2) psi= +16.7deg wp=4 xte=-42.6m obs_d=52m comp=1801.3ms RT=1.80 obs=5
+  [t=123.0] mode=TRANSIT pos=(-2476.1,-2603.2) psi= +16.1deg wp=4 xte=-43.2m obs_d=53m comp=1908.8ms RT=1.91 obs=5
+  [t=124.0] mode=TRANSIT pos=(-2474.9,-2603.2) psi= +15.6deg wp=4 xte=-43.9m obs_d=53m comp=1926.4ms RT=1.93 obs=5
+  [t=125.0] mode=TRANSIT pos=(-2473.6,-2603.2) psi= +15.1deg wp=4 xte=-44.5m obs_d=54m comp=1662.5ms RT=1.66 obs=5
+  [t=126.0] mode=TRANSIT pos=(-2472.2,-2603.2) psi= +14.5deg wp=4 xte=-45.1m obs_d=54m comp=2333.9ms RT=2.33 obs=5
+  [t=127.0] mode=TRANSIT pos=(-2470.8,-2603.2) psi= +14.0deg wp=4 xte=-45.8m obs_d=55m comp=3798.3ms RT=3.80 obs=5
+  [t=128.0] mode=TRANSIT pos=(-2469.3,-2603.3) psi= +13.5deg wp=4 xte=-46.5m obs_d=56m comp=2340.2ms RT=2.34 obs=5
+  [t=129.0] mode=TRANSIT pos=(-2467.8,-2603.3) psi= +13.0deg wp=4 xte=-47.3m obs_d=57m comp=1880.1ms RT=1.88 obs=5
+  [t=130.0] mode=TRANSIT pos=(-2466.1,-2603.3) psi= +12.5deg wp=4 xte=-48.1m obs_d=58m comp=2976.5ms RT=2.98 obs=5
+  [t=131.0] mode=TRANSIT pos=(-2464.3,-2603.3) psi= +12.1deg wp=4 xte=-48.9m obs_d=59m comp=1743.2ms RT=1.74 obs=5
+  [t=132.0] mode=TRANSIT pos=(-2462.5,-2603.4) psi= +11.8deg wp=4 xte=-49.8m obs_d=60m comp=1697.7ms RT=1.70 obs=5
+[DEBUG] t=133.0 TRIGGERS: xte=-50.7 | pos=(-2462.5,-2603.4) psi= +11.8deg vel=( 1.88,-0.49,-0.005) wp=4 xte=-50.7m obs_d=60m RT=NaN success=1
+         cost=3.23e+06 solve=1745.2ms max_slack=0.24 sum_slack=7.22
+  [t=133.0] mode=TRANSIT pos=(-2460.5,-2603.5) psi= +11.5deg wp=4 xte=-50.7m obs_d=61m comp=1750.0ms RT=1.75 obs=5
+[DEBUG] t=134.0 TRIGGERS: xte=-51.6 | pos=(-2460.5,-2603.5) psi= +11.5deg vel=( 1.97,-0.55,-0.004) wp=4 xte=-51.6m obs_d=61m RT=NaN success=1
+         cost=3.16e+06 solve=1853.6ms max_slack=0.24 sum_slack=5.02
+  [t=134.0] mode=TRANSIT pos=(-2458.4,-2603.7) psi= +11.3deg wp=4 xte=-51.6m obs_d=62m comp=1861.9ms RT=1.86 obs=5
+[DEBUG] t=135.0 TRIGGERS: xte=-52.6 | pos=(-2458.4,-2603.7) psi= +11.3deg vel=( 2.04,-0.63,-0.002) wp=4 xte=-52.6m obs_d=62m RT=NaN success=1
+         cost=3.09e+06 solve=1715.4ms max_slack=0.24 sum_slack=5.78
+  [t=135.0] mode=TRANSIT pos=(-2456.2,-2603.9) psi= +11.2deg wp=4 xte=-52.6m obs_d=64m comp=1719.7ms RT=1.72 obs=5
+[DEBUG] t=136.0 TRIGGERS: xte=-53.5 | pos=(-2456.2,-2603.9) psi= +11.2deg vel=( 2.09,-0.71,-0.000) wp=4 xte=-53.5m obs_d=64m RT=NaN success=1
+         cost=3.01e+06 solve=1727.8ms max_slack=0.25 sum_slack=7.52
+  [t=136.0] mode=TRANSIT pos=(-2454.0,-2604.3) psi= +11.3deg wp=4 xte=-53.5m obs_d=65m comp=1732.7ms RT=1.73 obs=5
+[DEBUG] t=137.0 TRIGGERS: xte=-54.3 | pos=(-2454.0,-2604.3) psi= +11.3deg vel=( 2.10,-0.80,0.001) wp=4 xte=-54.3m obs_d=65m RT=NaN success=1
+         cost=2.92e+06 solve=1843.4ms max_slack=0.26 sum_slack=5.11
+  [t=137.0] mode=TRANSIT pos=(-2451.8,-2604.7) psi= +11.4deg wp=4 xte=-54.3m obs_d=66m comp=1949.9ms RT=1.95 obs=5
+[DEBUG] t=138.0 TRIGGERS: xte=-55.1 | pos=(-2451.8,-2604.7) psi= +11.4deg vel=( 2.08,-0.90,0.003) wp=4 xte=-55.1m obs_d=66m RT=NaN success=1
+         cost=2.84e+06 solve=1739.2ms max_slack=0.28 sum_slack=6.56
+  [t=138.0] mode=TRANSIT pos=(-2449.6,-2605.2) psi= +11.6deg wp=4 xte=-55.1m obs_d=67m comp=1757.5ms RT=1.76 obs=5
+[DEBUG] t=139.0 TRIGGERS: xte=-55.8 | pos=(-2449.6,-2605.2) psi= +11.6deg vel=( 2.04,-0.99,0.005) wp=4 xte=-55.8m obs_d=67m RT=NaN success=1
+         cost=1.09e+07 solve=2168.0ms max_slack=0.27 sum_slack=0.89
+  [t=139.0] mode=BERTH pos=(-2447.4,-2605.8) psi= +11.9deg wp=4 xte=-55.8m obs_d=69m comp=2207.7ms RT=2.21 obs=5
+[DEBUG] t=140.0 TRIGGERS: xte=-56.4 | pos=(-2447.4,-2605.8) psi= +11.9deg vel=( 2.10,-1.07,0.006) wp=4 xte=-56.4m obs_d=69m RT=NaN success=1
+         cost=1.02e+07 solve=2404.6ms max_slack=0.15 sum_slack=11.49
+  [t=140.0] mode=BERTH pos=(-2445.0,-2606.4) psi= +12.3deg wp=4 xte=-56.4m obs_d=70m comp=2450.3ms RT=2.45 obs=6
+[DEBUG] t=141.0 TRIGGERS: xte=-57.1 | pos=(-2445.0,-2606.4) psi= +12.3deg vel=( 2.25,-1.09,0.006) wp=4 xte=-57.1m obs_d=70m RT=NaN success=1
+         cost=9.54e+06 solve=1994.2ms max_slack=0.02 sum_slack=5.69
+  [t=141.0] mode=BERTH pos=(-2442.5,-2606.9) psi= +12.6deg wp=4 xte=-57.1m obs_d=72m comp=2007.4ms RT=2.01 obs=6
+[DEBUG] t=142.0 TRIGGERS: xte=-57.9 | pos=(-2442.5,-2606.9) psi= +12.6deg vel=( 2.46,-1.09,0.006) wp=4 xte=-57.9m obs_d=72m RT=NaN success=1
+         cost=8.93e+06 solve=1997.3ms max_slack=0.02 sum_slack=6.93
+  [t=142.0] mode=BERTH pos=(-2439.7,-2607.4) psi= +13.0deg wp=4 xte=-57.9m obs_d=74m comp=2003.7ms RT=2.00 obs=6
+[DEBUG] t=143.0 TRIGGERS: xte=-59.0 | pos=(-2439.7,-2607.4) psi= +13.0deg vel=( 2.75,-1.09,0.006) wp=4 xte=-59.0m obs_d=74m RT=NaN success=1
+         cost=8.31e+06 solve=1933.7ms max_slack=0.03 sum_slack=8.28
+  [t=143.0] mode=BERTH pos=(-2436.6,-2607.8) psi= +13.3deg wp=4 xte=-59.0m obs_d=76m comp=1941.9ms RT=1.94 obs=6
+[DEBUG] t=144.0 TRIGGERS: xte=-60.2 | pos=(-2436.6,-2607.8) psi= +13.3deg vel=( 3.10,-1.07,0.005) wp=4 xte=-60.2m obs_d=76m RT=NaN success=1
+         cost=7.73e+06 solve=1854.7ms max_slack=0.03 sum_slack=9.18
+  [t=144.0] mode=BERTH pos=(-2433.2,-2608.1) psi= +13.5deg wp=4 xte=-60.2m obs_d=79m comp=1875.2ms RT=1.88 obs=6
+[DEBUG] t=145.0 TRIGGERS: xte=-61.8 | pos=(-2433.2,-2608.1) psi= +13.5deg vel=( 3.50,-1.01,0.004) wp=4 xte=-61.8m obs_d=79m RT=NaN success=1
+         cost=7.13e+06 solve=2038.0ms max_slack=0.02 sum_slack=5.19
+  [t=145.0] mode=BERTH pos=(-2429.3,-2608.1) psi= +13.7deg wp=4 xte=-61.8m obs_d=82m comp=2052.4ms RT=2.05 obs=6
+[DEBUG] t=146.0 TRIGGERS: xte=-63.7 | pos=(-2429.3,-2608.1) psi= +13.7deg vel=( 3.89,-0.92,0.002) wp=4 xte=-63.7m obs_d=82m RT=NaN success=1
+         cost=6.58e+06 solve=2355.6ms max_slack=0.02 sum_slack=7.00
+  [t=146.0] mode=BERTH pos=(-2425.2,-2608.0) psi= +13.8deg wp=4 xte=-63.7m obs_d=86m comp=2361.2ms RT=2.36 obs=6
+[DEBUG] t=147.0 TRIGGERS: xte=-65.9 | pos=(-2425.2,-2608.0) psi= +13.8deg vel=( 4.28,-0.80,-0.000) wp=4 xte=-65.9m obs_d=86m RT=NaN success=1
+         cost=6.03e+06 solve=2304.9ms max_slack=0.02 sum_slack=5.54
+  [t=147.0] mode=BERTH pos=(-2420.6,-2607.7) psi= +13.7deg wp=4 xte=-65.9m obs_d=90m comp=2310.3ms RT=2.31 obs=6
+[DEBUG] t=148.0 TRIGGERS: xte=-68.6 | pos=(-2420.6,-2607.7) psi= +13.7deg vel=( 4.68,-0.69,-0.002) wp=4 xte=-68.6m obs_d=90m RT=NaN success=1
+         cost=5.51e+06 solve=2132.3ms max_slack=0.02 sum_slack=6.43
+  [t=148.0] mode=BERTH pos=(-2415.7,-2607.1) psi= +13.5deg wp=4 xte=-68.6m obs_d=95m comp=2139.6ms RT=2.14 obs=6
+[DEBUG] t=149.0 TRIGGERS: xte=-71.5 | pos=(-2415.7,-2607.1) psi= +13.5deg vel=( 5.07,-0.59,-0.004) wp=4 xte=-71.5m obs_d=95m RT=NaN success=1
+         cost=5e+06 solve=2082.8ms max_slack=0.02 sum_slack=7.01
+  [t=149.0] mode=BERTH pos=(-2410.5,-2606.4) psi= +13.3deg wp=4 xte=-71.5m obs_d=100m comp=2089.4ms RT=2.09 obs=6
+[DEBUG] t=150.0 TRIGGERS: xte=-74.8 | pos=(-2410.5,-2606.4) psi= +13.3deg vel=( 5.47,-0.50,-0.004) wp=4 xte=-74.8m obs_d=100m RT=NaN success=1
+         cost=4.52e+06 solve=2126.0ms max_slack=0.02 sum_slack=5.89
+  [t=150.0] mode=BERTH pos=(-2404.9,-2605.6) psi= +13.0deg wp=4 xte=-74.8m obs_d=105m comp=2131.0ms RT=2.13 obs=6
+[DEBUG] t=151.0 TRIGGERS: sum_soft_slack=462.58, xte=-78.4 | pos=(-2404.9,-2605.6) psi= +13.0deg vel=( 5.85,-0.42,-0.005) wp=4 xte=-78.4m obs_d=105m RT=NaN success=1
+         cost=4.48e+07 solve=2574.3ms max_slack=2.73 sum_slack=462.58
+  [t=151.0] mode=BERTH pos=(-2398.9,-2604.6) psi= +12.8deg wp=4 xte=-78.4m obs_d=111m comp=2600.7ms RT=2.60 obs=6
+[DEBUG] t=152.0 TRIGGERS: sum_soft_slack=446.99, xte=-82.3 | pos=(-2398.9,-2604.6) psi= +12.8deg vel=( 6.23,-0.42,-0.003) wp=4 xte=-82.3m obs_d=111m RT=NaN success=1
+         cost=4.1e+07 solve=2605.8ms max_slack=2.60 sum_slack=446.99
+  [t=152.0] mode=BERTH pos=(-2392.6,-2603.6) psi= +12.7deg wp=4 xte=-82.3m obs_d=117m comp=2686.5ms RT=2.69 obs=6
+[DEBUG] t=153.0 TRIGGERS: sum_soft_slack=463.66, xte=-86.5 | pos=(-2392.6,-2603.6) psi= +12.7deg vel=( 6.58,-0.42,-0.002) wp=4 xte=-86.5m obs_d=117m RT=NaN success=1
+         cost=4.85e+07 solve=2496.0ms max_slack=2.95 sum_slack=463.66
+  [t=153.0] mode=BERTH pos=(-2385.9,-2602.6) psi= +12.6deg wp=4 xte=-86.5m obs_d=124m comp=2503.8ms RT=2.50 obs=6
+[DEBUG] t=154.0 TRIGGERS: sum_soft_slack=428.10, xte=-90.8 | pos=(-2385.9,-2602.6) psi= +12.6deg vel=( 6.88,-0.48,0.000) wp=4 xte=-90.8m obs_d=124m RT=NaN success=1
+         cost=3.93e+07 solve=2604.2ms max_slack=3.03 sum_slack=428.10
+  [t=154.0] mode=BERTH pos=(-2378.9,-2601.5) psi= +12.7deg wp=4 xte=-90.8m obs_d=130m comp=2609.4ms RT=2.61 obs=6
+[DEBUG] t=155.0 TRIGGERS: sum_soft_slack=437.01, xte=-95.3 | pos=(-2378.9,-2601.5) psi= +12.7deg vel=( 7.16,-0.49,0.001) wp=4 xte=-95.3m obs_d=130m RT=NaN success=1
+         cost=4.01e+07 solve=2640.3ms max_slack=3.14 sum_slack=437.01
+  [t=155.0] mode=BERTH pos=(-2371.7,-2600.5) psi= +12.8deg wp=4 xte=-95.3m obs_d=138m comp=2647.0ms RT=2.65 obs=6
+[DEBUG] t=156.0 TRIGGERS: sum_soft_slack=441.54, xte=-99.9 | pos=(-2371.7,-2600.5) psi= +12.8deg vel=( 7.36,-0.57,0.003) wp=4 xte=-99.9m obs_d=138m RT=NaN success=1
+         cost=3.78e+07 solve=2512.6ms max_slack=3.25 sum_slack=441.54
+  [t=156.0] mode=BERTH pos=(-2364.3,-2599.4) psi= +13.0deg wp=4 xte=-99.9m obs_d=145m comp=2530.2ms RT=2.53 obs=6
+[DEBUG] t=157.0 TRIGGERS: sum_soft_slack=494.02, xte=-104.6 | pos=(-2364.3,-2599.4) psi= +13.0deg vel=( 7.52,-0.65,0.005) wp=4 xte=-104.6m obs_d=145m RT=NaN success=1
+         cost=4.55e+07 solve=2699.3ms max_slack=3.36 sum_slack=494.02
+  [t=157.0] mode=BERTH pos=(-2356.8,-2598.4) psi= +13.3deg wp=4 xte=-104.6m obs_d=152m comp=2705.2ms RT=2.71 obs=6
+[DEBUG] t=158.0 TRIGGERS: sum_soft_slack=567.36, xte=-109.4 | pos=(-2356.8,-2598.4) psi= +13.3deg vel=( 7.61,-0.76,0.007) wp=4 xte=-109.4m obs_d=152m RT=NaN success=1
+         cost=5.96e+07 solve=2545.6ms max_slack=3.47 sum_slack=567.36
+  [t=158.0] mode=BERTH pos=(-2349.2,-2597.4) psi= +13.8deg wp=4 xte=-109.4m obs_d=160m comp=2550.3ms RT=2.55 obs=6
+[DEBUG] t=159.0 TRIGGERS: sum_soft_slack=568.30, xte=-114.1 | pos=(-2349.2,-2597.4) psi= +13.8deg vel=( 7.61,-0.91,0.009) wp=4 xte=-114.1m obs_d=160m RT=NaN success=1
+         cost=5.71e+07 solve=2976.6ms max_slack=3.58 sum_slack=568.30
+  [t=159.0] mode=BERTH pos=(-2341.6,-2596.5) psi= +14.4deg wp=4 xte=-114.1m obs_d=167m comp=2981.3ms RT=2.98 obs=6
+[DEBUG] t=160.0 TRIGGERS: sum_soft_slack=581.99, xte=-118.8 | pos=(-2341.6,-2596.5) psi= +14.4deg vel=( 7.64,-1.01,0.010) wp=4 xte=-118.8m obs_d=167m RT=NaN success=1
+         cost=5.97e+07 solve=2596.7ms max_slack=3.69 sum_slack=581.99
+  [t=160.0] mode=BERTH pos=(-2333.9,-2595.6) psi= +15.0deg wp=4 xte=-118.8m obs_d=175m comp=2601.4ms RT=2.60 obs=6
+[DEBUG] t=161.0 TRIGGERS: sum_soft_slack=589.58, xte=-123.6 | pos=(-2333.9,-2595.6) psi= +15.0deg vel=( 7.64,-1.11,0.011) wp=4 xte=-123.6m obs_d=175m RT=NaN success=1
+         cost=6.23e+07 solve=2432.1ms max_slack=3.81 sum_slack=589.58
+  [t=161.0] mode=BERTH pos=(-2326.3,-2594.7) psi= +15.6deg wp=4 xte=-123.6m obs_d=182m comp=2437.5ms RT=2.44 obs=6
+[DEBUG] t=162.0 TRIGGERS: sum_soft_slack=624.62, xte=-128.3 | pos=(-2326.3,-2594.7) psi= +15.6deg vel=( 7.59,-1.24,0.012) wp=4 xte=-128.3m obs_d=182m RT=NaN success=1
+         cost=6.66e+07 solve=2965.4ms max_slack=3.90 sum_slack=624.62
+  [t=162.0] mode=BERTH pos=(-2318.6,-2593.8) psi= +16.3deg wp=4 xte=-128.3m obs_d=190m comp=2970.4ms RT=2.97 obs=6
+[DEBUG] t=163.0 TRIGGERS: sum_soft_slack=670.04, xte=-132.9 | pos=(-2318.6,-2593.8) psi= +16.3deg vel=( 7.57,-1.36,0.013) wp=4 xte=-132.9m obs_d=190m RT=NaN success=1
+         cost=7.8e+07 solve=2451.9ms max_slack=4.03 sum_slack=670.04
+  [t=163.0] mode=BERTH pos=(-2310.9,-2593.0) psi= +17.1deg wp=4 xte=-132.9m obs_d=187m comp=2457.3ms RT=2.46 obs=6
+[DEBUG] t=164.0 TRIGGERS: sum_soft_slack=686.63, xte=-137.6 | pos=(-2310.9,-2593.0) psi= +17.1deg vel=( 7.59,-1.47,0.014) wp=4 xte=-137.6m obs_d=184m RT=NaN success=1
+         cost=8.38e+07 solve=2774.6ms max_slack=4.14 sum_slack=686.63
+  [t=164.0] mode=BERTH pos=(-2303.3,-2592.2) psi= +17.9deg wp=4 xte=-137.6m obs_d=181m comp=2780.0ms RT=2.78 obs=6
+[DEBUG] t=165.0 TRIGGERS: sum_soft_slack=661.28, xte=-142.2 | pos=(-2303.3,-2592.2) psi= +17.9deg vel=( 7.58,-1.59,0.015) wp=4 xte=-142.2m obs_d=178m RT=NaN success=1
+         cost=7.33e+07 solve=2498.3ms max_slack=4.25 sum_slack=661.28
+  [t=165.0] mode=BERTH pos=(-2295.6,-2591.4) psi= +18.8deg wp=4 xte=-142.2m obs_d=176m comp=2503.2ms RT=2.50 obs=6
+[DEBUG] t=166.0 TRIGGERS: sum_soft_slack=687.00, xte=-146.9 | pos=(-2295.6,-2591.4) psi= +18.8deg vel=( 7.50,-1.72,0.016) wp=4 xte=-146.9m obs_d=173m RT=NaN success=1
+         cost=7.85e+07 solve=2642.3ms max_slack=4.37 sum_slack=687.00
+  [t=166.0] mode=BERTH pos=(-2288.0,-2590.6) psi= +19.7deg wp=4 xte=-146.9m obs_d=171m comp=2647.3ms RT=2.65 obs=6
+[DEBUG] t=167.0 TRIGGERS: sum_soft_slack=693.59, xte=-151.5 | pos=(-2288.0,-2590.6) psi= +19.7deg vel=( 7.40,-1.82,0.016) wp=4 xte=-151.5m obs_d=169m RT=NaN success=1
+         cost=8.04e+07 solve=3207.7ms max_slack=4.48 sum_slack=693.59
+  [t=167.0] mode=BERTH pos=(-2280.4,-2589.8) psi= +20.7deg wp=4 xte=-151.5m obs_d=167m comp=3213.5ms RT=3.21 obs=6
+[DEBUG] t=168.0 TRIGGERS: sum_soft_slack=664.48, xte=-156.0 | pos=(-2280.4,-2589.8) psi= +20.7deg vel=( 7.28,-1.91,0.017) wp=4 xte=-156.0m obs_d=165m RT=NaN success=1
+         cost=7.36e+07 solve=2972.4ms max_slack=4.59 sum_slack=664.48
+  [t=168.0] mode=BERTH pos=(-2273.0,-2589.0) psi= +21.6deg wp=4 xte=-156.0m obs_d=164m comp=2980.8ms RT=2.98 obs=6
+[DEBUG] t=169.0 TRIGGERS: sum_soft_slack=691.41, xte=-160.5 | pos=(-2273.0,-2589.0) psi= +21.6deg vel=( 7.21,-1.97,0.016) wp=4 xte=-160.5m obs_d=162m RT=NaN success=1
+         cost=7.94e+07 solve=2343.9ms max_slack=4.70 sum_slack=691.41
+  [t=169.0] mode=BERTH pos=(-2265.6,-2588.2) psi= +22.6deg wp=4 xte=-160.5m obs_d=161m comp=2348.9ms RT=2.35 obs=6
+[DEBUG] t=170.0 TRIGGERS: sum_soft_slack=737.14, xte=-165.0 | pos=(-2265.6,-2588.2) psi= +22.6deg vel=( 7.11,-2.05,0.017) wp=4 xte=-165.0m obs_d=160m RT=NaN success=1
+         cost=9.03e+07 solve=2692.1ms max_slack=4.79 sum_slack=737.14
+  [t=170.0] mode=BERTH pos=(-2258.3,-2587.3) psi= +23.6deg wp=4 xte=-165.0m obs_d=160m comp=2697.7ms RT=2.70 obs=6
+[DEBUG] t=171.0 TRIGGERS: sum_soft_slack=747.73, xte=-169.5 | pos=(-2258.3,-2587.3) psi= +23.6deg vel=( 7.01,-2.13,0.018) wp=4 xte=-169.5m obs_d=158m RT=NaN success=1
+         cost=9.35e+07 solve=2866.0ms max_slack=4.91 sum_slack=747.73
+  [t=171.0] mode=BERTH pos=(-2251.0,-2586.5) psi= +24.6deg wp=4 xte=-169.5m obs_d=159m comp=2871.3ms RT=2.87 obs=6
+[DEBUG] t=172.0 TRIGGERS: sum_soft_slack=731.73, xte=-174.0 | pos=(-2251.0,-2586.5) psi= +24.6deg vel=( 6.96,-2.19,0.018) wp=4 xte=-174.0m obs_d=157m RT=NaN success=1
+         cost=9.35e+07 solve=2570.1ms max_slack=5.01 sum_slack=731.73
+  [t=172.0] mode=BERTH pos=(-2243.8,-2585.5) psi= +25.6deg wp=4 xte=-174.0m obs_d=159m comp=2575.5ms RT=2.58 obs=6
+[DEBUG] t=173.0 TRIGGERS: sum_soft_slack=771.34, xte=-178.5 | pos=(-2243.8,-2585.5) psi= +25.6deg vel=( 6.90,-2.24,0.018) wp=4 xte=-178.5m obs_d=158m RT=NaN success=1
+         cost=1e+08 solve=2394.8ms max_slack=5.12 sum_slack=771.34
+  [t=173.0] mode=BERTH pos=(-2236.6,-2584.6) psi= +26.6deg wp=4 xte=-178.5m obs_d=159m comp=2399.3ms RT=2.40 obs=6
+[DEBUG] t=174.0 TRIGGERS: sum_soft_slack=786.98, xte=-183.0 | pos=(-2236.6,-2584.6) psi= +26.6deg vel=( 6.81,-2.29,0.018) wp=4 xte=-183.0m obs_d=159m RT=NaN success=1
+         cost=1.04e+08 solve=2791.4ms max_slack=4.33 sum_slack=786.98
+  [t=174.0] mode=BERTH pos=(-2229.6,-2583.5) psi= +27.6deg wp=4 xte=-183.0m obs_d=161m comp=2795.8ms RT=2.80 obs=6
+[DEBUG] t=175.0 TRIGGERS: sum_soft_slack=774.79, xte=-187.5 | pos=(-2229.6,-2583.5) psi= +27.6deg vel=( 6.70,-2.33,0.018) wp=4 xte=-187.5m obs_d=160m RT=NaN success=1
+         cost=1.06e+08 solve=2269.5ms max_slack=5.58 sum_slack=774.79
+  [t=175.0] mode=BERTH pos=(-2222.6,-2582.5) psi= +28.6deg wp=4 xte=-187.5m obs_d=163m comp=2274.0ms RT=2.27 obs=6
+[DEBUG] t=176.0 TRIGGERS: sum_soft_slack=862.71, xte=-192.1 | pos=(-2222.6,-2582.5) psi= +28.6deg vel=( 6.61,-2.34,0.017) wp=4 xte=-192.1m obs_d=163m RT=NaN success=1
+         cost=1.26e+08 solve=2319.4ms max_slack=5.91 sum_slack=862.71
+  [COLLISION] t=176.0 s hit_obs=0 hit_map=1 (static=0 map_samples=0 dyn_latent=0 dyn_real=0)

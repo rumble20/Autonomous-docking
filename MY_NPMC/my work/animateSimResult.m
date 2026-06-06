@@ -98,7 +98,6 @@ recordVideo = cfgGet(cfg, 'recordVideo', false);
 recordGif = cfgGet(cfg, 'recordGif', false);
 recordFps = cfgGet(cfg, 'recordFps', 15);
 videoFile = cfgGet(cfg, 'videoFile', 'nmpc_run.mp4');
-followCamera = cfgGet(cfg, 'followCamera', false);
 gifFile = cfgGet(cfg, 'gifFile', 'nmpc_run.gif');
 plannedRoutes = cfgGet(cfg, 'plannedRoutes', []);
 plannedRouteMaxHistory = cfgGet(cfg, 'plannedRouteMaxHistory', 6);
@@ -607,15 +606,6 @@ for k = 1:length(idx)
     % Update time stamp
     if i <= length(t_vec)
         set(hTime, 'String', sprintf('t = %.0f s', t_vec(i)));
-    end
-
-    if followCamera
-        xlim(ax, [cy - cameraHalfSpan, cy + cameraHalfSpan]);
-        ylim(ax, [cx - cameraHalfSpan, cx + cameraHalfSpan]);
-        xlims = xlim(ax);
-        ylims = ylim(ax);
-        set(hTime, 'Position', [xlims(1) + 0.02*diff(xlims), ...
-                                ylims(2) - 0.04*diff(ylims), 0]);
     end
 
     % Update dynamic obstacles (if provided)
