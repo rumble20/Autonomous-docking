@@ -1,4 +1,4 @@
-﻿%% run_nmpc.m
+%% run_nmpc.m
 % Pure line-tracking / tube-MPC harbor navigation
 %
 % Main changes in this clean version:
@@ -363,7 +363,6 @@ plotMapBackground = @RunNmpcHelpers.plotMapBackground;
 %% NORMALIZE / SETUP ======================================================
 static_obstacles = normalizeStaticObstacles(static_obstacles);
 berth_cfg = normalizeBerthCfg(berth_cfg, waypoints);
-repoRoot = pwd;
 run_dir = fileparts(which('run_nmpc'));
 if ~isempty(run_dir)
     addpath(run_dir, '-begin');
@@ -376,7 +375,7 @@ for iwp = 1:size(waypoints, 1)
 end
 fprintf('\n');
 
-shipImgPath = fullfile(repoRoot, 'useful pictures', 'vessel_top.png');
+shipImgPath = fullfile(pwd, 'useful pictures', 'vessel_top.png');
 if ~isfile(shipImgPath)
     warning('Ship image not found. Animation will use fallback shape.');
 end

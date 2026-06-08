@@ -216,8 +216,8 @@ classdef NMPC_Container_final < handle
 
         function buildSolver(obj)
 
-            casadiPathWindows = fullfile(repoRoot, 'tools', 'casadi-3.6.4-windows64-matlab2018b');
-            casadiPathLinux   = fullfile(repoRoot, 'tools', 'casadi-3.7.2-linux64-matlab2018b');
+            casadiPathWindows = fullfile(pwd, 'tools', 'casadi-3.6.4-windows64-matlab2018b');
+            casadiPathLinux   = fullfile(pwd, 'tools', 'casadi-3.7.2-linux64-matlab2018b');
 
             if ispc && exist(casadiPathWindows, 'dir')
                 addpath(casadiPathWindows);
