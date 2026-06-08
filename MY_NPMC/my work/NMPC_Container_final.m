@@ -215,6 +215,20 @@ classdef NMPC_Container_final < handle
         end
 
         function buildSolver(obj)
+
+            casadiPathWindows = fullfile(repoRoot, 'tools', 'casadi-3.6.4-windows64-matlab2018b');
+            casadiPathLinux   = fullfile(repoRoot, 'tools', 'casadi-3.7.2-linux64-matlab2018b');
+
+            if ispc && exist(casadiPathWindows, 'dir')
+                addpath(casadiPathWindows);
+                disp('CasADi for windows loaded.');
+            elseif isunix && exist(casadiPathLinux, 'dir')
+                addpath(casadiPathLinux);
+                disp('CasADi for linux loaded.');
+            else
+                error('CasADi not found for your platform.');
+            end 
+
             import casadi.*
 
             N_h = obj.N;

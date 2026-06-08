@@ -22,10 +22,10 @@ log_lines = {};
 % Add a couple of bend-staging points so the first leg change is less abrupt.
 % The penultimate point is still a staging point north of the berth so the
 % last segment becomes a real final docking leg instead of a shallow transit leg.
-waypoints = [-3000, -2800; -2700, -2650; -2600, -2625; -2500, -2640; -2400, -2700; -2250, -2800; -2000, -2500; -2150, -2600];
+waypoints = [-3000, -2800; -2700, -2650; -2600, -2625; -2500, -2640; -2400, -2700; -2250, -2700; -2220, -2620; -2000, -2500; -2150, -2600];
 
 % Static obstacles: N-by-3 [x y radius] or struct array.
-static_obstacles = [-2500, -2650, 30];
+static_obstacles = [-2100, -2700, 30];
 
 % Dynamic obstacles.
 dynamic_obs_positions_xy = [-2100, -2800];

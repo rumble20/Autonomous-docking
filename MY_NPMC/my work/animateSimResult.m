@@ -77,6 +77,11 @@ function animateSimResult(traj, waypoints, t_vec, harbor, cfg)
 %  Persistent image cache (loaded once, fixed orientation)
 persistent cachedImgFile shipImg shipAlpha shipWidthPx shipHeightPx shipEffWidthPx shipEffHeightPx
 
+if isempty(shipWidthPx), shipWidthPx = 1; end
+if isempty(shipHeightPx), shipHeightPx = 1; end
+if isempty(shipEffWidthPx), shipEffWidthPx = shipWidthPx; end
+if isempty(shipEffHeightPx), shipEffHeightPx = shipHeightPx; end
+
 %  0. Parse configuration
 if nargin < 5 || isempty(cfg), cfg = struct(); end
 
@@ -164,6 +169,12 @@ if isempty(cachedImgFile) || ~strcmp(imgFile, cachedImgFile) || isempty(shipImg)
 
     if isempty(imgFile) || ~isfile(imgFile)
         fprintf('  [animateSimResult] WARNING: image not found: "%s"\n  >> Falling back to triangle icon.\n', imgFile);
+        shipImg = [];
+        shipAlpha = [];
+        shipWidthPx = 1;
+        shipHeightPx = 1;
+        shipEffWidthPx = 1;
+        shipEffHeightPx = 1;
         useImage = false;
     else
         fprintf('  [animateSimResult] Loading ship icon: "%s"...\n', imgFile);
@@ -208,6 +219,11 @@ if isempty(cachedImgFile) || ~strcmp(imgFile, cachedImgFile) || isempty(shipImg)
         catch ME
             fprintf('  [animateSimResult] WARNING: could not load image: %s\n  >> Falling back to triangle icon.\n', ME.message);
             shipImg  = [];
+            shipAlpha = [];
+            shipWidthPx = 1;
+            shipHeightPx = 1;
+            shipEffWidthPx = 1;
+            shipEffHeightPx = 1;
             useImage = false;
         end
     end
@@ -508,6 +524,8 @@ drawnow;
 writerObj = [];
 gifInitialized = false;
 videoFileSaved = videoFile;
+videoTargetFrameSize = [];
+videoSizeAdjustWarned = false;
 if recordVideo
     [vdir, ~, ~] = fileparts(videoFile);
     if ~isempty(vdir) && ~exist(vdir, 'dir')
@@ -738,7 +756,13 @@ for k = 1:length(idx)
         try
             frame = getframe(hFig);
             if recordVideo && ~isempty(writerObj)
-                writeVideo(writerObj, frame);
+                [frameVideo, videoTargetFrameSize, frameAdjusted] = normalizeVideoFrameSize(frame, videoTargetFrameSize, theme.figBg);
+                if frameAdjusted && ~videoSizeAdjustWarned
+                    fprintf(['  [animateSimResult] Video frame size changed during capture; ', ...
+                        'auto-adjusting frames to %dx%d.\n'], videoTargetFrameSize(2), videoTargetFrameSize(1));
+                    videoSizeAdjustWarned = true;
+                end
+                writeVideo(writerObj, frameVideo);
             end
             if recordGif
                 [imRgb, mapGif] = rgb2ind(frame2im(frame), 256);
@@ -772,7 +796,8 @@ if recordVideo || recordGif
     try
         frame = getframe(hFig);
         if recordVideo && ~isempty(writerObj)
-            writeVideo(writerObj, frame);
+            [frameVideo, videoTargetFrameSize] = normalizeVideoFrameSize(frame, videoTargetFrameSize, theme.figBg);
+            writeVideo(writerObj, frameVideo);
         end
         if recordGif
             [imRgb, mapGif] = rgb2ind(frame2im(frame), 256);
@@ -964,4 +989,51 @@ function n = getPlanHistoryLength(planHist)
     elseif isnumeric(planHist) && ndims(planHist) == 3
         n = size(planHist, 3);
     end
+end
+
+function [frameOut, targetSize, adjusted] = normalizeVideoFrameSize(frameIn, targetSize, figBg)
+% Keep writer frame dimensions constant by center-cropping/padding if needed.
+    img = frameIn.cdata;
+    [h, w, c] = size(img);
+    if isempty(targetSize)
+        targetSize = [h, w];
+    end
+    th = targetSize(1);
+    tw = targetSize(2);
+
+    adjusted = (h ~= th) || (w ~= tw);
+    if ~adjusted
+        frameOut = frameIn;
+        return;
+    end
+
+    if nargin < 3 || isempty(figBg)
+        figBg = [0 0 0];
+    end
+    if numel(figBg) == 1
+        figBg = repmat(figBg, 1, 3);
+    end
+    if isa(img, 'double') || isa(img, 'single')
+        bg = cast(reshape(figBg(1:3), 1, 1, 3), 'like', img);
+        canvas = repmat(bg, th, tw, 1);
+    else
+        bg255 = uint8(max(0, min(255, round(255 * figBg(1:3)))));
+        canvas = repmat(reshape(bg255, 1, 1, 3), th, tw, 1);
+    end
+
+    copyH = min(h, th);
+    copyW = min(w, tw);
+    srcRows = floor((h - copyH) / 2) + (1:copyH);
+    srcCols = floor((w - copyW) / 2) + (1:copyW);
+    dstRows = floor((th - copyH) / 2) + (1:copyH);
+    dstCols = floor((tw - copyW) / 2) + (1:copyW);
+
+    if c >= 3
+        canvas(dstRows, dstCols, :) = img(srcRows, srcCols, 1:3);
+    elseif c == 1
+        canvas(dstRows, dstCols, 1) = img(srcRows, srcCols, 1);
+        canvas(dstRows, dstCols, 2) = img(srcRows, srcCols, 1);
+        canvas(dstRows, dstCols, 3) = img(srcRows, srcCols, 1);
+    end
+    frameOut = im2frame(canvas);
 end
