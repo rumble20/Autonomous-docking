@@ -212,3 +212,10 @@ DyObAv-MPCnWTA-Vessel/
 MSS/
 nmpc_casadi_python/
 Adaptive/
+
+
+# CasADi
+tools/casadi-3.6.4-windows64-matlab2018b/
+tools/casadi-3.7.2-linux64-matlab2018b/
+MY_NMPC/my work/casadi-3.7.2-linux64-matlab2018b/
+MY_NMPC/my work/casadi-3.6.4-windows64-matlab2018b/
