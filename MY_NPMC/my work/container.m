@@ -1,6 +1,6 @@
 function [xdot, U] = container(x, ui)
 % Simplified 6-DOF container ship model with twin stern azipods + bow tunnel thruster
-% Based on Son & Nomoto (1982) with roll dynamics removed and updated for a more modern container ship configuration.
+% Based on Son & Nomoto (1982) with roll dynamics removed and updated for a modern container ship configuration.
 %
 % [xdot, U] = container(x, ui) returns the speed U in m/s and the 
 % time derivative of the state vector: x = [ u v r x y psi n1 n2 n3 ]'
@@ -78,7 +78,7 @@ n_stern_max    = 160;       % Max shaft velocity for stern azipods (rpm)
 n_stern_min    = -80;       % Min shaft velocity for stern azipods (rpm) - reverse
 Dn_stern_max   = 10;        % Max shaft acceleration for stern azipods (rpm/s)
 alpha_max      = pi;        % Max azimuth angle for stern azipods (rad)
-Dalpha_max     = deg2rad(15);  % Max azimuth rate for stern azipods (rad/s) - typical for azipods
+Dalpha_max     = deg2rad(12);  % Max azimuth rate for stern azipods (rad/s) - verified as max limit for ABB
 
 % Actuator limits (BOW THRUSTER - more conservative)
 n_bow_min      = -80;       % Bow thruster reverse (same as stern for now)
@@ -386,7 +386,6 @@ end
 
 function Tm = shaft_time_constant(n_rpm)
 % SHAFT_TIME_CONSTANT Returns shaft motor time constant based on RPM
-% Based on original Son & Nomoto model
 
 if abs(n_rpm) > 18    % 0.3 rps = 18 rpm
     Tm = 5.65 / (abs(n_rpm)/60);

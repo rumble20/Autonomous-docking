@@ -44,7 +44,7 @@ classdef NMPC_Container_final < handle
         alpha_max = pi
         Dn_max = 10
         Dn_bow_max = 8
-        alpha_rate_max = deg2rad(25)
+        alpha_rate_max = deg2rad(20)
 
         % Obstacle settings
         max_obs = 5
@@ -216,8 +216,10 @@ classdef NMPC_Container_final < handle
 
         function buildSolver(obj)
 
-            casadiPathWindows = fullfile(pwd, 'tools', 'casadi-3.6.4-windows64-matlab2018b');
-            casadiPathLinux   = fullfile(pwd, 'tools', 'casadi-3.7.2-linux64-matlab2018b');
+            script_folder = fileparts(mfilename('fullpath'));
+
+            casadiPathWindows = fullfile(script_folder, 'tools', 'casadi-3.6.4-windows64-matlab2018b');
+            casadiPathLinux   = fullfile(script_folder, 'tools', 'casadi-3.7.2-linux64-matlab2018b');
 
             if ispc && exist(casadiPathWindows, 'dir')
                 addpath(casadiPathWindows);
@@ -1273,6 +1275,7 @@ classdef NMPC_Container_final < handle
             end
             info.solve_time = toc(t_start);
         end
+
         function xdot = dynamicsCasADi(obj, x, u_in)
             import casadi.*
 
